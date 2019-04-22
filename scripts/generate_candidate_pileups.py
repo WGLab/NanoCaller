@@ -93,7 +93,7 @@ def generate(chr_num,start,end,sam_path,fasta_path,out_path):
             pileups[res[2]+'-rnames']=res[1]
         saveCompressed(open(os.path.join(out_path,name), 'wb'),pileups)
         print('finishing pool:'+str(mbase))
-    return candidates
+    
     
 def saveCompressed(fh, namedict):
      with zipfile.ZipFile(fh, mode="w", compression=zipfile.ZIP_DEFLATED,

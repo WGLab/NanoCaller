@@ -110,6 +110,6 @@ if __name__ == '__main__':
         sys.exit(0)
     
     chr_num,start,end,sam_path,fasta_path,out_path=sys.argv[1:7]
-    generate(chr_num,int(start),int(end),sam_path,fasta_path)
+    generate(chr_num,int(start),int(end),sam_path,fasta_path,out_path)
     
     

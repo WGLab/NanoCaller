@@ -1,8 +1,8 @@
-<b/>generate_candidate_pileups.py<b>
+#generate_candidate_pileups.py
 
-This module allows us to generate pileup matrices for a given range of reference positions, a BAM and FASTA file. The main function is <b/> generate<b>.
+This module allows us to generate pileup matrices for a given range of reference positions, a BAM and FASTA file. The main function is  generate.
 
-<b/>generate(chr_num,start,end,sam_path,fasta_path,out_path)<b>
+generate(chr_num,start,end,sam_path,fasta_path,out_path)
 Inputs:
 chr_num - chromosome name (string)
 start - starting reference position (int)
@@ -17,7 +17,7 @@ Compressed binary files containing numpy matrices.
 This function calls get_candidates() to determine the list of candidate variant sites in the range chr_num:start-end, and stores them in a compressed binary file named 'chr_start_end_candidates.npz'. Then generate() divides the range chr_num:start-end into contiguous 1mb regions. Each region is further divided into ten parts, and pileup information for the parts
 are generated in parallel by calling create_pileup() on each 100kb subregion. 
 
-<b/>create_pileup(options)<b>
+create_pileup(options)
 Input:
 options - list containing [chr_num,start,end,sam_path,fasta_path], where start and end correspond to the 100kb subregion.
 

@@ -1,53 +1,11 @@
-import sys,pysam, time,os,re,copy,argparse
+import sys,pysam, time,os,re,copy,argparse,gzip
 from collections import Counter
 import pandas as pd
 import numpy as np
 import multiprocessing as mp
 from pysam import VariantFile
+from matplotlib import pyplot as plt
 
-def saveCompressed(fh, namedict):
-     with zipfile.ZipFile(fh, mode="w", compression=zipfile.ZIP_DEFLATED,
-                          allowZip64=True) as zf:
-        for k, v in namedict.items():
-             with zf.open(k + '.npy', 'w', force_zip64=True) as buf:
-                    np.lib.npyio.format.write_array(buf,np.asanyarray(v),allow_pickle=False)
-
-                    
-def pileup_image_from_mat(in_mat):
-        window=50
-        t=np.copy(in_mat[:,:,-1])
-        t[t>0]=-1
-        t[t==0]=1
-        t[t==-1]=0
-
-        new=np.dstack([in_mat[:,:,:5],t])
-        p_mat=np.argmax(new,2)
-        
-        #deletion=purple,  1A=green,   2G=orange,    3T=red,    4C=blue
-        color={5:np.array([[[0,0,0]]]),4:np.array([[[255, 255, 255]]]),0:np.array([[[0,   255, 0]]]),1:np.array([[[206, 132, 47]]]),2:np.array([[[255,   0, 0]]]),3:np.array([[[0,   0, 255]]])}
-        data = np.zeros((p_mat.shape[0],p_mat.shape[1], 3)).astype(int)
-        for j in range(6):
-            new=(p_mat==j).astype(int)
-            data+=np.repeat(new[:, :, np.newaxis], 3, axis=2)*color[j]
-        
-        data=np.hstack(data[:,:window,:])
-        plt.figure(figsize=(20,10))
-        plt.imshow(data)
-        plt.show()
-
-def read_pileups_from_file(fname):
-    lines={}
-    with open(fname,'r') as file:
-        for l in file:
-            [pos,gtype,rnames,m1,m2]=l.split(':')
-            rnames=rnames.split('|')
-            mm1=np.array(list(m1)).astype(np.int8).reshape((32,101,7))
-            m2=m2.replace(".", "")
-            mm2=np.array(m2.split('|')).astype(np.int8).reshape((32,101,1))
-            p_mat=np.dstack((mm1,mm2))
-
-            lines[pos]=(pos,gtype,rnames,p_mat)
-    return lines
 
 def extract_vcf(dct,mode='all',VT=['SNP']):
     chrom=dct['chrom']
@@ -58,11 +16,11 @@ def extract_vcf(dct,mode='all',VT=['SNP']):
     def gtype(num):
         if num[0]==num[1]:
             if num[0]==0:
-                return 'hom-ref'
+                return 0
             else:
-                return 'hom-alt'
+                return 1
         else:
-            return 'het'
+            return 2
 
     
 
@@ -121,7 +79,7 @@ def get_candidates(dct,df=None):
     elif dct['mode']=='training':
         tmp=pd.DataFrame([i+100 for i in df.POS])
         tmp.rename(columns={0:'POS'},inplace=True)
-        tmp_df=pd.merge(df,tmp, on='POS',how='outer').fillna('hom-ref')
+        tmp_df=pd.merge(df,tmp, on='POS',how='outer').fillna(0)
         tmp_df.sort_values('POS',inplace=True)
         return tmp_df
         
@@ -139,6 +97,7 @@ def create_training_pileup(in_dct):
         
         res=create_pileup(in_dct,v_pos=v_pos)
         d[v_pos]=(train_sites_df['gtype'].loc[v_pos],res[0],res[1])
+        #gtype, matrix, reads
     
     return d
         
@@ -223,9 +182,9 @@ def generate(in_dct,mode='training'):
         print('starting pileups')
         pool = mp.Pool(processes=mp.cpu_count())
         fname='%s_%d_%d_pileups' %(in_dct['chrom'],in_dct['start'],in_dct['end'])
-        fname=os.path.join(in_dict['out_path'],fname)
-        file=open(fname , "w")
-
+        fname=os.path.join(in_dict['out_path'],fname+'.gz')
+        file=gzip.open(fname , "wb")
+        start,end=in_dict['start'],in_dict['end']
         for mbase in range(start,end,int(1e6)):
             print('starting pool:'+str(mbase))
             t=time.time()                
@@ -244,15 +203,14 @@ def generate(in_dct,mode='training'):
 
                         f=b[:,:,-1].reshape(-1)
                         b=b[:,:,:-1].reshape(-1)
-                        s='%d:%s:%s:%s:%s' %(k,a,'|'.join(n),''.join(b.astype('<U1')),\
+                        s='%d:%s:%s:%s:%s\n' %(k,a,'|'.join(n),''.join(b.astype('<U1')),\
                                              '|'.join(f.astype('<U2')))
-                        file.write(s+'\n')
+                        file.write(s.encode('utf-8'))
 
             
             elapsed=time.time()-t
             print ('Elapsed: %.2f seconds' %elapsed)
             print('finishing pool:'+str(mbase))
-
 
 
 if __name__ == '__main__':

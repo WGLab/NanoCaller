@@ -2,7 +2,7 @@
 
 This module allows us to generate pileup matrices for a given range of reference positions, a BAM and FASTA file. The main function is  generate().
 
-## generate(chr_num,start,end,sam_path,fasta_path,out_path)
+## generate(params,mode='training')
 ###### Inputs:
 * params - dictionay of paramters
 * mode - testing or training mode (string),default=training

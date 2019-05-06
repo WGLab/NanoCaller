@@ -154,22 +154,15 @@ def genotype_caller(params,input_type='path',training_data=None,testing_data=Non
         print('Hom-Alt: Precision=%.2f,  Recall=%.2f' %(prec1,rec1))
         print('Het: Precision=%.2f,  Recall=%.2f' %(prec2,rec2))
         
-        saver.save(sess, save_path=model_path)
+        saver.save(sess, save_path=params['model'])
         writer.close()
     if plot:
         utils.plot_training_stats(stats)
     return (score,stats,[prec1,rec1,prec2,rec2])
 
-def test_model(model_path,test_path,n_classes,window=None):
+def test_model(params):
     
-    parser.add_argument("-n", "--classes", help="Number of classes",type=int)
-    parser.add_argument("-w", "--window", help="Window size",type=int)
-    parser.add_argument("-model", "--model", help="Model path")
-    parser.add_argument("-test", "--test", help="Test path")
-
-    args = parser.parse_args()
-    
-    model_path,test_path,n_classes,window=args.model,args.test,args.classes,args.window
+    model_path,test_path,n_classes,window=params['model'],params['test_path'],params['classes'],params['window']
     
     tf.reset_default_graph()
     x_test,y_test=get_data(test_path,window)
@@ -197,7 +190,9 @@ def test_model(model_path,test_path,n_classes,window=None):
     print('Hom-Alt: Precision=%.2f,  Recall=%.2f' %(prec1,rec1))
     print('Het: Precision=%.2f,  Recall=%.2f' %(prec2,rec2))
     
-def train_model(parser):
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    
     parser.add_argument("-r", "--rate", help="Learning rate",type=float)
     parser.add_argument("-i", "--iterations", help="Training iterations",type=int)
     parser.add_argument("-s", "--size", help="Batch size",type=int)
@@ -206,24 +201,20 @@ def train_model(parser):
     parser.add_argument("-train", "--train", help="Train path")
     parser.add_argument("-test", "--test", help="Test path")
     parser.add_argument("-p", "--plot", help="Show plots",type=int)
-    
-    args = parser.parse_args()
-        
-    in_dict={'rate':args.rate,'iters':args.iterations,'size':args.size,'classes':args.classes,'window':args.window,'plot':args.plot,'train_path':args.train,'test_path':args.test,'output':args.output}
-    
-    genotype_caller(in_dict)
-
-    
-    
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser.add_argument("-model", "--model", help="Model output path")
     parser.add_argument("-m", "--mode", help="Mode")
-    t=time.time()
+    args = parser.parse_args()
     
-    if parser.parse_args().mode=='train':
-        train_model(parser)
+    t=time.time()
+    in_dict={'rate':args.rate,'iters':args.iterations,'size':args.size,\
+                 'classes':args.classes,'window':args.window,\
+                 'plot':args.plot,'train_path':args.train,'test_path':args.test,'model':args.model}
+    
+    if args.mode=='train':
+        genotype_caller(in_dict)
+    
     else:
-        test_model(parser)
+        test_model(in_dict)
         
     elapsed=time.time()-t
     print ('Total Time Elapsed: %.2f seconds' %elapsed)

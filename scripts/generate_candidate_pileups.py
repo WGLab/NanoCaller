@@ -177,21 +177,21 @@ def create_pileup(dct,v_pos=None):
         #testing code
         
         
-def generate(in_dct,mode='training'):
+def generate(params,mode='training'):
     if mode=='training':
         print('starting pileups')
         pool = mp.Pool(processes=mp.cpu_count())
-        fname='%s_%d_%d_pileups' %(in_dct['chrom'],in_dct['start'],in_dct['end'])
-        fname=os.path.join(in_dict['out_path'],fname+'.gz')
+        fname='%s_%d_%d_pileups' %(params['chrom'],params['start'],params['end'])
+        fname=os.path.join(params['out_path'],fname+'.gz')
         file=gzip.open(fname , "wb")
-        start,end=in_dict['start'],in_dict['end']
+        start,end=params['start'],params['end']
         for mbase in range(start,end,int(1e6)):
             print('starting pool:'+str(mbase))
             t=time.time()                
 
             in_dict_list=[]
             for k in range(mbase,min(end,mbase+int(1e6)),100000):
-                d = copy.deepcopy(in_dct)
+                d = copy.deepcopy(params)
                 d['start']=k
                 d['end']=k+100000
                 in_dict_list.append(d)

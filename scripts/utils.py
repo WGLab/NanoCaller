@@ -58,7 +58,7 @@ def plot_training_stats(stats):
         plt.plot(range(stats.shape[0]), stats[:,3], 'r', label='Test Accuracy')
         plt.title('Training and Test Accuracy')
         plt.xlabel('Epochs ',fontsize=16)
-        plt.ylabel('Loss',fontsize=16)
+        plt.ylabel('Accuracy',fontsize=16)
         plt.legend()
         plt.figure()
         plt.show()

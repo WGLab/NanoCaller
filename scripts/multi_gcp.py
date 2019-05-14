@@ -12,6 +12,7 @@ def extract_vcf(dct,mode='all',VT=['SNP']):
     start=dct['start']
     end=dct['end']
     vcf_path=dct['vcf_path']
+    fasta_path=dct['fasta_path']
     
     def gtype(num):
         if num[0]==num[1]:
@@ -23,8 +24,9 @@ def extract_vcf(dct,mode='all',VT=['SNP']):
             return 2
 
     
-
+    mapping={'A':0,'G':1,'T':2,'C':3}
     bcf_in = VariantFile(vcf_path)  # auto-detect input format
+    fastafile=pysam.FastaFile(fasta_path)
     for rec in bcf_in.fetch():
         prfx='chr' if 'chr' in rec.contig else ''
         chrom=re.findall("(.*?)\d",rec.contig)[0]+re.findall("\d+",chrom)[0]
@@ -35,69 +37,90 @@ def extract_vcf(dct,mode='all',VT=['SNP']):
                 if list(filter(lambda x: x[0]=='VT',rec.info.items()))[0][1][0] in VT]
         return pd.DataFrame(d,columns=['POS'])
     else:
-        d=[(rec.pos,gtype(rec.samples.items()[0][1].items()[0][1]))\
-                for rec in bcf_in.fetch(chrom,start,end)\
-                if len(''.join(rec.alleles))==len(rec.alleles)]
-        df=pd.DataFrame(d)
-        df.rename(columns={0:'POS',1:'gtype'},inplace=True)
+        d={}
+        for rec in bcf_in.fetch(chrom,start,end):
+            if len(''.join(rec.alleles))==len(rec.alleles):
+                alleles=rec.samples.items()[0][1].items()[0][1]
+                d[rec.pos]=[gtype(alleles), mapping[rec.alleles[1]],mapping[rec.ref]]
+                neg=rec.pos+100
+                ref=fastafile.fetch(chrom,neg-1,neg)
+                d[neg]=[0, mapping[ref],mapping[ref]]
+                
+        df=pd.DataFrame.from_dict(d,orient='index')
+        df.reset_index(inplace=True)
+        df.rename(columns={'index':'POS',0:'gtype',1:'ALL',2:'REF'},inplace=True)
+        df.sort_values('POS',inplace=True)
         return df
     
 
 
 def get_candidates(dct,df=None):
     
-    if dct['mode'] =='testing':
-        chrom=dct['chrom']
-        start=dct['start']
-        end=dct['end']
-        sam_path=dct['sam_path']
-        fasta_path=dct['fasta_path']
-        threshold=dct['threshold']
-        
-        samfile = pysam.Samfile(sam_path, "rb")
-        fastafile=pysam.FastaFile(fasta_path)
-        name=chrom+'_'+str(start)+'_'+str(end)+'_'+'candidates'
-        
-        fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
-        sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
-        rlist=[s for s in fastafile.fetch(fasta_chr,start-1,end-1)]
-        output=[]
-        for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,stepper='nofilter',\
-                                               flag_filter=0x800,truncate=True):
-                n=pcol.get_num_aligned()
-                r=rlist[pcol.pos+1-start]
-                seq=[s.upper() if len(s)>0 else '*' for s in pcol.get_query_sequences()]
-                alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=4 and x[1]>=n*threshold and x[0]!=r)]
-                if alt_freq:
-                        output.append((pcol.pos+1,max(alt_freq)/n,seq.count(r)/n,n,max(alt_freq),seq.count(r)))
+    chrom=dct['chrom']
+    start=dct['start']
+    end=dct['end']
+    sam_path=dct['sam_path']
+    fasta_path=dct['fasta_path']
+    threshold=0.25 #dct['threshold']
 
-        candidates_df=pd.DataFrame(output)
-        candidates_df.rename(columns={0:'POS',1:'ALT_FREQ',2:'REF_FREQ',3:'DEPTH',4:'ALT_NUM',5:'REF_NUM'},inplace=True)
+    samfile = pysam.Samfile(sam_path, "rb")
+    fastafile=pysam.FastaFile(fasta_path)
+    name=chrom+'_'+str(start)+'_'+str(end)+'_'+'candidates'
 
-        return candidates_df
-    
-    elif dct['mode']=='training':
-        tmp=pd.DataFrame([i+100 for i in df.POS])
-        tmp.rename(columns={0:'POS'},inplace=True)
-        tmp_df=pd.merge(df,tmp, on='POS',how='outer').fillna(0)
-        tmp_df.sort_values('POS',inplace=True)
-        return tmp_df
-        
+    fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
+    sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
+    rlist=[s for s in fastafile.fetch(fasta_chr,start-1,end-1)]
+    output=[]
+    for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,stepper='nofilter',\
+                                           flag_filter=0x800,truncate=True):
+            n=pcol.get_num_aligned()
+            r=rlist[pcol.pos+1-start]
+            seq=[s.upper() if len(s)>0 else '*' for s in pcol.get_query_sequences()]
+            alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=4 and x[1]>=n*threshold and x[0]!=r)]
+            if alt_freq:
+                output.append((pcol.pos+1,r))
+                #output.append((pcol.pos+1,max(alt_freq)/n,seq.count(r)/n,n,max(alt_freq),seq.count(r)))
+
+    candidates_df=pd.DataFrame(output)
+    candidates_df.rename(columns={0:'POS',1:'REF'},inplace=True)
+    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+    candidates_df[['REF']]=candidates_df[['REF']].applymap(lambda x:mapping[x])
+    #candidates_df.rename(columns={0:'POS',1:'ALT_FREQ',2:'REF_FREQ',3:'DEPTH',4:'ALT_NUM',5:'REF_NUM'},inplace=True)
+
+    return candidates_df
+
 
 
 def create_training_pileup(in_dct):
-    tmp=extract_vcf(in_dct)
-    if tmp.shape[0]==0:
+    train_sites_df=extract_vcf(in_dct)
+    if train_sites_df.shape[0]==0:
         return None
-    train_sites_df=get_candidates(in_dct,tmp)
 
     train_sites_df.set_index('POS',drop=False,inplace=True)
     d={}
     for v_pos in train_sites_df.POS:
         
         res=create_pileup(in_dct,v_pos=v_pos)
-        d[v_pos]=(train_sites_df['gtype'].loc[v_pos],res[0],res[1])
+        d[v_pos]=(train_sites_df['gtype'].loc[v_pos],train_sites_df['ALL'].loc[v_pos],\
+                  train_sites_df['REF'].loc[v_pos],res[0],res[1])
         #gtype, matrix, reads
+    
+    return d
+
+def create_testing_pileup(in_dct):
+    test_sites_df=get_candidates(in_dct)
+    if test_sites_df.shape[0]==0:
+        return None
+
+    test_sites_df.set_index('POS',drop=False,inplace=True)
+    pileup_list=[]
+
+    d={}
+    for v_pos in test_sites_df.POS:
+        
+        res=create_pileup(in_dct,v_pos=v_pos)
+        pileup_list.append(res[0])
+        d[v_pos]=(test_sites_df['REF'].loc[v_pos],res[0])
     
     return d
         
@@ -118,7 +141,7 @@ def create_pileup(dct,v_pos=None):
     fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     
-    if dct['mode']=='training':
+    if True:
         du_lim=dct['depth']
         window=dct['window']
         
@@ -178,11 +201,12 @@ def create_pileup(dct,v_pos=None):
         
         
 def generate(params,mode='training'):
+    mode=params['mode']
     if mode=='training':
         print('starting pileups')
         pool = mp.Pool(processes=mp.cpu_count())
         fname='%s_%d_%d_pileups' %(params['chrom'],params['start'],params['end'])
-        fname=os.path.join(params['out_path'],fname+'.gz')
+        fname=os.path.join(params['out_path'],fname+'multi.gz')
         file=gzip.open(fname , "wb")
         start,end=params['start'],params['end']
         for mbase in range(start,end,int(1e6)):
@@ -199,12 +223,44 @@ def generate(params,mode='training'):
             for res_dict in results:
                 if res_dict:
                     for k,p in res_dict.items():
-                        a,b,n=p
+                        gt,allele,ref,mat,names=p
 
-                        f=b[:,:,-1].reshape(-1)
-                        b=b[:,:,:-1].reshape(-1)
-                        s='%d:%s:%s:%s:%s\n' %(k,a,'|'.join(n),''.join(b.astype('<U1')),\
-                                             '|'.join(f.astype('<U2')))
+                        ft=mat[:,:,-1].reshape(-1)
+                        mat=mat[:,:,:-1].reshape(-1)
+                        s='%d:%d:%d:%d:%s:%s:%s\n' %(k,gt,allele,ref,'|'.join(names), ''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
+                        file.write(s.encode('utf-8'))
+
+            
+            elapsed=time.time()-t
+            print ('Elapsed: %.2f seconds' %elapsed)
+            print('finishing pool:'+str(mbase))
+            
+    elif mode=='testing':
+        print('starting pileups')
+        pool = mp.Pool(processes=mp.cpu_count())
+        fname='%s_%d_%d_pileups' %(params['chrom'],params['start'],params['end'])
+        fname=os.path.join(params['out_path'],fname+'multi_test.gz')
+        file=gzip.open(fname , "wb")
+        start,end=params['start'],params['end']
+        for mbase in range(start,end,int(1e4)):
+            print('starting pool:'+str(mbase))
+            t=time.time()                
+
+            in_dict_list=[]
+            for k in range(mbase,min(end,mbase+int(1e4)),1000):
+                d = copy.deepcopy(params)
+                d['start']=k
+                d['end']=k+1000
+                in_dict_list.append(d)
+            results = pool.map(create_testing_pileup, in_dict_list)
+            for res_dict in results:
+                if res_dict:
+                    for k,p in res_dict.items():
+                        ref,mat=p
+
+                        ft=mat[:,:,-1].reshape(-1)
+                        mat=mat[:,:,:-1].reshape(-1)
+                        s='%d:%d:%s:%s\n' %(k,ref, ''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
                         file.write(s.encode('utf-8'))
 
             

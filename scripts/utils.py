@@ -7,19 +7,19 @@ from matplotlib import pyplot as plt
 
 
 
-def read_pileups_from_file(fname):
+def read_pileups_from_file(fname,dims):
     lines={}
     with gzip.open(fname,'rb') as file:
         for l in file:
             l=l.decode('utf-8')[:-1]
-            [pos,gtype,rnames,m1,m2]=l.split(':')
+            pos,gtype,allele,ref,rnames,m1,m2=l.split(':')
             rnames=rnames.split('|')
-            mm1=np.array(list(m1)).astype(np.int8).reshape((32,101,7))
+            mm1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],7))
             m2=m2.replace(".", "")
-            mm2=np.array(m2.split('|')).astype(np.int8).reshape((32,101,1))
+            mm2=np.array(m2.split('|')).astype(np.int8).reshape((dims[0],dims[1],1))
             p_mat=np.dstack((mm1,mm2))
 
-            lines[pos]=(int(pos),int(gtype[0]),rnames,p_mat)
+            lines[pos]=(int(pos),int(gtype[0]),int(allele),int(ref),rnames,p_mat)
     return lines
 
 def pileup_image_from_mat(in_mat):

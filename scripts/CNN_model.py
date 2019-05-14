@@ -26,8 +26,8 @@ def conv_net(x, weights, biases):
     out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
     return out
 
-def get_data(file_path,window=None):
-    pileups=utils.read_pileups_from_file(file_path)
+def get_data(file_path,dims,window=None):
+    pileups=utils.read_pileups_from_file(file_path,dims)
     #pileups=[[pos,gtype,rnames,p_mat]]
 
     x=np.array([x[-1] for x in pileups.values()])
@@ -73,10 +73,11 @@ def get_tensors(n_input,n_classes,learning_rate=0):
     
 def genotype_caller(params,input_type='path',training_data=None,testing_data=None):
     tf.reset_default_graph()
+    n_input=params['dims']
     if input_type=='path':
-        x_train,y_train=get_data(params['train_path'],params['window'])
+        x_train,y_train=get_data(params['train_path'],n_input,params['window'])
         print('train data received')
-        x_test,y_test=get_data(params['test_path'],params['window'])
+        x_test,y_test=get_data(params['test_path'],n_input,params['window'])
         print('test data received')
     
     else:
@@ -87,7 +88,6 @@ def genotype_caller(params,input_type='path',training_data=None,testing_data=Non
     params['rate'], params['size'], params['classes'],params['plot']
     
     n_input=[i for i in x_train.shape[1:]]
-
     weights,biases,t1=get_tensors(n_input,n_classes,learning_rate)
     x,y,pred,cost,optimizer,correct_prediction,accuracy=t1
     
@@ -203,11 +203,12 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--plot", help="Show plots",type=int)
     parser.add_argument("-model", "--model", help="Model output path")
     parser.add_argument("-m", "--mode", help="Mode")
+    parser.add_argument("-dim", "--dimensions", help="Input dimensions")
     args = parser.parse_args()
-    
+    input_dims=[int(x) for x in args.dimensions.split(':')]
     t=time.time()
     in_dict={'rate':args.rate,'iters':args.iterations,'size':args.size,\
-                 'classes':args.classes,'window':args.window,\
+                 'classes':args.classes,'window':args.window,'dims':input_dims,\
                  'plot':args.plot,'train_path':args.train,'test_path':args.test,'model':args.model}
     
     if args.mode=='train':

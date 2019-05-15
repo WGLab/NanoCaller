@@ -35,24 +35,28 @@ def conv_net(x,ref, weights, biases):
 
 def get_data(file_path,dims,window=None):
     pileups=utils.read_pileups_from_file(file_path,dims)
-    #pileups=[[pos,gtype,rnames,p_mat]]
-    #int(pos),int(gtype[0]),int(al1),int(al2),rnames,p_mat
-    x=np.array([x[-1] for x in pileups.values()])
+    #pileups=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref),rnames)
     
-    gt=np.array([x[1] for x in pileups.values()])
+    pos=np.array([x[0] for x in pileups.values()])
+    
+    mat=np.array([x[1] for x in pileups.values()])
+    
+    gt=np.array([x[2] for x in pileups.values()])
     gt=np.eye(3)[gt]
     
-    al1=np.array([x[2] for x in pileups.values()])
-    al1=np.eye(4)[al1]
+    allele=np.array([x[3] for x in pileups.values()])
+    allele=np.eye(4)[allele]
     
-    al2=np.array([x[3] for x in pileups.values()])
-    al2=np.eye(4)[al2]
+    ref=np.array([x[4] for x in pileups.values()])
+    ref=np.eye(4)[ref]
+    
+
     
     
     if window:
         n=int((x.shape[2]-1)/2)
         x=x[:,:,n-window:n+1+window,:]
-    return (x.astype(np.int8),gt.astype(bool),al1.astype(bool),al2.astype(bool))
+    return (pos.astype(int),mat.astype(np.int8),gt.astype(bool),allele.astype(bool),ref.astype(bool))
     
     
 def get_tensors(n_input,n_classes,learning_rate=0):
@@ -89,6 +93,9 @@ def get_tensors(n_input,n_classes,learning_rate=0):
     
     pred,fc_layer = conv_net(x,ref,weights, biases)
     
+    gt_likelihood=tf.nn.softmax(logits=pred)
+    allele_likelihood=tf.nn.softmax(logits=fc_layer)
+    
     cost = tf.add(tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred,\
     labels=y)),tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=fc_layer, labels=allele)))
     
@@ -103,7 +110,7 @@ def get_tensors(n_input,n_classes,learning_rate=0):
     accuracy_allele = tf.reduce_mean(tf.cast(correct_prediction_allele, tf.float32))
     
     t1=(x,y,allele,ref,fc_layer,pred,cost,optimizer)
-    t2=(correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele)
+    t2=(correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele,gt_likelihood,allele_likelihood)
     return weights,biases,t1,t2
 
 
@@ -155,7 +162,7 @@ def genotype_caller_skinny(params,input_type='path',data=None):
 
     weights,biases,t1,t2=get_tensors(n_input,n_classes,learning_rate)
     (x,y,allele,ref,fc_layer,pred,cost,optimizer)=t1
-    (correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele)=t2
+    (correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele,gt_likelihood,allele_likelihood)=t2
 
     init = tf.global_variables_initializer()
     saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
@@ -176,14 +183,14 @@ def genotype_caller_skinny(params,input_type='path',data=None):
                     # Calculate batch loss and accuracy
                 opt = sess.run(optimizer, feed_dict={x: batch_x,y: batch_y,ref:batch_ref,allele:batch_allele})
         saver.save(sess, save_path=params['model'])
-    
+    #(int(pos),p_mat,int(gtype[0]),int(allele),int(ref)
 def genotype_caller(params,input_type='path',data=None):
     tf.reset_default_graph()
     n_input=params['dims']
     if input_type=='path':
-        x_train,y_train,train_allele,train_ref= get_data(params['train_path'],n_input,params['window'])
+        _,x_train,y_train,train_allele,train_ref= get_data(params['train_path'],n_input,params['window'])
         print('train data received')
-        x_test,y_test,test_allele,test_ref= get_data(params['test_path'],n_input,params['window'])
+        _,x_test,y_test,test_allele,test_ref= get_data(params['test_path'],n_input,params['window'])
         print('test data received')
 
     else:
@@ -197,7 +204,7 @@ def genotype_caller(params,input_type='path',data=None):
 
     weights,biases,t1,t2=get_tensors(n_input,n_classes,learning_rate)
     (x,y,allele,ref,fc_layer,pred,cost,optimizer)=t1
-    (correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele)=t2
+    (correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele,gt_likelihood,allele_likelihood)=t2
 
     init = tf.global_variables_initializer()
     saver = tf.train.Saver()
@@ -268,17 +275,16 @@ def genotype_caller(params,input_type='path',data=None):
     return (fc_layer_test,score_test)
 
 def test_model(params):
-    model_path,test_path,n_classes,n_input= params['model'], params['test_path'], params['classes'], params['dims']
-    training_iters, learning_rate, batch_size, n_classes,plot= params['iters'],params['rate'], params['size'], params['classes'],params['plot']
+    model_path,test_path,n_input,n_classes,chrom,vcf_path= params['model'], params['test_path'],params['dims'], 3,params['chrom'],params['vcf_path']
     tf.reset_default_graph()
-    x_test,y_test,test_allele,test_ref= get_data(params['test_path'],n_input)
+    pos,x_test,y_test,test_allele,test_ref= get_data(params['test_path'],n_input)
     print('test data received')
 
     n_input=[i for i in x_test.shape[1:]]
     
-    weights,biases,t1,t2=get_tensors(n_input,n_classes,learning_rate)
+    weights,biases,t1,t2=get_tensors(n_input,n_classes,1)
     (x,y,allele,ref,fc_layer,pred,cost,optimizer)=t1
-    (correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele)=t2
+    (correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele,gt_likelihood,allele_likelihood)=t2
     
     init = tf.global_variables_initializer()
     sess = tf.Session()
@@ -286,43 +292,50 @@ def test_model(params):
     sess.run(tf.local_variables_initializer())
     saver = tf.train.Saver()
     saver.restore(sess, model_path)
-    fc_list=[]
-    score_list=[]
-    batch_size=50
-    rec_,prec_=[0,0],[0,0]
-    for batch in range(len(x_test)//batch_size+1):
-                batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
-                batch_y = y_test[batch*batch_size:min((batch+1)*batch_size,len(y_test))]    
-                batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
-                batch_allele = test_allele[batch*batch_size:min((batch+1)*batch_size, len(test_allele))]
-                # Run optimization op (backprop).
-                    # Calculate batch loss and accuracy
+    
+    rev_mapping={0:'A',1:'G',2:'T',3:'C'}
+    gt_map={1:'1|1',2:'0|1'}
+    
+    batch_size=1000
+
+    with open(vcf_path,'w') as f:
+
+        f.write('##fileformat=VCFv4.2\n')
+        f.write('##FILTER=<ID=PASS,Description="All filters passed">\n')
+        c='##contig=<ID=%s>\n' %chrom
+        f.write('##contig=<ID=%s>\n' %chrom)
+        f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Consensus Genotype across all datasets with called genotype">\n')
+        f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
+        ttt=[]
+        for batch in range(len(x_test)//batch_size+1):
+                    batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
+                    batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
+                    batch_y = y_test[batch*batch_size:min((batch+1)*batch_size,len(y_test))]    
+                    batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
+                    batch_allele = test_allele[batch*batch_size:min((batch+1)*batch_size, len(test_allele))]
+                    # Run optimization op (backprop).
+                        # Calculate batch loss and accuracy
+
+
+                    fc_layer_batch,score_batch,gl,qual = sess.run([fc_layer,pred,gt_likelihood,allele_likelihood],\
+                                               feed_dict={x: batch_x,y: batch_y,ref:batch_ref,allele:batch_allele})
                     
-                    
-                fc_layer_batch,score_batch = sess.run([fc_layer,pred],\
-                                           feed_dict={x: batch_x,y: batch_y,ref:batch_ref,allele:batch_allele})
-                
-                all_pred,gt_pred=np.argmax(fc_layer_batch,axis=1),np.argmax(score_batch,axis=1)
-                tmp=np.hstack([all_pred[:,np.newaxis],np.argmax(batch_allele,axis=1)[:,np.newaxis]])
-                tmp2=np.hstack([gt_pred[:,np.newaxis],np.argmax(batch_y,axis=1)[:,np.newaxis]])
+                    gl=10*np.log(np.min((1-gl),axis=1))
+                    qual=10*np.log(np.min((1-qual),axis=1))
+                    all_pred,gt_pred=np.argmax(fc_layer_batch,axis=1),np.argmax(score_batch,axis=1)
 
-                totes=np.hstack([tmp,tmp2])
-                rec_[0]+=np.sum((totes[:,0]==totes[:,1])&(totes[:,2]==totes[:,3])&(totes[:,3]!=0))
-                rec_[1]+=np.sum(totes[:,3]!=0)
-                prec_[0]+=np.sum((totes[:,0]==totes[:,1])&(totes[:,2]==totes[:,3])&(totes[:,2]!=0))
-                prec_[1]+=np.sum(totes[:,2]!=0)
+                    mat=np.hstack([batch_pos[:,np.newaxis],np.argmax(batch_ref,axis=1)\
+                                             [:,np.newaxis],all_pred[:,np.newaxis],gt_pred[:,np.newaxis],qual[:,np.newaxis],\
+                                   gl[:,np.newaxis]])
+                    mat=mat[(mat[:,3]!=0) & (mat[:,1]!=mat[:,2])]
+                    for j in range(len(mat)):
+                        v=mat[j]
+                        s='%s\t%d\t.\t%s\t%s\t%.3f\tPASS\t.\tGT:GL\t%s:%.3f\n' %\
+                        (chrom,v[0],rev_mapping[v[1]],rev_mapping[v[2]],v[4],gt_map[v[3]],v[5])
+                        f.write(s)
+                    ttt.append(qual2)
+    return np.vstack(ttt)  
 
-    m=rec_[0]/rec_[1]
-    n=prec_[0]/prec_[1]
-
-    print('Recall=%.4f' %m)
-
-    print('Precision=%.4f' %n)
-
-    f1=2*n*m/(n+m)
-    print('F1=%.4f'%f1)
-    with open('cnn_test_only_result','w') as print_file:
-        print_file.write('Recall= %.4f , Precision= %.4f , F1= %.4f' %(m,n,f1))
         
 def test_model_bam(params):
     model_path,n_classes,n_input= params['model'], params['classes'], params['dims']
@@ -338,7 +351,7 @@ def test_model_bam(params):
     
     weights,biases,t1,t2=get_tensors(n_input,n_classes,1)
     (x,y,allele,ref,fc_layer,pred,cost,optimizer)=t1
-    (correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele)=t2
+    (correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele,gt_likelihood,allele_likelihood)=t2
     
     init = tf.global_variables_initializer()
     sess = tf.Session()
@@ -380,18 +393,22 @@ if __name__ == '__main__':
     parser.add_argument("-model", "--model", help="Model output path")
     parser.add_argument("-m", "--mode", help="Mode")
     parser.add_argument("-dim", "--dimensions", help="Input dimensions")
+    parser.add_argument("-vcf", "--vcf", help="VCF output path")
+    parser.add_argument("-chrom", "--chrom", help="Chromosome")
     
     args = parser.parse_args()
     input_dims=[int(x) for x in args.dimensions.split(':')]
     t=time.time()
-    in_dict={'rate':args.rate,'iters':args.iterations,'size':args.size,\
-                 'classes':args.classes,'window':args.window,'dims':input_dims,\
-                 'plot':args.plot,'train_path':args.train,'test_path':args.test,'model':args.model}
+    
     
     if args.mode=='train':
+        in_dict={'rate':args.rate,'iters':args.iterations,'size':args.size,\
+                 'classes':args.classes,'window':args.window,'dims':input_dims,\
+                 'plot':args.plot,'train_path':args.train,'test_path':args.test,'model':args.model}
         genotype_caller_skinny(in_dict)
     
     else:
+        in_dict={'dims':input_dims,'test_path':args.test,'model':args.model,'chrom':args.chrom,'vcf_path':args.vcf}
         test_model(in_dict)
         
     elapsed=time.time()-t

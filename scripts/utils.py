@@ -5,7 +5,17 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-
+def print_vcf(file,chrom,df):
+    with open(file,'w') as f:
+        
+        f.write('##fileformat=VCFv4.2\n')
+        f.write('##FILTER=<ID=PASS,Description="All filters passed">\n')
+        f.write('##contig=<ID=%s>\n' %chrom)
+        f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Consensus Genotype across all datasets with called genotype">\n')
+        f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
+        for v in df.values:
+            s='%s\t%d\t.\t%s\t%s\t%d\tPASS\t.\tGT\t%s\n' %(chrom,v[0],v[1],v[2],0,v[3])
+            f.write(s)
 
 def read_pileups_from_file(fname,dims):
     lines={}
@@ -19,7 +29,7 @@ def read_pileups_from_file(fname,dims):
             mm2=np.array(m2.split('|')).astype(np.int8).reshape((dims[0],dims[1],1))
             p_mat=np.dstack((mm1,mm2))
 
-            lines[pos]=(int(pos),int(gtype[0]),int(allele),int(ref),rnames,p_mat)
+            lines[pos]=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref),rnames)
     return lines
 
 def pileup_image_from_mat(in_mat):

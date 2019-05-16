@@ -6,22 +6,12 @@ import multiprocessing as mp
 from pysam import VariantFile
 from matplotlib import pyplot as plt
 
-
-def extract_vcf(dct,mode='all',VT=['SNP']):
+def extract_vcf(dct):
     chrom=dct['chrom']
     start=dct['start']
     end=dct['end']
     vcf_path=dct['vcf_path']
     fasta_path=dct['fasta_path']
-    
-    def gtype(num):
-        if num[0]==num[1]:
-            if num[0]==0:
-                return 0
-            else:
-                return 1
-        else:
-            return 2
 
     
     mapping={'A':0,'G':1,'T':2,'C':3}
@@ -32,36 +22,27 @@ def extract_vcf(dct,mode='all',VT=['SNP']):
         chrom=re.findall("(.*?)\d",rec.contig)[0]+re.findall("\d+",chrom)[0]
         break
 
-    if mode=='common':
-        d=[rec.pos for rec in bcf_in.fetch(chrom,start,end)\
-                if list(filter(lambda x: x[0]=='VT',rec.info.items()))[0][1][0] in VT]
-        return pd.DataFrame(d,columns=['POS'])
-    else:
-        d={}
-        for rec in bcf_in.fetch(chrom,start,end):
-            if len(''.join(rec.alleles))==len(rec.alleles):
-                alleles=rec.samples.items()[0][1].items()[0][1]
-                d[rec.pos]=[gtype(alleles), mapping[rec.alleles[1]],mapping[rec.ref]]
-                neg=rec.pos+100
-                ref=fastafile.fetch(chrom,neg-1,neg)
-                d[neg]=[0, mapping[ref],mapping[ref]]
-                
-        df=pd.DataFrame.from_dict(d,orient='index')
-        df.reset_index(inplace=True)
-        df.rename(columns={'index':'POS',0:'gtype',1:'ALL',2:'REF'},inplace=True)
-        df.sort_values('POS',inplace=True)
-        return df
-    
 
+    d={}
+    for rec in bcf_in.fetch(chrom,start,end):
+        if len(''.join(rec.alleles))==len(rec.alleles):
+            alleles=rec.samples.items()[0][1].items()[0][1]
+            d[rec.pos]=[alleles[0]!=alleles[1], mapping[rec.alleles[1]],mapping[rec.ref]]
 
-def get_candidates(dct,df=None):
+    df=pd.DataFrame.from_dict(d,orient='index')
+    df.reset_index(inplace=True)
+    df.rename(columns={'index':'POS',0:'gtype',1:'ALL',2:'REF'},inplace=True)
+    #df.sort_values('POS',inplace=True)
+    return df
+
+def get_candidates(dct):
     
     chrom=dct['chrom']
     start=dct['start']
     end=dct['end']
     sam_path=dct['sam_path']
     fasta_path=dct['fasta_path']
-    threshold=0.25 #dct['threshold']
+    threshold=dct['threshold']
 
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
@@ -74,38 +55,50 @@ def get_candidates(dct,df=None):
     for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,stepper='nofilter',\
                                            flag_filter=0x800,truncate=True):
             n=pcol.get_num_aligned()
-            r=rlist[pcol.pos+1-start]
-            seq=[s.upper() if len(s)>0 else '*' for s in pcol.get_query_sequences()]
-            alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=4 and x[1]>=n*threshold and x[0]!=r)]
-            if alt_freq:
-                output.append((pcol.pos+1,r))
-                #output.append((pcol.pos+1,max(alt_freq)/n,seq.count(r)/n,n,max(alt_freq),seq.count(r)))
-
-    candidates_df=pd.DataFrame(output)
-    candidates_df.rename(columns={0:'POS',1:'REF'},inplace=True)
-    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
-    candidates_df[['REF']]=candidates_df[['REF']].applymap(lambda x:mapping[x])
-    #candidates_df.rename(columns={0:'POS',1:'ALT_FREQ',2:'REF_FREQ',3:'DEPTH',4:'ALT_NUM',5:'REF_NUM'},inplace=True)
-
-    return candidates_df
-
-
-
-def create_training_pileup(in_dct):
-    train_sites_df=extract_vcf(in_dct)
-    if train_sites_df.shape[0]==0:
+            if n>=16:
+                r=rlist[pcol.pos+1-start]
+                seq=''.join(pcol.get_query_sequences()).upper()
+                alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
+                if alt_freq:
+                    output.append((pcol.pos+1,r,r))
+    if output:
+        candidates_df=pd.DataFrame(output)
+        candidates_df.rename(columns={0:'POS',1:'ALL',2:'REF'},inplace=True)
+        mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+        candidates_df[['ALL','REF']]=candidates_df[['ALL','REF']].applymap(lambda x:mapping[x])
+        #candidates_df.rename(columns={0:'POS',1:'ALT_FREQ',2:'REF_FREQ',3:'DEPTH',4:'ALT_NUM',5:'REF_NUM'},inplace=True)
+        return candidates_df
+    else:
         return None
-
-    train_sites_df.set_index('POS',drop=False,inplace=True)
-    d={}
-    for v_pos in train_sites_df.POS:
+    
+def create_training_pileup(in_dct):
+    tr_df=extract_vcf(in_dct)
+    c_df=get_candidates(in_dct)
+    
+    tr_list=[]
+    tr_pos=[]
+    if tr_df.shape[0]!=0:
+        tr_df['gtype']=tr_df['gtype'].astype(int)
+        tr_pos=list(tr_df.POS)
+        tr_df.set_index('POS',drop=False,inplace=True)
+        for v_pos in tr_df.POS:
+            res=create_pileup(in_dct,v_pos=v_pos)
+            tr_list.append((v_pos,tr_df['gtype'].loc[v_pos],tr_df['ALL'].loc[v_pos],\
+                      tr_df['REF'].loc[v_pos],res[0]))
         
-        res=create_pileup(in_dct,v_pos=v_pos)
-        d[v_pos]=(train_sites_df['gtype'].loc[v_pos],train_sites_df['ALL'].loc[v_pos],\
-                  train_sites_df['REF'].loc[v_pos],res[0],res[1])
+    
+    c_df['gtype']=0
+    c_df.set_index('POS',drop=False,inplace=True)
+
+    neg_list=[]
+    for v_pos in c_df.POS:
+        if v_pos not in tr_pos:
+            res=create_pileup(in_dct,v_pos=v_pos)
+            neg_list.append((v_pos,c_df['gtype'].loc[v_pos],c_df['ALL'].loc[v_pos],\
+                      c_df['REF'].loc[v_pos],res[0]))
         #gtype, matrix, reads
     
-    return d
+    return (tr_list,neg_list)
 
 def create_testing_pileup(in_dct):
     test_sites_df=get_candidates(in_dct)
@@ -124,9 +117,6 @@ def create_testing_pileup(in_dct):
     
     return d
         
-
-
-
 def create_pileup(dct,v_pos=None):
     chrom=dct['chrom']
     
@@ -179,13 +169,12 @@ def create_pileup(dct,v_pos=None):
         f_df=f_df.reindex(p_df.index)
 
         ref_match=(p_mat==rlist)
-        tmp2=np.zeros(p_mat.shape)
-        tmp2[:,window]=1
+
         #tmp2=2*np.array(ref_match)[:,:,np.newaxis]-1
         tmp=np.dstack([(p_mat==i) for i in range(5)])
         
         #data=np.multiply(tmp,tmp2).astype(np.int8)
-        data=np.dstack((tmp,tmp2,ref_match,np.array(f_df))).astype(np.int8)
+        data=np.dstack((tmp,ref_match,np.array(f_df))).astype(np.int8)
         
         
         if data.shape[0]<du_lim:
@@ -197,38 +186,48 @@ def create_pileup(dct,v_pos=None):
     else:
         start=dct['start']
         end=dct['end']
-        #testing code
-        
         
 def generate(params,mode='training'):
     mode=params['mode']
     if mode=='training':
         print('starting pileups')
+        cores=mp.cpu_count()
         pool = mp.Pool(processes=mp.cpu_count())
         fname='%s_%d_%d_pileups' %(params['chrom'],params['start'],params['end'])
-        fname=os.path.join(params['out_path'],fname+'multi.gz')
-        file=gzip.open(fname , "wb")
+        true_fname=os.path.join(params['out_path'],fname+'_pos.gz')
+        neg_fname=os.path.join(params['out_path'],fname+'_neg.gz')
+        p_file=gzip.open(true_fname , "wb")
+        n_file=gzip.open(neg_fname , "wb")
         start,end=params['start'],params['end']
         for mbase in range(start,end,int(1e6)):
             print('starting pool:'+str(mbase))
             t=time.time()                
 
             in_dict_list=[]
-            for k in range(mbase,min(end,mbase+int(1e6)),100000):
+            chunk_size=min(100000,int(1e6/cores))
+            for k in range(mbase,min(end,mbase+int(1e6)),chunk_size):
                 d = copy.deepcopy(params)
                 d['start']=k
-                d['end']=k+100000
+                d['end']=k+chunk_size
                 in_dict_list.append(d)
-            results = pool.map(create_training_pileup, in_dict_list)
-            for res_dict in results:
-                if res_dict:
-                    for k,p in res_dict.items():
-                        gt,allele,ref,mat,names=p
+            results_dict = pool.map(create_training_pileup, in_dict_list)
+            for result in results_dict:
+                for data in result[1]:
+                        pos,gt,allele,ref,mat=data
 
                         ft=mat[:,:,-1].reshape(-1)
                         mat=mat[:,:,:-1].reshape(-1)
-                        s='%d:%d:%d:%d:%s:%s:%s\n' %(k,gt,allele,ref,'|'.join(names), ''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
-                        file.write(s.encode('utf-8'))
+                        s='%d:%d:%d:%d:%s:%s\n' %(pos,gt,allele,ref,''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
+                        n_file.write(s.encode('utf-8'))
+
+                if result[0]:
+                    for data in result[0]:
+                        pos,gt,allele,ref,mat=data
+
+                        ft=mat[:,:,-1].reshape(-1)
+                        mat=mat[:,:,:-1].reshape(-1)
+                        s='%d:%d:%d:%d:%s:%s\n' %(pos,gt,allele,ref,''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
+                        p_file.write(s.encode('utf-8'))
 
             
             elapsed=time.time()-t
@@ -269,6 +268,7 @@ def generate(params,mode='training'):
             print('finishing pool:'+str(mbase))
 
 
+
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
@@ -282,13 +282,14 @@ if __name__ == '__main__':
     parser.add_argument("-o", "--output", help="Output path")
     parser.add_argument("-w", "--window", help="Window",type=int)
     parser.add_argument("-d", "--depth", help="Depth",type=int)
+    parser.add_argument("-t", "--threshold", help="Threshold",type=float)
     args = parser.parse_args()
     
     chrom,region=args.region.split(':')
     start,end=int(region.split('-')[0]),int(region.split('-')[1])
     
     in_dict={'mode':args.mode, 'chrom':chrom,'start':start,'end':end,\
-         'sam_path':args.bam,'fasta_path':args.ref,'vcf_path':args.vcf,'out_path':args.output,'window':args.window,'depth':args.depth}    
+         'sam_path':args.bam,'fasta_path':args.ref,'vcf_path':args.vcf,'out_path':args.output,'window':args.window,'depth':args.depth,'threshold':args.threshold}    
     
     t=time.time()
     generate(in_dict)

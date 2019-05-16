@@ -22,14 +22,13 @@ def read_pileups_from_file(fname,dims):
     with gzip.open(fname,'rb') as file:
         for l in file:
             l=l.decode('utf-8')[:-1]
-            pos,gtype,allele,ref,rnames,m1,m2=l.split(':')
-            rnames=rnames.split('|')
-            mm1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],7))
+            pos,gtype,allele,ref,m1,m2=l.split(':')
+            mm1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],dims[2]-1))
             m2=m2.replace(".", "")
             mm2=np.array(m2.split('|')).astype(np.int8).reshape((dims[0],dims[1],1))
             p_mat=np.dstack((mm1,mm2))
 
-            lines[pos]=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref),rnames)
+            lines[pos]=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref))
     return lines
 
 def pileup_image_from_mat(in_mat):

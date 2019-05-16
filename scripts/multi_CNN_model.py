@@ -6,6 +6,24 @@ import multi_gcp as mgcp
 import tensorflow as tf
 import generate_candidate_pileups as gcp
 
+def get_data(file_path,dims):
+    pileups=utils.read_pileups_from_file(file_path,dims)
+    #pileups=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref),rnames)
+    
+    pos=np.array([x[0] for x in pileups.values()])
+    
+    mat=np.array([x[1] for x in pileups.values()])
+    
+    gt=np.array([x[2] for x in pileups.values()])
+    gt=np.eye(2)[gt]
+    
+    allele=np.array([x[3] for x in pileups.values()])
+    allele=np.eye(4)[allele]
+    
+    ref=np.array([x[4] for x in pileups.values()])
+    ref=np.eye(4)[ref]
+
+    return (pos.astype(int),mat.astype(np.int8),gt.astype(bool),allele.astype(bool),ref.astype(bool))
 
 def conv2d(x, W, b, strides=1):
     x = tf.nn.conv2d(x, W, strides=[1, strides, strides, 1], padding='VALID')
@@ -23,40 +41,18 @@ def conv_net(x,ref, weights, biases):
     fc1 = tf.add(tf.matmul(fc1, weights['wd1']), biases['bd1'])
     fc1 = tf.nn.relu(fc1)
 
-    out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
+    fa1 = tf.add(tf.matmul(fc1, weights['wa1']), biases['wa1'])
+    out_allele = tf.add(tf.matmul(fc1, weights['wa2']), biases['wa2'])
     
-    fc2=tf.concat([out,fc1,ref],1)
+    fc2=tf.concat([fa1,fc1,ref],1)
     fc2 = tf.add(tf.matmul(fc2, weights['wd2']), biases['bd2'])
     fc2 = tf.nn.relu(fc2)
     
-    out_prob= tf.add(tf.matmul(fc2, weights['out_prob']), biases['out_prob'])
+    out_gt= tf.add(tf.matmul(fc2, weights['out_prob']), biases['out_prob'])
     
-    return out,out_prob
+    return out_gt,out_allele
 
-def get_data(file_path,dims,window=None):
-    pileups=utils.read_pileups_from_file(file_path,dims)
-    #pileups=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref),rnames)
-    
-    pos=np.array([x[0] for x in pileups.values()])
-    
-    mat=np.array([x[1] for x in pileups.values()])
-    
-    gt=np.array([x[2] for x in pileups.values()])
-    gt=np.eye(3)[gt]
-    
-    allele=np.array([x[3] for x in pileups.values()])
-    allele=np.eye(4)[allele]
-    
-    ref=np.array([x[4] for x in pileups.values()])
-    ref=np.eye(4)[ref]
-    
 
-    
-    
-    if window:
-        n=int((x.shape[2]-1)/2)
-        x=x[:,:,n-window:n+1+window,:]
-    return (pos.astype(int),mat.astype(np.int8),gt.astype(bool),allele.astype(bool),ref.astype(bool))
     
     
 def get_tensors(n_input,n_classes,learning_rate=0):
@@ -70,9 +66,10 @@ def get_tensors(n_input,n_classes,learning_rate=0):
         'wc2': tf.get_variable('W1', shape=(3,3,32,64), initializer=tf.contrib.layers.xavier_initializer()), 
         'wc3': tf.get_variable('W2', shape=(3,3,64,128), initializer=tf.contrib.layers.xavier_initializer()), 
         'wd1': tf.get_variable('W3', shape=(h_in*w_in*128,128), initializer=tf.contrib.layers.xavier_initializer()), 
-        'out': tf.get_variable('W6', shape=(128,n_classes), initializer=tf.contrib.layers.xavier_initializer()), 
-        'wd2': tf.get_variable('W7', shape=(135,32), initializer=tf.contrib.layers.xavier_initializer()), 
-        'out_prob': tf.get_variable('W8', shape=(32,4), initializer=tf.contrib.layers.xavier_initializer()), 
+        'wa1': tf.get_variable('W4', shape=(128,16), initializer=tf.contrib.layers.xavier_initializer()),
+        'out_all': tf.get_variable('W5', shape=(16,4), initializer=tf.contrib.layers.xavier_initializer()),
+        'wd2': tf.get_variable('W6', shape=(136,32), initializer=tf.contrib.layers.xavier_initializer()), 
+        'out_gtp': tf.get_variable('W7', shape=(32,2), initializer=tf.contrib.layers.xavier_initializer()), 
 
     
     }
@@ -81,9 +78,10 @@ def get_tensors(n_input,n_classes,learning_rate=0):
         'bc2': tf.get_variable('B1', shape=(64), initializer=tf.contrib.layers.xavier_initializer()),
         'bc3': tf.get_variable('B2', shape=(128), initializer=tf.contrib.layers.xavier_initializer()),
         'bd1': tf.get_variable('B3', shape=(128), initializer=tf.contrib.layers.xavier_initializer()),
-        'out': tf.get_variable('B4', shape=(n_classes), initializer=tf.contrib.layers.xavier_initializer()),
-        'bd2': tf.get_variable('B5', shape=(32), initializer=tf.contrib.layers.xavier_initializer()),
-        'out_prob': tf.get_variable('B6', shape=(4), initializer=tf.contrib.layers.xavier_initializer()),
+        'wa1': tf.get_variable('B4', shape=(16), initializer=tf.contrib.layers.xavier_initializer()),
+        'out_all': tf.get_variable('B5', shape=(4), initializer=tf.contrib.layers.xavier_initializer()),
+        'bd2': tf.get_variable('B6', shape=(32), initializer=tf.contrib.layers.xavier_initializer()),
+        'out_gtp': tf.get_variable('B7', shape=(2), initializer=tf.contrib.layers.xavier_initializer()),
 
     
     }
@@ -302,8 +300,12 @@ def test_model(params):
 
         f.write('##fileformat=VCFv4.2\n')
         f.write('##FILTER=<ID=PASS,Description="All filters passed">\n')
+        f.write('##FILTER=<ID=ql20,Description="QUAL score less than 20">')
+        f.write('##FILTER=<ID=ql30,Description="QUAL score less than 30">')
         c='##contig=<ID=%s>\n' %chrom
         f.write('##contig=<ID=%s>\n' %chrom)
+        
+
         f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Consensus Genotype across all datasets with called genotype">\n')
         f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
         ttt=[]
@@ -317,24 +319,23 @@ def test_model(params):
                         # Calculate batch loss and accuracy
 
 
-                    fc_layer_batch,score_batch,gl,qual = sess.run([fc_layer,pred,gt_likelihood,allele_likelihood],\
+                    fc_layer_batch,score_batch,qual = sess.run([fc_layer,pred,gt_likelihood],\
                                                feed_dict={x: batch_x,y: batch_y,ref:batch_ref,allele:batch_allele})
                     
-                    gl=10*np.log(np.min((1-gl),axis=1))
-                    qual=10*np.log(np.min((1-qual),axis=1))
+                    qual=-10*np.log10(np.abs((qual[:,0]-1e-9)))
                     all_pred,gt_pred=np.argmax(fc_layer_batch,axis=1),np.argmax(score_batch,axis=1)
 
                     mat=np.hstack([batch_pos[:,np.newaxis],np.argmax(batch_ref,axis=1)\
-                                             [:,np.newaxis],all_pred[:,np.newaxis],gt_pred[:,np.newaxis],qual[:,np.newaxis],\
-                                   gl[:,np.newaxis]])
+                                             [:,np.newaxis],all_pred[:,np.newaxis],gt_pred[:,np.newaxis],qual[:,np.newaxis]])
                     mat=mat[(mat[:,3]!=0) & (mat[:,1]!=mat[:,2])]
                     for j in range(len(mat)):
                         v=mat[j]
-                        s='%s\t%d\t.\t%s\t%s\t%.3f\tPASS\t.\tGT:GL\t%s:%.3f\n' %\
-                        (chrom,v[0],rev_mapping[v[1]],rev_mapping[v[2]],v[4],gt_map[v[3]],v[5])
+                       
+                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT\t%s\n' %\
+                        (chrom,v[0],rev_mapping[v[1]],rev_mapping[v[2]],v[4],'PASS',gt_map[v[3]])
                         f.write(s)
-                    ttt.append(qual2)
-    return np.vstack(ttt)  
+                    
+    return mat  
 
         
 def test_model_bam(params):

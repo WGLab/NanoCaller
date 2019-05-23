@@ -17,18 +17,32 @@ def print_vcf(file,chrom,df):
             s='%s\t%d\t.\t%s\t%s\t%d\tPASS\t.\tGT\t%s\n' %(chrom,v[0],v[1],v[2],0,v[3])
             f.write(s)
 
-def read_pileups_from_file(fname,dims):
+def read_pileups_from_file(fname,dims,mode):
     lines={}
-    with gzip.open(fname,'rb') as file:
-        for l in file:
-            l=l.decode('utf-8')[:-1]
-            pos,gtype,allele,ref,m1,m2=l.split(':')
-            mm1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],dims[2]-1))
-            m2=m2.replace(".", "")
-            mm2=np.array(m2.split('|')).astype(np.int8).reshape((dims[0],dims[1],1))
-            p_mat=np.dstack((mm1,mm2))
+    if mode=='train':
+        with open(fname,'rb') as file:
+            for l in file:
+                l=l.decode('utf-8')[:-1]
+                pos,gtype,allele,ref,m1,m2=l.split(':')
+                mm1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],dims[2]-1))
+                m2=m2.replace(".", "")
+                mm2=np.array(m2.split('|')).astype(np.int8).reshape((dims[0],dims[1],1))
+                p_mat=np.dstack((mm1,mm2))
 
-            lines[pos]=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref))
+                lines[pos]=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref))
+    
+    else:
+        with open(fname,'rb') as file:
+            for l in file:
+                l=l.decode('utf-8')[:-1]
+                pos,ref,m1,m2=l.split(':')
+                mm1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],dims[2]-1))
+                m2=m2.replace(".", "")
+                mm2=np.array(m2.split('|')).astype(np.int8).reshape((dims[0],dims[1],1))
+                p_mat=np.dstack((mm1,mm2))
+
+                lines[pos]=(int(pos),p_mat,int(ref))
+    
     return lines
 
 def pileup_image_from_mat(in_mat):

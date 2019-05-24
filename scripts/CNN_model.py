@@ -2,9 +2,8 @@ import time,os,copy,argparse,utils,gzip
 import pandas as pd
 import numpy as np
 import multiprocessing as mp
-import multi_gcp as mgcp
+import generate_pileups as gcp
 import tensorflow as tf
-import generate_candidate_pileups as gcp
 
 def get_data(file_path,dims,mode='train'):
     pileups=utils.read_pileups_from_file(file_path,dims,mode)
@@ -227,11 +226,11 @@ def genotype_caller(params,input_type='path',data=None):
     init = tf.global_variables_initializer()
     saver = tf.train.Saver()
     
-    sample=np.random.choice(len(x_test), 1000, replace=False)
+    '''sample=np.random.choice(len(x_test), 300, replace=False)
     bx_test=x_test[sample]
     by_test=y_test[sample]
     btest_ref=test_ref[sample]
-    btest_allele=test_allele[sample]
+    btest_allele=test_allele[sample]'''
     
     n_size=1
     with tf.Session() as sess:
@@ -243,12 +242,13 @@ def genotype_caller(params,input_type='path',data=None):
         n_end=0
         for i in range(training_iters):
             n_start+=len(x_train)
-            n_end=n_start+len(nx_train)
-            if n_end>len(x_train):
+            n_end+=len(x_train)
+            if n_end>len(nx_train):
                 n_start=0
-                n_end=n_start+len(nx_train)
-            batch_nx_train,batch_ny_train,batch_ntrain_allele,batch_ntrain_ref=nx_train[n_start,n_end,:,:,:],\
-                ny_train[n_start,n_end,:],ntrain_allele[n_start,n_end,:],ntrain_ref[n_start,n_end,:]
+                n_end=n_start+len(x_train)
+            batch_nx_train,batch_ny_train,batch_ntrain_allele,batch_ntrain_ref=nx_train[n_start:n_end,:,:,:],\
+                ny_train[n_start:n_end,:],ntrain_allele[n_start:n_end,:],ntrain_ref[n_start:n_end,:]
+            
             for batch in range(len(x_train)//batch_size):
                 
                 batch_x = np.vstack([x_train[batch*batch_size:min((batch+1)*batch_size,len(x_train))],batch_nx_train])
@@ -266,7 +266,11 @@ def genotype_caller(params,input_type='path',data=None):
             print("Optimization Finished!\n")
 
             # Calculate accuracy for all 10000 mnist test images
-
+            sample=np.random.choice(len(x_test), 300, replace=False)
+            bx_test=x_test[sample]
+            by_test=y_test[sample]
+            btest_ref=test_ref[sample]
+            btest_allele=test_allele[sample]
             test_acc_gt,test_acc_allele,valid_loss = sess.run([accuracy_gt,accuracy_allele,cost],\
                                            feed_dict={x: bx_test,y : by_test,ref:btest_ref,allele:btest_allele,rate:0.0})
                 # repeat steps 4 for the histogram summary            

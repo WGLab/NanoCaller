@@ -80,66 +80,79 @@ def get_candidates(dct):
     else:
         return pd.DataFrame()
     
-def create_training_pileup(in_dct):
-    tr_df=extract_vcf(in_dct)
-    c_df=get_candidates(in_dct)
-    
-    tr_list=[]
-    tr_pos=[]
-    if tr_df.shape[0]!=0:
+def create_pileup(in_dct):
+    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+    if in_dct['mode']=='training':
+        tr_df=extract_vcf(in_dct)
+        c_df=get_candidates(in_dct)
 
-        tr_df['gtype']=tr_df['gtype'].astype(int)
-        tr_pos=list(tr_df.POS)
-        tr_df.set_index('POS',drop=False,inplace=True)
-        
-        for v_pos in tr_df.POS:
-            res=create_pileup(in_dct,v_pos=v_pos)
+        tr_list=[]
+        tr_pos=[]
+        if tr_df.shape[0]!=0:
+
+            tr_df['gtype']=tr_df['gtype'].astype(int)
+            tr_pos=list(tr_df.POS)
+            tr_df.set_index('POS',drop=False,inplace=True)
+
+            for v_pos in tr_df.POS:
+                res=create_pileup_image(in_dct,v_pos=v_pos)
+                if res:
+                    tr_list.append((v_pos,tr_df['gtype'].loc[v_pos],tr_df['ALL'].loc[v_pos],\
+                              tr_df['REF'].loc[v_pos],res[0]))
+
+
+
+
+        neg_list=[]
+
+        if c_df.shape[0]!=0:
+            c_df.set_index('POS',drop=False,inplace=True)
+            c_df.drop([x for x in tr_pos if x in c_df.index],inplace=True)
+            np.random.seed(42)
+            sample=np.random.choice(c_df.shape[0], min(c_df.shape[0],5*len(tr_pos)), replace=False)
+            c_df=c_df.iloc[sample]
+            c_df['gtype']=0
+
+            for v_pos in c_df.POS:
+
+                res=create_pileup_image(in_dct,v_pos=v_pos)
+                if res:
+                    neg_list.append((v_pos,c_df['gtype'].loc[v_pos],c_df['ALL'].loc[v_pos],\
+                          c_df['REF'].loc[v_pos],res[0]))
+        #gtype, matrix, reads
+
+        return (tr_list,neg_list)
+
+    elif in_dct['mode']=='testing':
+        test_sites_df=get_candidates(in_dct)
+        if test_sites_df.shape[0]==0:
+            return None
+
+        test_sites_df.set_index('POS',drop=False,inplace=True)
+        d={}
+        for v_pos in test_sites_df.POS:
+
+            res=create_pileup_image(in_dct,v_pos=v_pos)
             if res:
-                tr_list.append((v_pos,tr_df['gtype'].loc[v_pos],tr_df['ALL'].loc[v_pos],\
-                          tr_df['REF'].loc[v_pos],res[0]))
+                d[v_pos]=(test_sites_df['REF'].loc[v_pos],res[0])
 
+        return d
 
-    
+    elif in_dct['mode']=='common':
+        d={}
+        fastafile=pysam.FastaFile(in_dct['fasta_path'])
+        for v_pos in in_dct['list']:
+            r=fastafile.fetch(in_dct['chrom'],v_pos-1,v_pos)
+            if r in ['A','G','T','C']:
+                res=create_pileup_image(in_dct,v_pos=v_pos)
+                if res:
+                    d[v_pos]=(mapping[r],res[0])
 
-    neg_list=[]
-    
-    if c_df.shape[0]!=0:
-        c_df.set_index('POS',drop=False,inplace=True)
-        c_df.drop([x for x in tr_pos if x in c_df.index],inplace=True)
-        np.random.seed(42)
-        sample=np.random.choice(c_df.shape[0], min(c_df.shape[0],5*len(tr_pos)), replace=False)
-        c_df=c_df.iloc[sample]
-        c_df['gtype']=0
+        return d
         
-        for v_pos in c_df.POS:
-
-            res=create_pileup(in_dct,v_pos=v_pos)
-            if res:
-                neg_list.append((v_pos,c_df['gtype'].loc[v_pos],c_df['ALL'].loc[v_pos],\
-                      c_df['REF'].loc[v_pos],res[0]))
-    #gtype, matrix, reads
-
-    return (tr_list,neg_list)
-
-def create_testing_pileup(in_dct):
-    test_sites_df=get_candidates(in_dct)
-    if test_sites_df.shape[0]==0:
-        return None
-
-    test_sites_df.set_index('POS',drop=False,inplace=True)
-    pileup_list=[]
-
-    d={}
-    for v_pos in test_sites_df.POS:
         
-        res=create_pileup(in_dct,v_pos=v_pos)
-        if res:
-            pileup_list.append(res[0])
-            d[v_pos]=(test_sites_df['REF'].loc[v_pos],res[0])
-    
-    return d
         
-def create_pileup(dct,v_pos=None):
+def create_pileup_image(dct,v_pos=None):
     chrom=dct['chrom']
     
     sam_path=dct['sam_path']
@@ -240,7 +253,7 @@ def generate(params,mode='training'):
                 d['start']=k
                 d['end']=k+chunk_size
                 in_dict_list.append(d)
-            results_dict = pool.map(create_training_pileup, in_dict_list)
+            results_dict = pool.map(create_pileup, in_dict_list)
             for result in results_dict:
                 if result[1] and (params['examples']=='neg' or params['examples']=='all'):
                     for data in result[1]:
@@ -282,7 +295,7 @@ def generate(params,mode='training'):
                 d['start']=k
                 d['end']=k+1000
                 in_dict_list.append(d)
-            results = pool.map(create_testing_pileup, in_dict_list)
+            results = pool.map(create_pileup, in_dict_list)
             for res_dict in results:
                 if res_dict:
                     for k,p in res_dict.items():
@@ -297,7 +310,49 @@ def generate(params,mode='training'):
             elapsed=time.time()-t
             print ('Elapsed: %.2f seconds' %elapsed)
             print('finishing pool:'+str(mbase))
+    
+    elif mode=='common':
+        with open(params['vcf_path'],'r') as file:
+            content=[int(x.rstrip('\n')) for x in file]
+        
+        cores=mp.cpu_count()    
+        ind_list=[content[i*(len(content)//10):(i+1)*(len(content)//10)] for i in range(10+(len(content)%10!=0))]
+        pool = mp.Pool(processes=cores)
+        print('starting pileups')
+        for c,ind in enumerate(ind_list):
+            t=time.time()
+            fname='%s_known_sites_pileups_%d' %(params['chrom'],c+1)
+            print('starting: %s' %fname)
+            fname=os.path.join(params['out_path'],fname)
+            
+            pool_list=[ind[i*(len(ind)//cores):(i+1)*(len(ind)//cores)] for i in range(cores+(len(content)%cores!=0))]
+            
+            in_dict_list=[]
+            for k in pool_list:
+                d = copy.deepcopy(params)    
+                d['list']=k
+                in_dict_list.append(d)
+            results = pool.map(create_pileup, in_dict_list)
+            
+                
+            with gzip.open(fname,'wb') as file:
+                for res_dict in results:
+                    if res_dict:
+                        for k,p in res_dict.items():
+                            ref,mat=p
 
+                            ft=mat[:,:,-1].reshape(-1)
+                            mat=mat[:,:,:-1].reshape(-1)
+                            s='%d:%d:%s:%s\n' %(k,ref, ''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
+                            file.write(s.encode('utf-8'))
+            
+            elapsed=time.time()-t
+            print ('Elapsed: %.2f seconds' %elapsed)
+            print('finishing pool')
+            
+
+        
+        
 
 
 if __name__ == '__main__':

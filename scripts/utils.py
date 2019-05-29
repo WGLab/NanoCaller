@@ -32,9 +32,9 @@ def read_pileups_from_file(fname,dims,mode):
                 lines[pos]=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref))
     
     else:
-        with open(fname,'rb') as file:
+        with open(fname,'r') as file:
             for l in file:
-                l=l.decode('utf-8')[:-1]
+                l=l[:-1]
                 pos,ref,m1,m2=l.split(':')
                 mm1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],dims[2]-1))
                 m2=m2.replace(".", "")

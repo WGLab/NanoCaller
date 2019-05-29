@@ -182,14 +182,19 @@ def create_pileup_image(dct,v_pos=None):
             return None
         for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,stepper='nofilter',\
                                            flag_filter=0x800,truncate=True):
+            if pcol.get_num_aligned()<16 and pcol.pos==v_pos-1:
+                return None
+            
             name=pcol.get_query_names()
+            
             seq=pcol.get_query_sequences()
             qual=pcol.get_query_qualities()
 
             d[pcol.pos+1]={n:s.upper() if len(s)>0 else '*' for (n,s) in zip(name,seq)}
             features[pcol.pos+1]={n:q for (n,q) in zip(name,qual)}
 
-
+        if len(d.keys())<33:
+            return None
         p_df=pd.DataFrame.from_dict(d)
         p_df.dropna(subset=[v_pos],inplace=True)
         
@@ -210,11 +215,13 @@ def create_pileup_image(dct,v_pos=None):
         ref_match=(p_mat==rlist)
 
         #tmp2=2*np.array(ref_match)[:,:,np.newaxis]-1
-        tmp=np.dstack([(p_mat==i) for i in range(5)])
+        tmp=np.dstack([(p_mat==i) for i in range(4)])
         
         #data=np.multiply(tmp,tmp2).astype(np.int8)
         try:
-            data=np.dstack((tmp,ref_match,np.array(f_df))).astype(np.int8)
+            ref_match=2*ref_match-1
+            f_mat=np.array(f_df)*ref_match
+            data=np.dstack((tmp,f_mat)).astype(np.int8)
         except ValueError:
             return None
         

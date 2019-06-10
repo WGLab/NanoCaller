@@ -17,10 +17,10 @@ def extract_vcf(dct):
     mapping={'A':0,'G':1,'T':2,'C':3}
     bcf_in = VariantFile(vcf_path)  # auto-detect input format
     fastafile=pysam.FastaFile(fasta_path)
-    for rec in bcf_in.fetch():
+    '''for rec in bcf_in.fetch():
         prfx='chr' if 'chr' in rec.contig else ''
         chrom=re.findall("(.*?)\d",rec.contig)[0]+re.findall("\d+",chrom)[0]
-        break
+        break'''
 
 
     d={}
@@ -47,12 +47,13 @@ def get_candidates(dct):
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
 
-    fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
-    sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
+    fasta_chr,sam_chr=chrom,chrom
+    #fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
+    #sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     rlist=[s for s in fastafile.fetch(fasta_chr,start-1,end-1)]
     output=[]
     for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,stepper='nofilter',\
-                                           flag_filter=0x800,truncate=True):
+                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             alt_freq=None
             
             try:
@@ -108,9 +109,9 @@ def create_pileup(in_dct):
         if c_df.shape[0]!=0:
             c_df.set_index('POS',drop=False,inplace=True)
             c_df.drop([x for x in tr_pos if x in c_df.index],inplace=True)
-            np.random.seed(42)
-            sample=np.random.choice(c_df.shape[0], min(c_df.shape[0],5*len(tr_pos)), replace=False)
-            c_df=c_df.iloc[sample]
+            #np.random.seed(42)
+            #sample=np.random.choice(c_df.shape[0], min(c_df.shape[0],5*len(tr_pos)), replace=False)
+            #c_df=c_df.iloc[sample]
             c_df['gtype']=0
 
             for v_pos in c_df.POS:
@@ -153,6 +154,7 @@ def create_pileup(in_dct):
         
         
 def create_pileup_image(dct,v_pos=None):
+    cores=4
     chrom=dct['chrom']
     
     sam_path=dct['sam_path']
@@ -181,7 +183,7 @@ def create_pileup_image(dct,v_pos=None):
         except KeyError:
             return None
         for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,stepper='nofilter',\
-                                           flag_filter=0x800,truncate=True):
+                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             if pcol.get_num_aligned()<16 and pcol.pos==v_pos-1:
                 return None
             
@@ -221,7 +223,7 @@ def create_pileup_image(dct,v_pos=None):
         try:
             ref_match=2*ref_match-1
             f_mat=np.array(f_df)*ref_match
-            data=np.dstack((tmp,f_mat)).astype(np.int8)
+            data=np.dstack((tmp,f_mat))
         except ValueError:
             return None
         
@@ -230,27 +232,27 @@ def create_pileup_image(dct,v_pos=None):
             data=np.vstack((data,tmp))
             rnames+=['Buff' for i in range(tmp.shape[0])]
             
-        return (data,rnames)
+        return (data.astype(np.int8),rnames)
     except AssertionError:
         return None
         
 def generate(params,mode='training'):
+    cores=params['cpu']
     mode=params['mode']
     if mode=='training':
-        print('starting pileups')
-        cores=mp.cpu_count()
-        pool = mp.Pool(processes=mp.cpu_count())
+        print('starting pileups',flush=True)
+        pool = mp.Pool(processes=cores)
         fname='%s_%d_%d_pileups' %(params['chrom'],params['start'],params['end'])
         true_fname=os.path.join(params['out_path'],fname+'_pos.gz')
         neg_fname=os.path.join(params['out_path'],fname+'_neg.gz')
-        p_file=gzip.open(true_fname , "wb")
-        n_file=gzip.open(neg_fname , "wb")
+        p_file=open(true_fname , "w")
+        n_file=open(neg_fname , "w")
         start,end=params['start'],params['end']
         
         
         
         for mbase in range(start,end,int(1e6)):
-            print('starting pool:'+str(mbase))
+            print('starting pool:'+str(mbase),flush=True)
             t=time.time()                
 
             in_dict_list=[]
@@ -268,8 +270,8 @@ def generate(params,mode='training'):
 
                             ft=mat[:,:,-1].reshape(-1)
                             mat=mat[:,:,:-1].reshape(-1)
-                            s='%d:%d:%d:%d:%s:%s\n' %(pos,gt,allele,ref,''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
-                            n_file.write(s.encode('utf-8'))
+                            s='%s%d%d%d%d%s%s' %((11-len(str(pos)))*'0',pos,gt,allele,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
+                            n_file.write(s)
 
                 if result[0] and (params['examples']=='pos' or params['examples']=='all'):
                     for data in result[0]:
@@ -277,23 +279,23 @@ def generate(params,mode='training'):
 
                         ft=mat[:,:,-1].reshape(-1)
                         mat=mat[:,:,:-1].reshape(-1)
-                        s='%d:%d:%d:%d:%s:%s\n' %(pos,gt,allele,ref,''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
-                        p_file.write(s.encode('utf-8'))
+                        s='%s%d%d%d%d%s%s' %((11-len(str(pos)))*'0',pos,gt,allele,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
+                        p_file.write(s)
 
             
             elapsed=time.time()-t
-            print ('Elapsed: %.2f seconds' %elapsed)
-            print('finishing pool:'+str(mbase))
+            print ('Elapsed: %.2f seconds' %elapsed,flush=True)
+            print('finishing pool:'+str(mbase),flush=True)
             
     elif mode=='testing':
-        print('starting pileups')
-        pool = mp.Pool(processes=mp.cpu_count())
+        print('starting pileups',flush=True)
+        pool = mp.Pool(processes=cores)
         fname='%s_%d_%d_pileups' %(params['chrom'],params['start'],params['end'])
         fname=os.path.join(params['out_path'],fname+'_multi_test_v2.gz')
-        file=gzip.open(fname , "wb")
+        file=open(fname , "w")
         start,end=params['start'],params['end']
         for mbase in range(start,end,int(1e4)):
-            print('starting pool:'+str(mbase))
+            print('starting pool:'+str(mbase),flush=True)
             t=time.time()                
 
             in_dict_list=[]
@@ -310,26 +312,26 @@ def generate(params,mode='training'):
 
                         ft=mat[:,:,-1].reshape(-1)
                         mat=mat[:,:,:-1].reshape(-1)
-                        s='%d:%d:%s:%s\n' %(k,ref, ''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
-                        file.write(s.encode('utf-8'))
+                        s='%s%d%d%s%s' %((11-len(str(k)))*'0',k,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
+                        file.write(s)
 
             
             elapsed=time.time()-t
-            print ('Elapsed: %.2f seconds' %elapsed)
-            print('finishing pool:'+str(mbase))
+            print ('Elapsed: %.2f seconds' %elapsed,flush=True)
+            print('finishing pool:'+str(mbase),flush=True)
     
     elif mode=='common':
         with open(params['vcf_path'],'r') as file:
             content=[int(x.rstrip('\n')) for x in file]
         
-        cores=mp.cpu_count()    
+            
         ind_list=[content[i*(len(content)//10):(i+1)*(len(content)//10)] for i in range(10+(len(content)%10!=0))]
         pool = mp.Pool(processes=cores)
-        print('starting pileups')
+        print('starting pileups',flush=True)
         for c,ind in enumerate(ind_list):
             t=time.time()
             fname='%s_known_sites_pileups_%d' %(params['chrom'],c+1)
-            print('starting: %s' %fname)
+            print('starting: %s' %fname,flush=True)
             fname=os.path.join(params['out_path'],fname)
             
             pool_list=[ind[i*(len(ind)//cores):(i+1)*(len(ind)//cores)] for i in range(cores+(len(content)%cores!=0))]
@@ -342,7 +344,7 @@ def generate(params,mode='training'):
             results = pool.map(create_pileup, in_dict_list)
             
                 
-            with gzip.open(fname,'wb') as file:
+            with open(fname,'w') as file:
                 for res_dict in results:
                     if res_dict:
                         for k,p in res_dict.items():
@@ -350,12 +352,12 @@ def generate(params,mode='training'):
 
                             ft=mat[:,:,-1].reshape(-1)
                             mat=mat[:,:,:-1].reshape(-1)
-                            s='%d:%d:%s:%s\n' %(k,ref, ''.join(mat.astype('<U1')),'|'.join(ft.astype('<U2')))
-                            file.write(s.encode('utf-8'))
+                            s='%s%d%d%s%s' %((11-len(str(k)))*'0',k,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
+                            file.write(s)
             
             elapsed=time.time()-t
-            print ('Elapsed: %.2f seconds' %elapsed)
-            print('finishing pool')
+            print ('Elapsed: %.2f seconds' %elapsed,flush=True)
+            print('finishing pool',flush=True)
             
 
         
@@ -363,7 +365,10 @@ def generate(params,mode='training'):
 
 
 if __name__ == '__main__':
-    
+    chrom_length={'chr1':248956422,'chr2':242193529,'chr3':198295559,'chr4':190214555,'chr5':181538259,'chr6':170805979,\
+             'chr7':159345973,'chr8':145138636,'chr9':138394717,'chr10':133797422,'chr11':135086622,'chr12':133275309,\
+             'chr13':114364328,'chr14':107043718,'chr15':101991189,'chr16':90338345,'chr17':83257441,'chr18':80373285,\
+             'chr19':58617616,'chr20':64444167,'chr21':46709983,'chr22':50818468,'chrX':156040895,'chrY':57227415}
     parser = argparse.ArgumentParser()
 
     #-r chromosome region   -m mode   -bam bam file   -ref reference file   -vcf ground truth variants   -o output path
@@ -374,17 +379,23 @@ if __name__ == '__main__':
     parser.add_argument("-vcf", "--vcf", help="Ground truth variants")
     parser.add_argument("-o", "--output", help="Output path")
     parser.add_argument("-w", "--window", help="Window",type=int)
+    parser.add_argument("-cpu", "--cpu", help="CPUs",type=int)
     parser.add_argument("-d", "--depth", help="Depth",type=int)
     parser.add_argument("-t", "--threshold", help="Threshold",type=float)
     parser.add_argument("-ex", "--examples", help="Threshold",type=str)
     
     args = parser.parse_args()
     
-    chrom,region=args.region.split(':')
-    start,end=int(region.split('-')[0]),int(region.split('-')[1])
-    
+    if len(args.region.split(':'))==2:
+        chrom,region=args.region.split(':')
+        start,end=int(region.split('-')[0]),int(region.split('-')[1])
+        
+    else:
+        chrom=args.region.split(':')[0]
+        start,end=1,chrom_length[chrom]
+        
     in_dict={'mode':args.mode, 'chrom':chrom,'start':start,'end':end,\
-         'sam_path':args.bam,'fasta_path':args.ref,'vcf_path':args.vcf,'out_path':args.output,'window':args.window,'depth':args.depth,'threshold':args.threshold,'examples':args.examples}    
+         'sam_path':args.bam,'fasta_path':args.ref,'vcf_path':args.vcf,'out_path':args.output,'window':args.window,'depth':args.depth,'threshold':args.threshold,'examples':args.examples,'cpu':args.cpu}    
     
     t=time.time()
     generate(in_dict)

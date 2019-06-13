@@ -5,6 +5,7 @@ import numpy as np
 import multiprocessing as mp
 from pysam import VariantFile
 from matplotlib import pyplot as plt
+from intervaltree import Interval, IntervalTree
 
 def extract_vcf(dct):
     chrom=dct['chrom']
@@ -35,7 +36,9 @@ def extract_vcf(dct):
     #df.sort_values('POS',inplace=True)
     return df
 
-def get_candidates(dct):
+
+
+def get_training_candidates(dct,tr_pos):
     
     chrom=dct['chrom']
     start=dct['start']
@@ -46,48 +49,92 @@ def get_candidates(dct):
 
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
-
+    
+    bed_file='/home/ahsanm1/umair_wlab/data/NanoVar_data/bed_by_chrom/%s.bed' %chrom
+    with open(bed_file) as file:
+        content=[x.rstrip('\n') for x in file]
+    
+    content=[x.split('\t')[1:] for x in content]
+    content=[(int(x[0]),int(x[1])) for x in content]
+    t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
+    
+    
+    
     fasta_chr,sam_chr=chrom,chrom
     #fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     #sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     rlist=[s for s in fastafile.fetch(fasta_chr,start-1,end-1)]
-    output=[]
+    output={0:[],5:[],10:[],15:[],20:[],25:[]}
     for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,stepper='nofilter',\
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             alt_freq=None
-            
+            if not t[pcol.pos+1]:
+                continue
             try:
                 n=pcol.get_num_aligned()
                 r=rlist[pcol.pos+1-start]
                 
-                if r!='N' and n>=16:
+                if r!='N' and n>=4:
                     r=rlist[pcol.pos+1-start]
                     seq=''.join([x for x in pcol.get_query_sequences() if x not in ['','N','n']]).upper()
-                    alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
-                    if alt_freq:
-                        output.append((pcol.pos+1,r,r))
+                    alt_freq=max([x[1] for x in Counter(seq).items() if x[0]!=r]+[0])/n
+                    #alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
+                    
+                    if alt_freq<0.05:
+                        output[0].append((pcol.pos+1,r,r))
+                        
+                    elif 0.05<=alt_freq<0.10:
+                        output[5].append((pcol.pos+1,r,r))
+                    elif 0.10<=alt_freq<0.15:
+                        output[10].append((pcol.pos+1,r,r))
+                    elif 0.15<=alt_freq<0.20:
+                        output[15].append((pcol.pos+1,r,r))
+                    elif 0.20<=alt_freq<0.25:
+                        output[20].append((pcol.pos+1,r,r))
+                    elif 0.25<=alt_freq:
+                        output[25].append((pcol.pos+1,r,r))
                         
             except AssertionError:
                 continue
-    if output:
-        candidates_df=pd.DataFrame(output)
-        candidates_df.rename(columns={0:'POS',1:'ALL',2:'REF'},inplace=True)
-        mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
-        candidates_df=candidates_df[candidates_df['ALL'].map(lambda x: x in ['A','G','T','C'])] 
+    np.random.seed(42)
+    result={}
+    sizes={0:2*len(tr_pos), 5:len(tr_pos)//2,10:len(tr_pos)//2,15:len(tr_pos)//2, 20:len(tr_pos)//2, 25:2*len(tr_pos)}
+    for i in [0,5,10,15,20,25]:
+        pos_list=output[i]
+        candidates_df=pd.DataFrame()
         
-        candidates_df[['ALL','REF']]=candidates_df[['ALL','REF']].applymap(lambda x:mapping[x])
-        #candidates_df.rename(columns={0:'POS',1:'ALT_FREQ',2:'REF_FREQ',3:'DEPTH',4:'ALT_NUM',5:'REF_NUM'},inplace=True)
-        return candidates_df
-    else:
-        return pd.DataFrame()
+        if pos_list:
+            candidates_df=pd.DataFrame(pos_list)
+
+            candidates_df.rename(columns={0:'POS',1:'ALL',2:'REF'},inplace=True)
+
+            candidates_df.set_index('POS',drop=False,inplace=True)
+            candidates_df.drop([x for x in tr_pos if x in candidates_df.index],inplace=True)
+
+            sample=np.random.choice(len(candidates_df), min(len(candidates_df),sizes[i]), replace=False)
+            candidates_df=candidates_df.iloc[sample]
+
+            mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+            candidates_df=candidates_df[candidates_df['ALL'].map(lambda x: x in ['A','G','T','C'])] 
+            
+            try:
+                candidates_df[['ALL','REF']]=candidates_df[['ALL','REF']].applymap(lambda x:mapping[x])
+            #candidates_df.rename(columns={0:'POS',1:'ALT_FREQ',2:'REF_FREQ',3:'DEPTH', 4:'ALT_NUM', 5:'REF_NUM'}, inplace=True)
+            except KeyError:
+                pass
+                
+        result[i]=candidates_df
+
+    return result
+
     
-def create_pileup(in_dct):
+def create_training_pileup(in_dct):
     mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+    neg_list={0:[],5:[],10:[],15:[],20:[],25:[]}
+    tr_list=[]
     if in_dct['mode']=='training':
         tr_df=extract_vcf(in_dct)
-        c_df=get_candidates(in_dct)
-
-        tr_list=[]
+                
         tr_pos=[]
         if tr_df.shape[0]!=0:
 
@@ -103,28 +150,95 @@ def create_pileup(in_dct):
 
 
 
+            neg_df_list=get_training_candidates(in_dct,tr_pos)
 
-        neg_list=[]
+            
 
-        if c_df.shape[0]!=0:
-            c_df.set_index('POS',drop=False,inplace=True)
-            c_df.drop([x for x in tr_pos if x in c_df.index],inplace=True)
-            #np.random.seed(42)
-            #sample=np.random.choice(c_df.shape[0], min(c_df.shape[0],5*len(tr_pos)), replace=False)
-            #c_df=c_df.iloc[sample]
-            c_df['gtype']=0
+            for i in [0,5,10,15,20,25]:
+                c_df=neg_df_list[i]
 
-            for v_pos in c_df.POS:
+                if c_df.shape[0]!=0:
 
-                res=create_pileup_image(in_dct,v_pos=v_pos)
-                if res:
-                    neg_list.append((v_pos,c_df['gtype'].loc[v_pos],c_df['ALL'].loc[v_pos],\
-                          c_df['REF'].loc[v_pos],res[0]))
-        #gtype, matrix, reads
+                    c_df['gtype']=0
 
-        return (tr_list,neg_list)
+                    for v_pos in c_df.POS:
 
-    elif in_dct['mode']=='testing':
+                        res=create_pileup_image(in_dct,v_pos=v_pos)
+                        if res:
+                            neg_list[i].append((v_pos,c_df['gtype'].loc[v_pos],c_df['ALL'].loc[v_pos],\
+                                  c_df['REF'].loc[v_pos],res[0]))
+                #gtype, matrix, reads
+
+        return (tr_list,neg_list)    
+    
+
+
+
+
+def get_candidates(dct):
+    
+    chrom=dct['chrom']
+    start=dct['start']
+    end=dct['end']
+    sam_path=dct['sam_path']
+    fasta_path=dct['fasta_path']
+    threshold=dct['threshold']
+
+    bed_file='/home/ahsanm1/umair_wlab/data/NanoVar_data/bed_by_chrom/%s.bed' %chrom
+    with open(bed_file) as file:
+        content=[x.rstrip('\n') for x in file]
+    
+    content=[x.split('\t')[1:] for x in content]
+    content=[(int(x[0]),int(x[1])) for x in content]
+    t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
+    
+    
+    samfile = pysam.Samfile(sam_path, "rb")
+    fastafile=pysam.FastaFile(fasta_path)
+
+    fasta_chr,sam_chr=chrom,chrom
+    #fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
+    #sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
+    rlist=[s for s in fastafile.fetch(fasta_chr,start-1,end-1)]
+    output=[]
+    for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,stepper='nofilter',\
+                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
+            alt_freq=None
+            if not t[pcol.pos+1]:
+                continue
+            try:
+                n=pcol.get_num_aligned()
+                r=rlist[pcol.pos+1-start]
+                
+                if r!='N' and n>=4:
+                    r=rlist[pcol.pos+1-start]
+                    seq=''.join([x for x in pcol.get_query_sequences() if x not in ['','N','n']]).upper()
+                    alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
+                    if alt_freq:
+                        output.append((pcol.pos+1,r,r))
+                        
+            except AssertionError:
+                continue
+    if output:
+        candidates_df=pd.DataFrame(output)
+        candidates_df.rename(columns={0:'POS',1:'ALL',2:'REF'},inplace=True)
+        mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+        candidates_df=candidates_df[candidates_df['ALL'].map(lambda x: x in ['A','G','T','C'])] 
+        
+        try:
+            candidates_df[['ALL','REF']]=candidates_df[['ALL','REF']].applymap(lambda x:mapping[x])
+        except KeyError:
+            return pd.DataFrame()
+        #candidates_df.rename(columns={0:'POS',1:'ALT_FREQ',2:'REF_FREQ',3:'DEPTH',4:'ALT_NUM',5:'REF_NUM'},inplace=True)
+        return candidates_df
+    else:
+        return pd.DataFrame()
+
+
+def create_pileup(in_dct):
+    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+
+    if in_dct['mode']=='testing':
         test_sites_df=get_candidates(in_dct)
         if test_sites_df.shape[0]==0:
             return None
@@ -154,7 +268,6 @@ def create_pileup(in_dct):
         
         
 def create_pileup_image(dct,v_pos=None):
-    cores=4
     chrom=dct['chrom']
     
     sam_path=dct['sam_path']
@@ -175,18 +288,22 @@ def create_pileup_image(dct,v_pos=None):
         v_start=v_pos-window
         v_end=v_pos+window
         
-        d={x:{} for x in range(v_start,v_end)}
+        d={x:{} for x in range(v_start,v_end+1)}
         features={x:{} for x in range(v_start,v_end)}
         try:
             rlist=[mapping[s] for s in fastafile.fetch(fasta_chr,v_start-1,v_end)]
             
         except KeyError:
+            #print('KeyError at %d' %v_pos, flush=True)
             return None
-        for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,stepper='nofilter',\
+        
+        for pcol in samfile.pileup(chrom,v_pos-1,v_pos,min_base_quality=0,stepper='nofilter',\
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
-            if pcol.get_num_aligned()<16 and pcol.pos==v_pos-1:
+            if pcol.get_num_aligned()<4:
                 return None
             
+        for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,stepper='nofilter',\
+                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             name=pcol.get_query_names()
             
             seq=pcol.get_query_sequences()
@@ -195,8 +312,6 @@ def create_pileup_image(dct,v_pos=None):
             d[pcol.pos+1]={n:s.upper() if len(s)>0 else '*' for (n,s) in zip(name,seq)}
             features[pcol.pos+1]={n:q for (n,q) in zip(name,qual)}
 
-        if len(d.keys())<33:
-            return None
         p_df=pd.DataFrame.from_dict(d)
         p_df.dropna(subset=[v_pos],inplace=True)
         
@@ -225,6 +340,7 @@ def create_pileup_image(dct,v_pos=None):
             f_mat=np.array(f_df)*ref_match
             data=np.dstack((tmp,f_mat))
         except ValueError:
+            #print('ValueError at %d' %v_pos, flush=True)
             return None
         
         if data.shape[0]<du_lim:
@@ -234,19 +350,25 @@ def create_pileup_image(dct,v_pos=None):
             
         return (data.astype(np.int8),rnames)
     except AssertionError:
+        #print('AssertionError at %d' %v_pos, flush=True)
         return None
         
 def generate(params,mode='training'):
     cores=params['cpu']
     mode=params['mode']
     if mode=='training':
-        print('starting pileups',flush=True)
+        #print('starting pileups',flush=True)
+        
         pool = mp.Pool(processes=cores)
-        fname='%s_%d_%d_pileups' %(params['chrom'],params['start'],params['end'])
-        true_fname=os.path.join(params['out_path'],fname+'_pos.gz')
-        neg_fname=os.path.join(params['out_path'],fname+'_neg.gz')
+        fname='%s_pileups' %params['chrom']
+        true_fname=os.path.join(params['out_path'],fname+'_pos')
         p_file=open(true_fname , "w")
-        n_file=open(neg_fname , "w")
+        
+        neg_file_list={}
+        for i in [0,5,10,15,20,25]:
+            tmp_name=os.path.join(params['out_path'],'%s_neg_%d' %(fname,i))
+            neg_file_list[i]=open(tmp_name , "w")
+        
         start,end=params['start'],params['end']
         
         
@@ -262,18 +384,20 @@ def generate(params,mode='training'):
                 d['start']=k
                 d['end']=k+chunk_size
                 in_dict_list.append(d)
-            results_dict = pool.map(create_pileup, in_dict_list)
+            results_dict = pool.map(create_training_pileup, in_dict_list)
             for result in results_dict:
-                if result[1] and (params['examples']=='neg' or params['examples']=='all'):
-                    for data in result[1]:
-                            pos,gt,allele,ref,mat=data
+                neg_pile_list=result[1]
+                for i in [0,5,10,15,20,25]:
+                    neg_pile=neg_pile_list[i]
+                    if neg_pile:
+                        for data in neg_pile:
+                                pos,gt,allele,ref,mat=data
+                                ft=mat[:,:,-1].reshape(-1)
+                                mat=mat[:,:,:-1].reshape(-1)
+                                s='%s%d%d%d%d%s%s' %((11-len(str(pos)))*'0',pos,gt,allele,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
+                                neg_file_list[i].write(s)
 
-                            ft=mat[:,:,-1].reshape(-1)
-                            mat=mat[:,:,:-1].reshape(-1)
-                            s='%s%d%d%d%d%s%s' %((11-len(str(pos)))*'0',pos,gt,allele,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
-                            n_file.write(s)
-
-                if result[0] and (params['examples']=='pos' or params['examples']=='all'):
+                if result[0]:
                     for data in result[0]:
                         pos,gt,allele,ref,mat=data
 
@@ -290,8 +414,8 @@ def generate(params,mode='training'):
     elif mode=='testing':
         print('starting pileups',flush=True)
         pool = mp.Pool(processes=cores)
-        fname='%s_%d_%d_pileups' %(params['chrom'],params['start'],params['end'])
-        fname=os.path.join(params['out_path'],fname+'_multi_test_v2.gz')
+        fname='%s_pileups_test' %(params['chrom'])
+        fname=os.path.join(params['out_path'],fname)
         file=open(fname , "w")
         start,end=params['start'],params['end']
         for mbase in range(start,end,int(1e4)):
@@ -365,10 +489,10 @@ def generate(params,mode='training'):
 
 
 if __name__ == '__main__':
-    chrom_length={'chr1':248956422,'chr2':242193529,'chr3':198295559,'chr4':190214555,'chr5':181538259,'chr6':170805979,\
-             'chr7':159345973,'chr8':145138636,'chr9':138394717,'chr10':133797422,'chr11':135086622,'chr12':133275309,\
-             'chr13':114364328,'chr14':107043718,'chr15':101991189,'chr16':90338345,'chr17':83257441,'chr18':80373285,\
-             'chr19':58617616,'chr20':64444167,'chr21':46709983,'chr22':50818468,'chrX':156040895,'chrY':57227415}
+    chrom_length={'chr1':248956422, 'chr2':242193529, 'chr3':198295559, 'chr4':190214555, 'chr5':181538259, 'chr6':170805979, \
+             'chr7':159345973, 'chr8':145138636, 'chr9':138394717, 'chr10':133797422, 'chr11':135086622, 'chr12':133275309,\
+             'chr13':114364328, 'chr14':107043718, 'chr15':101991189, 'chr16':90338345, 'chr17':83257441, 'chr18':80373285,\
+             'chr19':58617616, 'chr20':64444167, 'chr21':46709983, 'chr22':50818468, 'chrX':156040895, 'chrY':57227415}
     parser = argparse.ArgumentParser()
 
     #-r chromosome region   -m mode   -bam bam file   -ref reference file   -vcf ground truth variants   -o output path
@@ -382,7 +506,6 @@ if __name__ == '__main__':
     parser.add_argument("-cpu", "--cpu", help="CPUs",type=int)
     parser.add_argument("-d", "--depth", help="Depth",type=int)
     parser.add_argument("-t", "--threshold", help="Threshold",type=float)
-    parser.add_argument("-ex", "--examples", help="Threshold",type=str)
     
     args = parser.parse_args()
     
@@ -395,7 +518,7 @@ if __name__ == '__main__':
         start,end=1,chrom_length[chrom]
         
     in_dict={'mode':args.mode, 'chrom':chrom,'start':start,'end':end,\
-         'sam_path':args.bam,'fasta_path':args.ref,'vcf_path':args.vcf,'out_path':args.output,'window':args.window,'depth':args.depth,'threshold':args.threshold,'examples':args.examples,'cpu':args.cpu}    
+         'sam_path':args.bam,'fasta_path':args.ref,'vcf_path':args.vcf,'out_path':args.output,'window':args.window,'depth':args.depth,'threshold':args.threshold,'cpu':args.cpu}    
     
     t=time.time()
     generate(in_dict)

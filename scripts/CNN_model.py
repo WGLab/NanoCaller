@@ -17,7 +17,8 @@ def get_data(fname,cpu=4,mode='train'):
     pool = mp.Pool(processes=cpu)
     results = pool.map(utils.read_pileups_from_file, my_array)
     elapsed=time.time()-t
-    print ('I/O Time Elapsed: %.2f seconds' %elapsed,flush=True)
+    
+    print ('I/O Time Elapsed: %.2f seconds' %elapsed, flush=True)
     
     pos=np.vstack([res[0][:,np.newaxis] for res in results])
     mat=np.vstack([res[1] for res in results])
@@ -306,15 +307,34 @@ def genotype_caller_skinny(params,input_type='path',data=None):
         
         save_num=1
         t=time.time()
-        for k in range(training_iters//10):
+        
+        iter_steps=max(training_iters//100,1)
+        iters=min(100,training_iters)
+        
+        for k in range(iter_steps):
             
-            for chrom in range(2,21):
-                f_path='/home/ahsanm1/umair_wlab/data/NanoVar_data/pileups/training/chr%d/chr%d-' %(chrom,chrom)
+            for chrom in range(19,22):
+                f_path='/home/ahsanm1/umair_wlab/data/NanoVar_data/pileups/training/chr%d/chr%d_pileups_' %(chrom,chrom)
                 _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',cpu=cpu)
-                _,nx_train,ny_train,ntrain_allele,ntrain_ref= get_data(f_path+'neg',cpu=cpu)
+                
+                negative_variants=[get_data(f_path+'neg_%d' %freq,cpu=cpu) for freq in [0,5,10,15,20,25]]
+                
+                nx_train=np.vstack([tmp[1] for tmp in negative_variants])
+                ny_train=np.vstack([tmp[2] for tmp in negative_variants])
+                ntrain_allele=np.vstack([tmp[3] for tmp in negative_variants])
+                ntrain_ref=np.vstack([tmp[4] for tmp in negative_variants])
+                
+                perm=np.random.permutation(len(nx_train))
+                
+                np.take(nx_train,perm,axis=0,out=nx_train)
+                np.take(ny_train,perm,axis=0,out=ny_train)
+                np.take(ntrain_allele,perm,axis=0,out=ntrain_allele)
+                np.take(ntrain_ref,perm,axis=0,out=ntrain_ref)
+                
+                
                 n_start=-len(x_train)
                 n_end=0
-                for i in range(10):
+                for i in range(training_iters):
 
                     n_start+=len(x_train)
                     n_end=n_start+len(nx_train)
@@ -337,13 +357,14 @@ def genotype_caller_skinny(params,input_type='path',data=None):
                 _,x_train,y_train,train_allele,train_ref= None,None,None,None,None
                 _,nx_train,ny_train,ntrain_allele,ntrain_ref= None,None,None,None,None
                 
-            if k%5==4:
-                    saver.save(sess, save_path=params['model'],global_step=save_num)
-                    elapsed=time.time()-t
-                    print ('Time Taken for Iteration %d-th: %.2f seconds\n'\
-                           %((k+1)*10 ,elapsed), flush=True)
-                    t=time.time()
-                    save_num+=1
+            saver.save(sess, save_path=params['model'],global_step=save_num)
+            elapsed=time.time()-t
+            
+            print ('Time Taken for Iteration %d-th: %.2f seconds\n'\
+                   %(save_num,elapsed), flush=True)
+            save_num+=1
+            t=time.time()
+            
             
                 
             

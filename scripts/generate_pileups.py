@@ -11,11 +11,13 @@ def extract_vcf(dct):
     chrom=dct['chrom']
     start=dct['start']
     end=dct['end']
+    sam_path=dct['sam_path']
     vcf_path=dct['vcf_path']
     fasta_path=dct['fasta_path']
 
     
     mapping={'A':0,'G':1,'T':2,'C':3}
+    samfile = pysam.Samfile(sam_path, "rb")
     bcf_in = VariantFile(vcf_path)  # auto-detect input format
     fastafile=pysam.FastaFile(fasta_path)
     '''for rec in bcf_in.fetch():
@@ -26,9 +28,12 @@ def extract_vcf(dct):
 
     d={}
     for rec in bcf_in.fetch(chrom,start,end):
-        if len(''.join(rec.alleles))==len(rec.alleles):
-            alleles=rec.samples.items()[0][1].items()[0][1]
-            d[rec.pos]=[alleles[0]!=alleles[1], mapping[rec.alleles[1]],mapping[rec.ref]]
+        v_pos=rec.pos
+        for pcol in samfile.pileup(chrom,rec.pos-1,rec.pos,min_base_quality=0,\
+                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
+            if pcol.get_num_aligned()>=4:
+                alleles=rec.samples.items()[0][1].items()[0][1]
+                d[rec.pos]=[alleles[0]!=alleles[1], mapping[rec.alleles[1]],mapping[rec.ref]]
 
     df=pd.DataFrame.from_dict(d,orient='index')
     df.reset_index(inplace=True)
@@ -65,37 +70,34 @@ def get_training_candidates(dct,tr_pos):
     #sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     rlist=[s for s in fastafile.fetch(fasta_chr,start-1,end-1)]
     output={0:[],5:[],10:[],15:[],20:[],25:[]}
-    for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,stepper='nofilter',\
-                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
+    for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0, flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             alt_freq=None
             if not t[pcol.pos+1]:
                 continue
-            try:
-                n=pcol.get_num_aligned()
+            n=pcol.get_num_aligned()
+            r=rlist[pcol.pos+1-start]
+
+            if r!='N' and n>=4:
                 r=rlist[pcol.pos+1-start]
-                
-                if r!='N' and n>=4:
-                    r=rlist[pcol.pos+1-start]
-                    seq=''.join([x for x in pcol.get_query_sequences() if x not in ['','N','n']]).upper()
-                    alt_freq=max([x[1] for x in Counter(seq).items() if x[0]!=r]+[0])/n
-                    #alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
-                    
-                    if alt_freq<0.05:
-                        output[0].append((pcol.pos+1,r,r))
+                seq=''.join(pcol.get_query_sequences()).upper()
+                alt_freq=max([x[1] for x in Counter(seq).items() if x[0]!=r]+[0])/n
+                #alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
+
+                if alt_freq<0.05:
+                    output[0].append((pcol.pos+1,r,r))
+
+                elif 0.05<=alt_freq<0.10:
+                    output[5].append((pcol.pos+1,r,r))
+                elif 0.10<=alt_freq<0.15:
+                    output[10].append((pcol.pos+1,r,r))
+                elif 0.15<=alt_freq<0.20:
+                    output[15].append((pcol.pos+1,r,r))
+                elif 0.20<=alt_freq<0.25:
+                    output[20].append((pcol.pos+1,r,r))
+                elif 0.25<=alt_freq:
+                    output[25].append((pcol.pos+1,r,r))
                         
-                    elif 0.05<=alt_freq<0.10:
-                        output[5].append((pcol.pos+1,r,r))
-                    elif 0.10<=alt_freq<0.15:
-                        output[10].append((pcol.pos+1,r,r))
-                    elif 0.15<=alt_freq<0.20:
-                        output[15].append((pcol.pos+1,r,r))
-                    elif 0.20<=alt_freq<0.25:
-                        output[20].append((pcol.pos+1,r,r))
-                    elif 0.25<=alt_freq:
-                        output[25].append((pcol.pos+1,r,r))
-                        
-            except AssertionError:
-                continue
+
     np.random.seed(42)
     result={}
     sizes={0:2*len(tr_pos), 5:len(tr_pos)//2,10:len(tr_pos)//2,15:len(tr_pos)//2, 20:len(tr_pos)//2, 25:2*len(tr_pos)}
@@ -183,7 +185,7 @@ def get_candidates(dct):
     sam_path=dct['sam_path']
     fasta_path=dct['fasta_path']
     threshold=dct['threshold']
-
+    check_bed=dct['bed']
     bed_file='/home/ahsanm1/umair_wlab/data/NanoVar_data/bed_by_chrom/%s.bed' %chrom
     with open(bed_file) as file:
         content=[x.rstrip('\n') for x in file]
@@ -201,24 +203,22 @@ def get_candidates(dct):
     #sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     rlist=[s for s in fastafile.fetch(fasta_chr,start-1,end-1)]
     output=[]
-    for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,stepper='nofilter',\
+    for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,\
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             alt_freq=None
-            if not t[pcol.pos+1]:
-                continue
-            try:
-                n=pcol.get_num_aligned()
+            if check_bed:
+                if not t[pcol.pos+1]:
+                    continue
+            n=pcol.get_num_aligned()
+            r=rlist[pcol.pos+1-start]
+
+            if r!='N' and n>=4:
                 r=rlist[pcol.pos+1-start]
-                
-                if r!='N' and n>=4:
-                    r=rlist[pcol.pos+1-start]
-                    seq=''.join([x for x in pcol.get_query_sequences() if x not in ['','N','n']]).upper()
-                    alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
-                    if alt_freq:
-                        output.append((pcol.pos+1,r,r))
-                        
-            except AssertionError:
-                continue
+                seq=''.join(pcol.get_query_sequences()).upper()
+                alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
+                if alt_freq:
+                    output.append((pcol.pos+1,r,r))
+
     if output:
         candidates_df=pd.DataFrame(output)
         candidates_df.rename(columns={0:'POS',1:'ALL',2:'REF'},inplace=True)
@@ -281,77 +281,62 @@ def create_pileup_image(dct,v_pos=None):
     fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     
-    try:
-        du_lim=dct['depth']
-        window=dct['window']
-        
-        v_start=v_pos-window
-        v_end=v_pos+window
-        
-        d={x:{} for x in range(v_start,v_end+1)}
-        features={x:{} for x in range(v_start,v_end)}
-        try:
-            rlist=[mapping[s] for s in fastafile.fetch(fasta_chr,v_start-1,v_end)]
-            
-        except KeyError:
-            #print('KeyError at %d' %v_pos, flush=True)
-            return None
-        
-        for pcol in samfile.pileup(chrom,v_pos-1,v_pos,min_base_quality=0,stepper='nofilter',\
-                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
-            if pcol.get_num_aligned()<4:
-                return None
-            
-        for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,stepper='nofilter',\
-                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
-            name=pcol.get_query_names()
-            
-            seq=pcol.get_query_sequences()
-            qual=pcol.get_query_qualities()
+    du_lim=dct['depth']
+    window=dct['window']
 
-            d[pcol.pos+1]={n:s.upper() if len(s)>0 else '*' for (n,s) in zip(name,seq)}
-            features[pcol.pos+1]={n:q for (n,q) in zip(name,qual)}
+    v_start=v_pos-window
+    v_end=v_pos+window
 
-        p_df=pd.DataFrame.from_dict(d)
-        p_df.dropna(subset=[v_pos],inplace=True)
-        
-        if p_df.shape[0]>du_lim:
-            p_df=p_df.sample(n=du_lim,replace=False, random_state=1)
-        p_df.sort_values(v_pos,inplace=True,ascending=False)
-    
-        p_df.fillna('N',inplace=True)
-        p_df=p_df.applymap(lambda x: mapping[x])
-        p_mat=np.array(p_df)
-        rnames=list(p_df.index)
+    d={x:{} for x in range(v_start,v_end+1)}
+    features={x:{} for x in range(v_start,v_end)}
 
-        #generatre quality df
-        f_df=pd.DataFrame.from_dict(features)
-        f_df.fillna(0,inplace=True)
-        f_df=f_df.reindex(p_df.index)
+    rlist=[mapping[s] for s in fastafile.fetch(fasta_chr,v_start-1,v_end)]
 
-        ref_match=(p_mat==rlist)
+    for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,\
+                                       flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
+        name=pcol.get_query_names()
 
-        #tmp2=2*np.array(ref_match)[:,:,np.newaxis]-1
-        tmp=np.dstack([(p_mat==i) for i in range(4)])
-        
-        #data=np.multiply(tmp,tmp2).astype(np.int8)
-        try:
-            ref_match=2*ref_match-1
-            f_mat=np.array(f_df)*ref_match
-            data=np.dstack((tmp,f_mat))
-        except ValueError:
-            #print('ValueError at %d' %v_pos, flush=True)
-            return None
-        
-        if data.shape[0]<du_lim:
-            tmp=np.zeros((du_lim-data.shape[0],data.shape[1],data.shape[2]))
-            data=np.vstack((data,tmp))
-            rnames+=['Buff' for i in range(tmp.shape[0])]
-            
-        return (data.astype(np.int8),rnames)
-    except AssertionError:
-        #print('AssertionError at %d' %v_pos, flush=True)
-        return None
+        seq=pcol.get_query_sequences()
+        qual=pcol.get_query_qualities()
+
+        d[pcol.pos+1]={n:s.upper() if len(s)>0 else '*' for (n,s) in zip(name,seq)}
+        features[pcol.pos+1]={n:q for (n,q) in zip(name,qual)}
+
+    p_df=pd.DataFrame.from_dict(d)
+    p_df.dropna(subset=[v_pos],inplace=True)
+
+    if p_df.shape[0]>du_lim:
+        p_df=p_df.sample(n=du_lim,replace=False, random_state=1)
+    p_df.sort_values(v_pos,inplace=True,ascending=False)
+
+    p_df.fillna('N',inplace=True)
+    p_df=p_df.applymap(lambda x: mapping[x])
+    p_mat=np.array(p_df)
+    rnames=list(p_df.index)
+
+    #generatre quality df
+    f_df=pd.DataFrame.from_dict(features)
+    f_df.fillna(0,inplace=True)
+    f_df=f_df.reindex(p_df.index)
+
+    ref_match=(p_mat==rlist)
+
+    #tmp2=2*np.array(ref_match)[:,:,np.newaxis]-1
+    tmp=np.dstack([(p_mat==i) for i in range(4)])
+
+    #data=np.multiply(tmp,tmp2).astype(np.int8)
+
+    ref_match=2*ref_match-1
+    f_mat=np.array(f_df)*ref_match
+    data=np.dstack((tmp,f_mat))
+
+    if data.shape[0]<du_lim:
+        tmp=np.zeros((du_lim-data.shape[0],data.shape[1],data.shape[2]))
+        data=np.vstack((data,tmp))
+        rnames+=['Buff' for i in range(tmp.shape[0])]
+
+    return (data.astype(np.int8),rnames)
+
         
 def generate(params,mode='training'):
     cores=params['cpu']
@@ -418,15 +403,15 @@ def generate(params,mode='training'):
         fname=os.path.join(params['out_path'],fname)
         file=open(fname , "w")
         start,end=params['start'],params['end']
-        for mbase in range(start,end,int(1e4)):
+        for mbase in range(start,end,int(1e6)):
             print('starting pool:'+str(mbase),flush=True)
             t=time.time()                
 
             in_dict_list=[]
-            for k in range(mbase,min(end,mbase+int(1e4)),1000):
+            for k in range(mbase,min(end,mbase+int(1e6)),50000):
                 d = copy.deepcopy(params)
                 d['start']=k
-                d['end']=k+1000
+                d['end']=k+50000
                 in_dict_list.append(d)
             results = pool.map(create_pileup, in_dict_list)
             for res_dict in results:
@@ -506,6 +491,8 @@ if __name__ == '__main__':
     parser.add_argument("-cpu", "--cpu", help="CPUs",type=int)
     parser.add_argument("-d", "--depth", help="Depth",type=int)
     parser.add_argument("-t", "--threshold", help="Threshold",type=float)
+    parser.add_argument("-bed", "--bed", help="BED file")
+    
     
     args = parser.parse_args()
     
@@ -518,7 +505,7 @@ if __name__ == '__main__':
         start,end=1,chrom_length[chrom]
         
     in_dict={'mode':args.mode, 'chrom':chrom,'start':start,'end':end,\
-         'sam_path':args.bam,'fasta_path':args.ref,'vcf_path':args.vcf,'out_path':args.output,'window':args.window,'depth':args.depth,'threshold':args.threshold,'cpu':args.cpu}    
+         'sam_path':args.bam,'fasta_path':args.ref,'vcf_path':args.vcf,'out_path':args.output,'window':args.window,'depth':args.depth,'threshold':args.threshold,'cpu':args.cpu,'bed':args.bed}    
     
     t=time.time()
     generate(in_dict)

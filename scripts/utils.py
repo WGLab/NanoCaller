@@ -4,7 +4,6 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 
-
 def print_vcf(file,chrom,df):
     with open(file,'w') as f:
         
@@ -42,7 +41,6 @@ def read_pileups_from_file_deprecated(fname,dims,mode):
                 p_mat=np.dstack((mm1,mm2))
 
                 lines[pos]=(int(pos),p_mat,int(ref))
-    
     return lines
 
 def read_pileups_from_file(options):

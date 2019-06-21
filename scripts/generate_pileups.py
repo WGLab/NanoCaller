@@ -20,11 +20,6 @@ def extract_vcf(dct):
     samfile = pysam.Samfile(sam_path, "rb")
     bcf_in = VariantFile(vcf_path)  # auto-detect input format
     fastafile=pysam.FastaFile(fasta_path)
-    '''for rec in bcf_in.fetch():
-        prfx='chr' if 'chr' in rec.contig else ''
-        chrom=re.findall("(.*?)\d",rec.contig)[0]+re.findall("\d+",chrom)[0]
-        break'''
-
 
     d={}
     for rec in bcf_in.fetch(chrom,start,end):
@@ -281,62 +276,71 @@ def create_pileup_image(dct,v_pos=None):
     fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     
-    du_lim=dct['depth']
-    window=dct['window']
+    try:
+        
+        du_lim=dct['depth']
+        window=dct['window']
 
-    v_start=v_pos-window
-    v_end=v_pos+window
+        v_start=v_pos-window
+        v_end=v_pos+window
 
-    d={x:{} for x in range(v_start,v_end+1)}
-    features={x:{} for x in range(v_start,v_end)}
+        d={x:{} for x in range(v_start,v_end+1)}
+        features={x:{} for x in range(v_start,v_end)}
+        
+        try:
+            rlist=[mapping[s] for s in fastafile.fetch(fasta_chr,v_start-1,v_end)]
 
-    rlist=[mapping[s] for s in fastafile.fetch(fasta_chr,v_start-1,v_end)]
+        except KeyError:
+            return None
+        
+        for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,\
+                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
+            name=pcol.get_query_names()
 
-    for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,\
-                                       flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
-        name=pcol.get_query_names()
+            seq=pcol.get_query_sequences()
+            qual=pcol.get_query_qualities()
 
-        seq=pcol.get_query_sequences()
-        qual=pcol.get_query_qualities()
+            d[pcol.pos+1]={n:s.upper() if len(s)>0 else '*' for (n,s) in zip(name,seq)}
+            features[pcol.pos+1]={n:q for (n,q) in zip(name,qual)}
 
-        d[pcol.pos+1]={n:s.upper() if len(s)>0 else '*' for (n,s) in zip(name,seq)}
-        features[pcol.pos+1]={n:q for (n,q) in zip(name,qual)}
+        p_df=pd.DataFrame.from_dict(d)
+        p_df.dropna(subset=[v_pos],inplace=True)
 
-    p_df=pd.DataFrame.from_dict(d)
-    p_df.dropna(subset=[v_pos],inplace=True)
+        if p_df.shape[0]>du_lim:
+            p_df=p_df.sample(n=du_lim,replace=False, random_state=1)
+        p_df.sort_values(v_pos,inplace=True,ascending=False)
 
-    if p_df.shape[0]>du_lim:
-        p_df=p_df.sample(n=du_lim,replace=False, random_state=1)
-    p_df.sort_values(v_pos,inplace=True,ascending=False)
+        p_df.fillna('N',inplace=True)
+        p_df=p_df.applymap(lambda x: mapping[x])
+        p_mat=np.array(p_df)
+        rnames=list(p_df.index)
 
-    p_df.fillna('N',inplace=True)
-    p_df=p_df.applymap(lambda x: mapping[x])
-    p_mat=np.array(p_df)
-    rnames=list(p_df.index)
+        #generatre quality df
+        f_df=pd.DataFrame.from_dict(features)
+        f_df.fillna(0,inplace=True)
+        f_df=f_df.reindex(p_df.index)
 
-    #generatre quality df
-    f_df=pd.DataFrame.from_dict(features)
-    f_df.fillna(0,inplace=True)
-    f_df=f_df.reindex(p_df.index)
+        ref_match=(p_mat==rlist)
 
-    ref_match=(p_mat==rlist)
+        #tmp2=2*np.array(ref_match)[:,:,np.newaxis]-1
+        tmp=np.dstack([(p_mat==i) for i in range(4)])
 
-    #tmp2=2*np.array(ref_match)[:,:,np.newaxis]-1
-    tmp=np.dstack([(p_mat==i) for i in range(4)])
+        #data=np.multiply(tmp,tmp2).astype(np.int8)
+        try:
+            ref_match=2*ref_match-1
+            f_mat=np.array(f_df)*ref_match
+            data=np.dstack((tmp,f_mat))
+        except ValueError:
+            return None
+        if data.shape[0]<du_lim:
+            tmp=np.zeros((du_lim-data.shape[0],data.shape[1],data.shape[2]))
+            data=np.vstack((data,tmp))
+            rnames+=['Buff' for i in range(tmp.shape[0])]
 
-    #data=np.multiply(tmp,tmp2).astype(np.int8)
-
-    ref_match=2*ref_match-1
-    f_mat=np.array(f_df)*ref_match
-    data=np.dstack((tmp,f_mat))
-
-    if data.shape[0]<du_lim:
-        tmp=np.zeros((du_lim-data.shape[0],data.shape[1],data.shape[2]))
-        data=np.vstack((data,tmp))
-        rnames+=['Buff' for i in range(tmp.shape[0])]
-
-    return (data.astype(np.int8),rnames)
-
+        return (data.astype(np.int8),rnames)
+    
+    except AssertionError:
+        return None
         
 def generate(params,mode='training'):
     cores=params['cpu']
@@ -411,7 +415,7 @@ def generate(params,mode='training'):
             for k in range(mbase,min(end,mbase+int(1e6)),50000):
                 d = copy.deepcopy(params)
                 d['start']=k
-                d['end']=k+50000
+                d['end']=min(end,k+50000)
                 in_dict_list.append(d)
             results = pool.map(create_pileup, in_dict_list)
             for res_dict in results:

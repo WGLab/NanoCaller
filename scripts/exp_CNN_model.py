@@ -14,7 +14,7 @@ def get_data(fname,a=None, b=None, cpu=4,mode='train'):
         else:
             my_array=[(fname,x,mode) for x in range(0,l,1000*7406)]
     else:
-        my_array=[(fname,x,mode) for x in range(0,l,1000*7404)]
+        my_array=[(fname,x,mode) for x in range(a,b,1000*7404)]
 
     pool = mp.Pool(processes=cpu)
     results = pool.map(utils.read_pileups_from_file, my_array)
@@ -33,20 +33,46 @@ def get_data(fname,a=None, b=None, cpu=4,mode='train'):
     
     return pos,mat,gt,allele,ref
         
-        
-def conv2d(x, W, b, strides=1):
-    x = tf.nn.conv2d(x, W, strides=[1, strides, strides, 1], padding='VALID')
+def conv2d(x, W, b, strides=1,pad_type='VALID'):
+    x = tf.nn.conv2d(x, W, strides=[1, strides, strides, 1], padding=pad_type)
     x = tf.nn.bias_add(x, b)
     return tf.nn.selu(x)
 
 
 
 
-def conv_net(x,ref, weights, biases,keep):  
-    conv1 = conv2d(x, weights['wc1'], biases['bc1'],2)
+def conv_net(x,ref, weights, biases,keep):
+    z=tf.slice(x,[0,0,16,0],[-1,-1,1,4])
+    p=tf.squeeze(tf.slice(x,[0,0,16,0],[-1,-1,1,4]))
+    #p=tf.slice(x,[0,0,16,0],[-1,-1,1,4])
+    q=tf.sign(tf.squeeze(tf.slice(x,[0,0,16,4],[-1,-1,1,1]),axis=2))
+    #q=tf.sign(tf.slice(x,[0,0,16,4],[-1,-1,1,1]))
+    r=tf.concat([p,q],2)
+    
+    NT = tf.matrix_transpose(r)
+    MT = tf.matrix_transpose(weights['w-slc-1'])
+    NTMT = tf.reshape(tf.reshape(NT, [-1, 32]) @ MT, [-1, 5, 4])
+    fc_slc_1 = tf.matrix_transpose(NTMT)
+    
+    fc_slc_1=tf.nn.selu(tf.add(fc_slc_1, biases['b-slc-1']))
 
-    conv2 = conv2d(conv1, weights['wc2'], biases['bc2'],2)
-
+    
+    fc_slc_2=tf.reshape(tf.reshape(fc_slc_1, [-1, 5]) @ weights['w-slc-2'], [-1, 4, 4]) 
+    
+    fc_slc_2=tf.nn.selu(tf.add(fc_slc_2, biases['b-slc-2']))
+    
+    flat_slc=tf.reshape(fc_slc_2, [-1, 16])
+    
+    conv1_1 = conv2d(x, weights['wc1_1'], biases['bc1_1'],1,pad_type='SAME')
+    conv1_2 = conv2d(x, weights['wc1_2'], biases['bc1_2'],1,pad_type='SAME')
+    conv1_3 = conv2d(x, weights['wc1_3'], biases['bc1_3'],1,pad_type='SAME')
+    
+    merge_conv1=tf.concat([conv1_1, conv1_2,conv1_3],3)
+    
+    pooled=tf.nn.max_pool(merge_conv1,ksize=[1,4,1,1],strides=[1,1,1,1],padding='SAME')
+    
+    conv2 = conv2d(merge_conv1, weights['wc2'], biases['bc2'],2)
+    
     conv3 = conv2d(conv2, weights['wc3'], biases['bc3'],2)
 
     flat_nn = tf.reshape(conv3, [-1, weights['wd1'].get_shape().as_list()[0]])
@@ -58,11 +84,15 @@ def conv_net(x,ref, weights, biases,keep):
     
     drop_out_fc1=tf.nn.dropout(fc1, keep)
     
+    
+    
     fc2 = tf.add(tf.matmul(drop_out_fc1, weights['wd-gtp']), biases['bd-gtp'])
     fc2 = tf.nn.selu(fc2)
     out_gt= tf.add(tf.matmul(fc2, weights['out-gtp']), biases['out-gtp'])
     
-    fa = tf.add(tf.matmul(tf.concat([fc2,drop_out_fc1,ref],1), weights['w-tr']), biases['w-tr'])
+    drop_out_fc1=tf.concat([drop_out_fc1,flat_slc],1)
+    
+    fa = tf.add(tf.matmul(tf.concat([out_gt,drop_out_fc1,ref],1), weights['w-tr']), biases['w-tr'])
     fa = tf.nn.selu(fa)
     out_allele = tf.add(tf.matmul(fa, weights['out-all']), biases['out-all'])
 
@@ -70,26 +100,36 @@ def conv_net(x,ref, weights, biases,keep):
 
 def get_tensors(n_input,learning_rate=0):
     h_in,w_in,depth=n_input
-    for i in range(3):
+    
+    #h_in=int(np.ceil(float(h_in-2+1)/float(1)))
+    #w_in=int(np.ceil(float(w_in-4+1)/float(1)))
+    
+    for i in range(2):
         h_in=int(np.ceil(float(h_in-3+1)/float(2)))
         w_in=int(np.ceil(float(w_in-3+1)/float(2)))
        
     
     weights = {
-        'wc1': tf.get_variable('W0', shape=(3,3,depth,32), initializer=tf.contrib.layers.xavier_initializer()), 
-        'wc2': tf.get_variable('W1', shape=(3,3,32,64), initializer=tf.contrib.layers.xavier_initializer()), 
+        'wc1_1': tf.get_variable('W0_1', shape=(1,4,depth,16), initializer=tf.contrib.layers.xavier_initializer()), 
+        'wc1_2': tf.get_variable('W0_2', shape=(32,1,depth,16), initializer=tf.contrib.layers.xavier_initializer()),
+        'wc1_3': tf.get_variable('W0_3', shape=(3,3,depth,16), initializer=tf.contrib.layers.xavier_initializer()),
+        'wc2': tf.get_variable('W1', shape=(3,3,48,64), initializer=tf.contrib.layers.xavier_initializer()), 
         'wc3': tf.get_variable('W2', shape=(3,3,64,128), initializer=tf.contrib.layers.xavier_initializer()), 
         'wd1': tf.get_variable('W3', shape=(h_in*w_in*128,64), initializer=tf.contrib.layers.xavier_initializer()), 
-        'w-tr': tf.get_variable('W4', shape=(100,32), initializer=tf.contrib.layers.xavier_initializer()),
+        'w-tr': tf.get_variable('W4', shape=(86,32), initializer=tf.contrib.layers.xavier_initializer()),
         'out-all': tf.get_variable('W5', shape=(32,4), initializer=tf.contrib.layers.xavier_initializer()),
         'wd-gtp': tf.get_variable('W6', shape=(64,32), initializer=tf.contrib.layers.xavier_initializer()), 
         'out-gtp': tf.get_variable('W7', shape=(32,2), initializer=tf.contrib.layers.xavier_initializer()), 
-
+        
+        'w-slc-1': tf.get_variable('WS1', shape=(4,32), initializer=tf.contrib.layers.xavier_initializer()),
+        'w-slc-2': tf.get_variable('WS2', shape=(5,4), initializer=tf.contrib.layers.xavier_initializer()),
     
     }
     
     biases = {
-        'bc1': tf.get_variable('B0', shape=(32), initializer=tf.contrib.layers.xavier_initializer()),
+        'bc1_1': tf.get_variable('B0_1', shape=(16), initializer=tf.contrib.layers.xavier_initializer()), 
+        'bc1_2': tf.get_variable('B0_2', shape=(16), initializer=tf.contrib.layers.xavier_initializer()),
+        'bc1_3': tf.get_variable('B0_3', shape=(16), initializer=tf.contrib.layers.xavier_initializer()),
         'bc2': tf.get_variable('B1', shape=(64), initializer=tf.contrib.layers.xavier_initializer()),
         'bc3': tf.get_variable('B2', shape=(128), initializer=tf.contrib.layers.xavier_initializer()),
         'bd1': tf.get_variable('B3', shape=(64), initializer=tf.contrib.layers.xavier_initializer()),
@@ -97,18 +137,24 @@ def get_tensors(n_input,learning_rate=0):
         'out-all': tf.get_variable('B5', shape=(4), initializer=tf.contrib.layers.xavier_initializer()),
         'bd-gtp': tf.get_variable('B6', shape=(32), initializer=tf.contrib.layers.xavier_initializer()),
         'out-gtp': tf.get_variable('B7', shape=(2), initializer=tf.contrib.layers.xavier_initializer()),
+        
+        'b-slc-1': tf.get_variable('BS1', shape=(4,5), initializer=tf.contrib.layers.xavier_initializer()),
+        'b-slc-2': tf.get_variable('BS2', shape=(4,4), initializer=tf.contrib.layers.xavier_initializer()),
     }
+    
     '''weights = {
-        'wc1': tf.get_variable('W0', shape=(3,3,depth,32), initializer=tf.contrib.layers.variance_scaling_initializer()), 
-        'wc2': tf.get_variable('W1', shape=(3,3,32,64), initializer=tf.contrib.layers.variance_scaling_initializer()), 
-        'wc3': tf.get_variable('W2', shape=(3,3,64,128), initializer=tf.contrib.layers.variance_scaling_initializer()), 
-        'wd1': tf.get_variable('W3', shape=(h_in*w_in*128,64), initializer=tf.contrib.layers.variance_scaling_initializer()), 
+        'wc1': tf.get_variable('W0', shape=(conv_krnl_shapes[0][0], conv_krnl_shapes[0][1] ,depth,32), initializer=tf.contrib.layers.variance_scaling_initializer()), 
+        
+        'wc2': tf.get_variable('W1', shape=(conv_krnl_shapes[1][0], conv_krnl_shapes[1][1],32,64), initializer=tf.contrib.layers.variance_scaling_initializer()), 
+        
+        'wc3': tf.get_variable('W2', shape=(conv_krnl_shapes[2][0], conv_krnl_shapes[2][1] ,64,128), initializer=tf.contrib.layers.variance_scaling_initializer()), 
+        
+        'wd1': tf.get_variable('W3', shape=(conv_shapes[-1][0]*conv_shapes[-1][1]*128, 64), initializer= tf.contrib.layers.variance_scaling_initializer()), 
+        
         'w-tr': tf.get_variable('W4', shape=(100,32), initializer=tf.contrib.layers.variance_scaling_initializer()),
         'out-all': tf.get_variable('W5', shape=(32,4), initializer=tf.contrib.layers.variance_scaling_initializer()),
         'wd-gtp': tf.get_variable('W6', shape=(64,32), initializer=tf.contrib.layers.variance_scaling_initializer()), 
         'out-gtp': tf.get_variable('W7', shape=(32,2), initializer=tf.contrib.layers.variance_scaling_initializer()), 
-
-    
     }
     
     biases = {
@@ -119,14 +165,14 @@ def get_tensors(n_input,learning_rate=0):
         'w-tr': tf.get_variable('B4', shape=(32), initializer=tf.contrib.layers.variance_scaling_initializer()),
         'out-all': tf.get_variable('B5', shape=(4), initializer=tf.contrib.layers.variance_scaling_initializer()),
         'bd-gtp': tf.get_variable('B6', shape=(32), initializer=tf.contrib.layers.variance_scaling_initializer()),
-        'out-gtp': tf.get_variable('B7', shape=(2), initializer=tf.contrib.layers.variance_scaling_initializer()),    
+        'out-gtp': tf.get_variable('B7', shape=(2), initializer=tf.contrib.layers.variance_scaling_initializer()),
     }'''
-
+    
     x,y = tf.placeholder("float", [None]+n_input), tf.placeholder("float", [None, 2])
     allele,ref=tf.placeholder("float", [None, 4]),tf.placeholder("float", [None, 4])
     keep = tf.placeholder(tf.float32)
     
-    pred,fc_layer = conv_net(x,ref,weights, biases,keep)
+    pred,fc_layer = conv_net(x,ref,weights, biases, keep)
     
     gt_likelihood=tf.nn.softmax(logits=pred)
     allele_likelihood=tf.nn.softmax(logits=fc_layer)
@@ -152,9 +198,6 @@ def get_tensors(n_input,learning_rate=0):
     t1=(x,y,allele,ref,fc_layer,pred,cost,optimizer,cost_gt,cost_allele,keep)
     t2=(correct_prediction_gt,correct_prediction_allele,accuracy_gt,accuracy_allele,gt_likelihood,allele_likelihood)
     return weights,biases,t1,t2
-    
-
-
     
 def genotype_caller(params,input_type='path',data=None):
     tf.reset_default_graph()
@@ -206,9 +249,6 @@ def genotype_caller(params,input_type='path',data=None):
         
         vx_test,vy_test,vtest_allele,vtest_ref=data['test_data']
         
-        
-        
-    
     training_iters, learning_rate, batch_size= params['iters'],\
     params['rate'], params['size']
 
@@ -239,19 +279,31 @@ def genotype_caller(params,input_type='path',data=None):
         c=0
         for i in range(training_iters):
             print('iteration number: %d' %i,flush=True)
-            n_start+=len(x_train)
-            n_end=n_start+len(nx_train)
+            false_mltplr=2
+            n_start+=false_mltplr*len(x_train)
+            n_end=n_start+false_mltplr*len(nx_train)
             if n_end>len(x_train):
                 n_start=0
-                n_end=n_start+len(nx_train)
-            batch_nx_train,batch_ny_train,batch_ntrain_allele,batch_ntrain_ref=nx_train[n_start:n_end,:,:,:],\
-                ny_train[n_start:n_end,:],ntrain_allele[n_start:n_end,:],ntrain_ref[n_start:n_end,:]
+                n_end=n_start+false_mltplr*len(nx_train)
+            batch_nx_train,batch_ny_train,batch_ntrain_allele, batch_ntrain_ref = \
+            nx_train[n_start:n_end,:,:,:],ny_train[n_start:n_end,:],\
+            ntrain_allele[n_start:n_end,:], ntrain_ref[n_start:n_end,:]
+
             for batch in range(len(x_train)//batch_size):
-                
-                batch_x = np.vstack([x_train[batch*batch_size:min((batch+1)*batch_size,len(x_train))],batch_nx_train[batch*batch_size:min((batch+1)*batch_size,len(batch_nx_train))]])
-                batch_y = np.vstack([y_train[batch*batch_size:min((batch+1)*batch_size,len(y_train))],batch_ny_train[batch*batch_size:min((batch+1)*batch_size,len(batch_ny_train))]])    
-                batch_ref = np.vstack([train_ref[batch*batch_size:min((batch+1)*batch_size,len(train_ref))],batch_ntrain_ref[batch*batch_size:min((batch+1)*batch_size,len(batch_ntrain_ref))]])
-                batch_allele = np.vstack([train_allele[batch*batch_size:min((batch+1)*batch_size,len(train_allele))],batch_ntrain_allele[batch*batch_size:min((batch+1)*batch_size,len(batch_ntrain_allele))]])
+                batch_x = np.vstack([x_train[batch*batch_size:min((batch+1)*batch_size,len(x_train))],\
+                          batch_nx_train[ false_mltplr*batch*batch_size : min(false_mltplr*(batch+1)*batch_size,\
+                          len(batch_nx_train))]])
+
+                batch_y = np.vstack([y_train[batch*batch_size:min((batch+1)*batch_size, len(y_train))],\
+                          batch_ny_train[false_mltplr*batch*batch_size :min(false_mltplr*(batch+1)*batch_size,\
+                          len(batch_ny_train))]])    
+                batch_ref = np.vstack([train_ref[batch*batch_size :min((batch+1)*batch_size,\
+                            len(train_ref))], batch_ntrain_ref[ false_mltplr*batch*batch_size:\
+                            min(false_mltplr*(batch+1)*batch_size, len(batch_ntrain_ref))]])
+
+                batch_allele = np.vstack([train_allele[batch*batch_size :min((batch+1)*batch_size,\
+                               len(train_allele))], batch_ntrain_allele[false_mltplr*batch*batch_size : \
+                               min(false_mltplr*(batch+1)*batch_size, len(batch_ntrain_allele))]])
                 # Run optimization op (backprop).
                     # Calculate batch loss and accuracy
                 opt = sess.run(optimizer, feed_dict={x: batch_x,y: batch_y,ref:batch_ref,allele:batch_allele,keep:0.5})
@@ -269,11 +321,9 @@ def genotype_caller(params,input_type='path',data=None):
             loss_list.append(loss)
             loss_diff=max(loss_list[-p:])-min(loss_list[-p:])
             print('train loss= %.4f   train loss diff= %.4f\n' %(loss,abs(loss_list[-1]-loss_list[-2])),flush=True)
-            
-            
-            
+
             test_mat=[]
-            for batch in range(len(vx_test)//batch_size):
+            for batch in range(len(vx_test)//(batch_size)):
                 vbatch_x = vx_test[batch*batch_size:min((batch+1)*batch_size,len(vx_test))]
                 vbatch_y = vy_test[batch*batch_size:min((batch+1)*batch_size,len(vx_test))] 
                 vbatch_ref = vtest_ref[batch*batch_size:min((batch+1)*batch_size,len(vx_test))]
@@ -296,10 +346,9 @@ def genotype_caller(params,input_type='path',data=None):
             v_error=1-v_acc
             v_stats.append(v_error)
             
-            
-            print('train accuracy= %.4f           valid accuracy= %.4f' %(train_acc,v_acc),flush=True)
-            print('train GT accuracy= %.4f        valid GT accuracy= %.4f' %(acc_gt,v_gt_acc),flush=True)
-            print('train Allele accuracy= %.4f    valid Allele accuracy= %.4f' %(acc_allele,v_allele_acc),flush=True)
+            print('train accuracy= %.4f           valid accuracy= %.4f' %(train_acc,v_acc))
+            print('train GT accuracy= %.4f        valid GT accuracy= %.4f' %(acc_gt,v_gt_acc))
+            print('train Allele accuracy= %.4f    valid Allele accuracy= %.4f' %(acc_allele,v_allele_acc))
             print(50*'.')
             print('\n')
             if v_error<best_error:
@@ -318,6 +367,7 @@ def genotype_caller(params,input_type='path',data=None):
     v_stats=np.array(v_stats)
     np.savez('v_stats_full',v_stats=v_stats,loss_list=loss_list)
     return stats,v_stats,loss_list
+
 
 def genotype_caller_skinny(params,input_type='path',data=None):
     tf.reset_default_graph()
@@ -361,21 +411,27 @@ def genotype_caller_skinny(params,input_type='path',data=None):
         iters=min(100,training_iters)
         
         for k in range(iter_steps):
-            for chrom in [19,20]:
+            
+            for chrom in [2,17]:
+                chnk=15 if chrom>20 else 25
                 tot_list={}
                 f_path='/home/ahsanm1/umair_wlab/data/NanoVar_data/pileups/training/chr%d/chr%d_pileups_' %(chrom,chrom)
                 statinfo = os.stat(f_path+'pos')
                 sz=statinfo.st_size
-                tmp_sz=list(range(0,sz,int(np.ceil((sz//4)/7406000)*7406000)))
+                tmp_sz=list(range(0,sz,7406000*(sz//(chnk*7406000))))
+                tmp_sz=tmp_sz[:chnk]
                 tmp_sz=tmp_sz+[sz] if tmp_sz[-1]!=sz else tmp_sz
                 tot_list['pos']=tmp_sz
+
 
                 for i in [0,5,10,15,20,25]:
                     statinfo = os.stat(f_path+'neg_%d' %i)
                     sz=statinfo.st_size
-                    tmp_sz=list(range(0,sz,int(np.ceil((sz//4)/7406000)*7406000)))
+                    tmp_sz=list(range(0,sz,7406000*(sz//(chnk*7406000))))
+                    tmp_sz=tmp_sz[:chnk]
                     tmp_sz=tmp_sz+[sz] if tmp_sz[-1]!=sz else tmp_sz
                     tot_list[i]=tmp_sz
+
 
                 for i in range(len(tot_list['pos'])-1):
                     _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',a=tot_list['pos'][i], b=tot_list['pos'][i+1],cpu=cpu)
@@ -393,25 +449,36 @@ def genotype_caller_skinny(params,input_type='path',data=None):
                     np.take(ny_train,perm,axis=0,out=ny_train)
                     np.take(ntrain_allele,perm,axis=0,out=ntrain_allele)
                     np.take(ntrain_ref,perm,axis=0,out=ntrain_ref)
-
-                    n_start=-len(x_train)
+                    
+                    false_mltplr=2
+                    n_start=-false_mltplr*len(x_train)
                     n_end=0
                     for i in range(iters):
 
-                        n_start+=len(x_train)
-                        n_end=n_start+len(nx_train)
+                        n_start+=false_mltplr*len(x_train)
+                        n_end=n_start+false_mltplr*len(nx_train)
                         if n_end>len(x_train):
                             n_start=0
-                            n_end=n_start+len(nx_train)
+                            n_end=n_start+false_mltplr*len(nx_train)
                         batch_nx_train,batch_ny_train,batch_ntrain_allele, batch_ntrain_ref = \
                         nx_train[n_start:n_end,:,:,:],ny_train[n_start:n_end,:],\
                         ntrain_allele[n_start:n_end,:], ntrain_ref[n_start:n_end,:]
 
                         for batch in range(len(x_train)//batch_size):
-                            batch_x = np.vstack([x_train[batch*batch_size:min((batch+1)*batch_size,len(x_train))],batch_nx_train[batch*batch_size:min((batch+1)*batch_size,len(batch_nx_train))]])
-                            batch_y = np.vstack([y_train[batch*batch_size:min((batch+1)*batch_size,len(y_train))],batch_ny_train[batch*batch_size:min((batch+1)*batch_size,len(batch_ny_train))]])    
-                            batch_ref = np.vstack([train_ref[batch*batch_size:min((batch+1)*batch_size,len(train_ref))],batch_ntrain_ref[batch*batch_size:min((batch+1)*batch_size,len(batch_ntrain_ref))]])
-                            batch_allele = np.vstack([train_allele[batch*batch_size:min((batch+1)*batch_size,len(train_allele))],batch_ntrain_allele[batch*batch_size:min((batch+1)*batch_size,len(batch_ntrain_allele))]])
+                            batch_x = np.vstack([x_train[batch*batch_size:min((batch+1)*batch_size,len(x_train))],\
+                                      batch_nx_train[ false_mltplr*batch*batch_size : min(false_mltplr*(batch+1)*batch_size,\
+                                      len(batch_nx_train))]])
+                            
+                            batch_y = np.vstack([y_train[batch*batch_size:min((batch+1)*batch_size, len(y_train))],\
+                                      batch_ny_train[false_mltplr*batch*batch_size :min(false_mltplr*(batch+1)*batch_size,\
+                                      len(batch_ny_train))]])    
+                            batch_ref = np.vstack([train_ref[batch*batch_size :min((batch+1)*batch_size,\
+                                        len(train_ref))], batch_ntrain_ref[ false_mltplr*batch*batch_size:\
+                                        min(false_mltplr*(batch+1)*batch_size, len(batch_ntrain_ref))]])
+                            
+                            batch_allele = np.vstack([train_allele[batch*batch_size :min((batch+1)*batch_size,\
+                                           len(train_allele))], batch_ntrain_allele[false_mltplr*batch*batch_size : \
+                                           min(false_mltplr*(batch+1)*batch_size, len(batch_ntrain_allele))]])
                             # Run optimization op (backprop).
                                 # Calculate batch loss and accuracy
                             opt = sess.run(optimizer, feed_dict={x: batch_x,y: batch_y,ref:batch_ref,allele:batch_allele,keep:0.5})
@@ -426,7 +493,6 @@ def genotype_caller_skinny(params,input_type='path',data=None):
                    %((save_num-1)*iters,save_num*iters,elapsed), flush=True)
             save_num+=1
             t=time.time()
-
         #saver.save(sess, save_path=params['model'],global_step=save_num)
     
 
@@ -525,15 +591,14 @@ def test_model(params,data=None,tp=None):
     model_path,test_path,n_input,chrom,vcf_path= params['model'], params['test_path'],params['dims'],params['chrom'],params['vcf_path']
     cpu=params['cpu']
     tf.reset_default_graph()
-    if data:
+    '''if data:
         pos,x_test,test_ref=data
     else:
         
-        pos,x_test,_,_,test_ref=get_data(params['test_path'],cpu=cpu,mode='test')
-        
-    print('test data received',flush=True)
+        pos,x_test,_,_,test_ref=get_data(params['test_path'],cpu=cpu,mode='test')'''
 
-    n_input=[i for i in x_test.shape[1:]]
+    
+    
     
     weights,biases,t1,t2=get_tensors(n_input,1)
     (x,y,allele,ref,fc_layer,pred,cost,optimizer,cost_gt,cost_allele,keep)=t1
@@ -562,38 +627,57 @@ def test_model(params,data=None,tp=None):
         f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Consensus Genotype across all datasets with called genotype">\n')
         f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
         ttt=[]
-        for batch in range(len(x_test)//batch_size+1):
-                    batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
-                    batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
-                    
-                    batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
-                    
-                    # Run optimization op (backprop).
-                        # Calculate batch loss and accuracy
+        
+        chnk=15
+        tot_list={}
+        f_path=params['test_path']
+        
+        statinfo = os.stat(f_path)
+        sz=statinfo.st_size
+        tmp_sz=list(range(0,sz,7404000*(sz//(chnk*7404000))))
+        tmp_sz=tmp_sz[:chnk]
+        tmp_sz=tmp_sz+[sz] if tmp_sz[-1]!=sz else tmp_sz
+        
 
 
-                    fc_layer_batch,score_batch,gt_like,all_like = sess.run([fc_layer,pred,gt_likelihood,allele_likelihood],\
-                                               feed_dict={x: batch_x,ref:batch_ref,keep:1.0})
-                    
-                    ref_like=np.max(all_like*batch_ref,axis=1)
-                    qual=-10*np.log10(np.abs((gt_like[:,0]-1e-9)))-10*np.log10(np.abs((ref_like-1e-9)))
-                    all_pred,gt_pred=np.argmax(fc_layer_batch,axis=1),np.argmax(score_batch,axis=1)
-                    
-                        
-                    mat=np.hstack([batch_pos,np.argmax(batch_ref,axis=1)[:,np.newaxis],\
-                               all_pred[:,np.newaxis],gt_pred[:,np.newaxis],qual[:,np.newaxis]])
-                    total.append(mat)
-                    mat=mat[(mat[:,1]!=mat[:,2])]
+        
 
-                    for j in range(len(mat)):
 
-                        v=mat[j]
+        for i in range(len(tmp_sz)-1):
+            pos,x_test,_,_,test_ref= get_data(f_path,a=tmp_sz[i], b=tmp_sz[i+1],cpu=cpu,mode='test')
 
-                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT\t1/%d\n' %\
-                        (chrom,v[0],rev_mapping[v[1]],rev_mapping[v[2]],v[4],'PASS',gt_map[v[3]])
+            for batch in range(len(x_test)//batch_size+1):
+                        batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
+                        batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
 
-                        f.write(s)
-                            
+                        batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
+
+                        # Run optimization op (backprop).
+                            # Calculate batch loss and accuracy
+
+
+                        fc_layer_batch,score_batch,gt_like,all_like = sess.run([fc_layer,pred,gt_likelihood,allele_likelihood],\
+                                                   feed_dict={x: batch_x,ref:batch_ref,keep:1.0})
+
+                        ref_like=np.max(all_like*batch_ref,axis=1)
+                        qual=-10*np.log10(np.abs((gt_like[:,0]-1e-9)))-10*np.log10(np.abs((ref_like-1e-9)))
+                        all_pred,gt_pred=np.argmax(fc_layer_batch,axis=1),np.argmax(score_batch,axis=1)
+
+
+                        mat=np.hstack([batch_pos,np.argmax(batch_ref,axis=1)[:,np.newaxis],\
+                                   all_pred[:,np.newaxis],gt_pred[:,np.newaxis],qual[:,np.newaxis]])
+                        total.append(mat)
+                        mat=mat[(mat[:,1]!=mat[:,2])]
+
+                        for j in range(len(mat)):
+
+                            v=mat[j]
+
+                            s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT\t1/%d\n' %\
+                            (chrom,v[0],rev_mapping[v[1]],rev_mapping[v[2]],v[4],'PASS',gt_map[v[3]])
+
+                            f.write(s)
+
                     
                               
     stats=np.array(total)
@@ -603,7 +687,6 @@ def test_model(params,data=None,tp=None):
         
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    
     parser.add_argument("-r", "--rate", help="Learning rate",type=float)
     parser.add_argument("-i", "--iterations", help="Training iterations",type=int)
     parser.add_argument("-s", "--size", help="Batch size",type=int)
@@ -620,7 +703,6 @@ if __name__ == '__main__':
     input_dims=[int(x) for x in args.dimensions.split(':')]
     t=time.time()
     
-    
     if args.mode=='train':
         in_dict={'cpu':args.cpu,'rate':args.rate,'iters':args.iterations,'size':args.size,'dims':input_dims,\
                  'train_path':args.train,'test_path':args.test,'model':args.model}
@@ -631,4 +713,4 @@ if __name__ == '__main__':
         test_model(in_dict)
         
     elapsed=time.time()-t
-    print ('Total Time Elapsed: %.2f seconds' %elapsed,flush=True)
+    print ('Total Time Elapsed: %.2f seconds' %elapsed)

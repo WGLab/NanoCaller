@@ -1,9 +1,25 @@
-import sys,gzip
+import sys,os,psutil,subprocess,time
 import pandas as pd
 import numpy as np
 
 from matplotlib import pyplot as plt
 
+def gpu_stats():
+    bashCommand = "python2 /home/ahsanm1/scratch/gpu_stats.py"
+    process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+    output, error = process.communicate()
+    print(output.decode('utf-8').rstrip(),flush=True)
+    
+def usage_stats(verbose=True):
+    pid = os.getpid()
+    py = psutil.Process(pid)
+    if verbose:
+        print('PID: %d    JOB ID:%s\nCPU PERCENT: %.2f    CPU NUM: %d\nMEM USAGE: %.2fGB    MEM PERCENT: %.2f\nNUM CHILDREN: %d     NUM THREADS: %d\nCPU TIMES:: user:%.2f   system:%.2f    children_user:%.2f    children system: %.2f ' %(pid,py.environ()['JOB_ID'],py.cpu_percent(),py.cpu_num(),py.memory_info()[0]/2.**30,py.memory_percent(),len(py.children()),py.num_threads(),py.cpu_times()[0],py.cpu_times()[1],py.cpu_times()[2],py.cpu_times()[3]),flush=True)
+    
+    else:
+        print('PID: %d    MEM USAGE: %.2fGB    MEM PERCENT: %.2f' %(pid,py.memory_info()[0]/2.**30,py.memory_percent()))
+    print('READ COUNTS:%d     READ BYTES:%d     READ CHARS: %d\n' %(py.io_counters()[0],py.io_counters()[2],py.io_counters()[4]),flush=True)
+    
 def print_vcf(file,chrom,df):
     with open(file,'w') as f:
         
@@ -44,8 +60,7 @@ def read_pileups_from_file_deprecated(fname,dims,mode):
     return lines
 
 def read_pileups_from_file(options):
-    dims=[32,33,5]
-    fname,n,mode=options
+    fname,n,mode,dims=options
     file= open(fname,'r')
     file.seek(n)
     mat=[]
@@ -83,6 +98,8 @@ def read_pileups_from_file(options):
         ref=np.eye(4)[np.array(ref)].astype(np.int8)
         allele=np.eye(4)[np.array(allele)].astype(np.int8)
         gt=np.eye(2)[np.array(gt)].astype(np.int8)
+
+
         return (pos,mat,ref,allele,gt)
 
     else:
@@ -109,17 +126,22 @@ def read_pileups_from_file(options):
         mat=np.array(mat)    
         pos=np.array(pos)
         ref=np.eye(4)[np.array(ref)].astype(np.int8)
+        
+        #print(options)
+        #usage_stats()
+        
         return (pos,mat,ref)
 
 
 
 def pileup_image_from_mat(in_mat):
         t=np.copy(in_mat[:,:,-1])
-        t[t>0]=-1
-        t[t==0]=1
-        t[t==-1]=0
-
-        new=np.dstack([in_mat[:,:,:5],t])
+        
+        t=np.abs(t)
+        t=t/np.max(t)
+        const=np.min(t[t!=0])*0.5
+        
+        new=np.dstack([in_mat[:,:,:4],t,const*np.ones(t.shape)])
         p_mat=np.argmax(new,2)
         
         #deletion=purple,  1A=green,   2G=orange,    3T=red,    4C=blue

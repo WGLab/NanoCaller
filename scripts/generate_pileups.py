@@ -26,7 +26,7 @@ def extract_vcf(dct):
         v_pos=rec.pos
         for pcol in samfile.pileup(chrom,rec.pos-1,rec.pos,min_base_quality=0,\
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
-            if pcol.get_num_aligned()>=4:
+            if pcol.get_num_aligned()>=12:
                 alleles=rec.samples.items()[0][1].items()[0][1]
                 d[rec.pos]=[alleles[0]!=alleles[1], mapping[rec.alleles[1]],mapping[rec.ref]]
 
@@ -72,7 +72,7 @@ def get_training_candidates(dct,tr_pos):
             n=pcol.get_num_aligned()
             r=rlist[pcol.pos+1-start]
 
-            if r!='N' and n>=4:
+            if r!='N' and n>=12:
                 r=rlist[pcol.pos+1-start]
                 seq=''.join(pcol.get_query_sequences()).upper()
                 alt_freq=max([x[1] for x in Counter(seq).items() if x[0]!=r]+[0])/n
@@ -180,8 +180,8 @@ def get_candidates(dct):
     sam_path=dct['sam_path']
     fasta_path=dct['fasta_path']
     threshold=dct['threshold']
-    check_bed=dct['bed']
-    bed_file='/home/ahsanm1/umair_wlab/data/NanoVar_data/bed_by_chrom/%s.bed' %chrom
+    bed_path=dct['bed']
+    bed_file=bed_path+'%s.bed' %chrom
     with open(bed_file) as file:
         content=[x.rstrip('\n') for x in file]
     
@@ -201,13 +201,13 @@ def get_candidates(dct):
     for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,\
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             alt_freq=None
-            if check_bed:
-                if not t[pcol.pos+1]:
+            
+            if not t[pcol.pos+1]:
                     continue
             n=pcol.get_num_aligned()
             r=rlist[pcol.pos+1-start]
 
-            if r!='N' and n>=4:
+            if r!='N' and n>=12:
                 r=rlist[pcol.pos+1-start]
                 seq=''.join(pcol.get_query_sequences()).upper()
                 alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]

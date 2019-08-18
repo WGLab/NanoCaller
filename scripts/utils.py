@@ -1,6 +1,7 @@
 import sys,os,psutil,subprocess,time
 import pandas as pd
 import numpy as np
+import multiprocessing as mp
 
 from matplotlib import pyplot as plt
 
@@ -32,32 +33,129 @@ def print_vcf(file,chrom,df):
             s='%s\t%d\t.\t%s\t%s\t%d\tPASS\t.\tGT\t%s\n' %(chrom,v[0],v[1],v[2],0,v[3])
             f.write(s)
 
-def read_pileups_from_file_deprecated(fname,dims,mode):
-    lines={}
+def get_train_test(params,mode='train',verbose=False,tot_list=None,i=None,path=None):
+    cpu=params['cpu']
+    n_input=params['dims']
     if mode=='train':
-        with open(fname,'rb') as file:
-            for l in file:
-                l=l.decode('utf-8')[:-1]
-                pos,gtype,allele,ref,m1,m2=l.split(':')
-                mm1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],dims[2]-1))
-                m2=m2.replace(".", "")
-                mm2=np.array(m2.split('|')).astype(np.int8).reshape((dims[0],dims[1],1))
-                p_mat=np.dstack((mm1,mm2))
 
-                lines[pos]=(int(pos),p_mat,int(gtype[0]),int(allele),int(ref))
+        if path:
+            f_path=path
+        else:
+            f_path=params['train_path']
+        
+        _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',verbose=verbose,cpu=cpu,dims=n_input,window=params['window'])
+        
+        negative_variants=[get_data(f_path+'neg.%d' %freq,cpu=cpu,verbose=verbose,dims=n_input,window=params['window']) for freq in [0,5,10,15,20,25]]
+
+        nx_train=np.vstack([tmp[1] for tmp in negative_variants])
+        ny_train=np.vstack([tmp[2] for tmp in negative_variants])
+        ntrain_allele=np.vstack([tmp[3] for tmp in negative_variants])
+        ntrain_ref=np.vstack([tmp[4] for tmp in negative_variants])
+
+        perm=np.random.permutation(len(nx_train))
+
+        np.take(nx_train,perm,axis=0,out=nx_train)
+        np.take(ny_train,perm,axis=0,out=ny_train)
+        np.take(ntrain_allele,perm,axis=0,out=ntrain_allele)
+        np.take(ntrain_ref,perm,axis=0,out=ntrain_ref)
+
+        return (_,x_train,y_train,train_allele,train_ref), (_,nx_train,ny_train,ntrain_allele,ntrain_ref)
     
-    else:
-        with open(fname,'r') as file:
-            for l in file:
-                l=l[:-1]
-                pos,ref,m1,m2=l.split(':')
-                mm1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],dims[2]-1))
-                m2=m2.replace(".", "")
-                mm2=np.array(m2.split('|')).astype(np.int8).reshape((dims[0],dims[1],1))
-                p_mat=np.dstack((mm1,mm2))
+    elif mode=='train_chunk':
+        cpu=params['cpu']
+        n_input=params['dims']
+        
+        if path:
+            f_path=path
+        else:
+            f_path=params['train_path']
+        
+        _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',a=tot_list['pos'][i], b=tot_list['pos'][i+1], cpu=cpu, dims=n_input, verbose=verbose,window=params['window'])
 
-                lines[pos]=(int(pos),p_mat,int(ref))
-    return lines
+        negative_variants=[get_data(f_path+'neg.%d' %freq,a=tot_list[freq][i], b=tot_list[freq][i+1], cpu=cpu,verbose=verbose,dims=n_input, window=params['window']) for freq in [0,5,10,15,20,25]]
+
+        nx_train=np.vstack([tmp[1] for tmp in negative_variants])
+        ny_train=np.vstack([tmp[2] for tmp in negative_variants])
+        ntrain_allele=np.vstack([tmp[3] for tmp in negative_variants])
+        ntrain_ref=np.vstack([tmp[4] for tmp in negative_variants])
+
+        perm=np.random.permutation(len(nx_train))
+        
+        np.take(nx_train,perm,axis=0,out=nx_train)
+        np.take(ny_train,perm,axis=0,out=ny_train)
+        np.take(ntrain_allele,perm,axis=0,out=ntrain_allele)
+        np.take(ntrain_ref,perm,axis=0,out=ntrain_ref)
+
+        return (_,x_train,y_train,train_allele,train_ref), (_,nx_train,ny_train,ntrain_allele,ntrain_ref)
+
+    else:
+        cpu=params['cpu']
+        n_input=params['dims']
+        
+        if path:
+            f_path=path
+        else:
+            f_path=params['test_path']
+        
+        _,vpx_train,vpy_train,vptrain_allele,vptrain_ref= get_data(f_path+'pos',cpu=cpu,dims=n_input,window=params['window'])
+
+        negative_variants=[get_data(f_path+'neg.%d' %freq,cpu=cpu,dims=n_input,window=params['window'], verbose=verbose) for freq in [0,5,10,15,20,25]]
+
+        vx_test=np.vstack([tmp[1] for tmp in negative_variants]+[vpx_train])[len(negative_variants[0][0])//2:]
+        vy_test=np.vstack([tmp[2] for tmp in negative_variants]+[vpy_train])[len(negative_variants[0][0])//2:]
+        vtest_allele=np.vstack([tmp[3] for tmp in negative_variants]+[vptrain_allele])[len(negative_variants[0][0])//2:]
+        vtest_ref=np.vstack([tmp[4] for tmp in negative_variants]+[vptrain_ref])[len(negative_variants[0][0])//2:]
+        
+        return vx_test,vy_test,vtest_allele,vtest_ref
+            
+            
+def get_data(fname,a=None, b=None,dims=(32,33,5),window=0, cpu=4,mode='train',verbose=False):
+    t=time.time()
+    l=os.stat(fname).st_size
+    
+    if mode=='train':
+        rec_size=14+dims[0]*dims[1]*7
+        if a!=None and b!=None:
+            my_array=[(fname,x,mode,dims) for x in range(a,b,1000*rec_size)]
+        else:
+            my_array=[(fname,x,mode,dims) for x in range(0,l,1000*rec_size)]
+    else:
+        rec_size=12+dims[0]*dims[1]*7
+        if a!=None and b!=None:
+            my_array=[(fname,x,mode,dims) for x in range(a,b,1000*rec_size)]
+        else:
+            my_array=[(fname,x,mode,dims) for x in range(0,l,1000*rec_size)]
+
+    cpu=min(cpu,len(my_array))
+    pool = mp.Pool(processes=cpu)
+    results = pool.map(read_pileups_from_file, my_array)
+    pool.close()  
+    pool.join() 
+    
+    
+    pos=np.vstack([res[0][:,np.newaxis] for res in results])
+    mat=np.vstack([res[1] for res in results])
+    
+    if window:
+            w=window
+            l=dims[1]//2
+            mat=mat[:,:,l-w:l+w+1,:]
+            
+    ref=np.vstack([res[2] for res in results])
+    allele,gt=None,None
+    if mode=='train':
+        allele=np.vstack([res[3] for res in results])
+        gt=np.vstack([res[4] for res in results])
+    
+    elapsed=time.time()-t
+    
+    if verbose:
+        print('I/O Time Elapsed: %.2f seconds' %elapsed, flush = True)
+ 
+    
+    return pos,mat,gt,allele,ref
+
+            
 
 def read_pileups_from_file(options):
     fname,n,mode,dims=options
@@ -134,7 +232,7 @@ def read_pileups_from_file(options):
 
 
 
-def pileup_image_from_mat(in_mat):
+def pileup_image_from_mat(in_mat,size=(20,10)):
         t=np.copy(in_mat[:,:,-1])
         
         t=np.abs(t)
@@ -149,9 +247,10 @@ def pileup_image_from_mat(in_mat):
         data = np.zeros((p_mat.shape[0],p_mat.shape[1], 3)).astype(int)
         for j in range(6):
             new=(p_mat==j).astype(int)
+            
             data+=np.repeat(new[:, :, np.newaxis], 3, axis=2)*color[j]
         
-        plt.figure(figsize=(20,10))
+        plt.figure(figsize=(size[0],size[1]))
         plt.imshow(data)
         plt.show()
 

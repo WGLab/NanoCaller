@@ -50,16 +50,18 @@ def get_training_candidates(dct,tr_pos):
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
     
-    bed_file='/home/ahsanm1/umair_wlab/data/NanoVar_data/bed_by_chrom/%s.bed' %chrom
-    with open(bed_file) as file:
-        content=[x.rstrip('\n') for x in file]
-    
-    content=[x.split('\t')[1:] for x in content]
-    content=[(int(x[0]),int(x[1])) for x in content]
-    t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
-    
-    
-    
+    bed_path=dct['bed']
+    if bed_path:
+        bed_file=bed_path+'%s.bed' %chrom
+        with open(bed_file) as file:
+            content=[x.rstrip('\n') for x in file]
+
+        content=[x.split('\t')[1:] for x in content]
+        content=[(int(x[0]),int(x[1])) for x in content]
+        t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
+
+
+
     fasta_chr,sam_chr=chrom,chrom
     #fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
     #sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
@@ -67,14 +69,19 @@ def get_training_candidates(dct,tr_pos):
     output={0:[],5:[],10:[],15:[],20:[],25:[]}
     for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0, flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             alt_freq=None
-            if not t[pcol.pos+1]:
-                continue
+            if bed_path:
+                if not t[pcol.pos+1]:
+                    continue
             n=pcol.get_num_aligned()
             r=rlist[pcol.pos+1-start]
 
-            if r!='N' and n>=12:
+            if r!='N' and n>=dct['mincov']:
                 r=rlist[pcol.pos+1-start]
-                seq=''.join(pcol.get_query_sequences()).upper()
+                try:
+                    seq=''.join(pcol.get_query_sequences()).upper()
+
+                except AssertionError:
+                    seq=''.join([pread.alignment.query_sequence[pread.query_position] if pread.query_position else '' for pread in pcol.pileups ])
                 alt_freq=max([x[1] for x in Counter(seq).items() if x[0]!=r]+[0])/n
                 #alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
 
@@ -181,15 +188,17 @@ def get_candidates(dct):
     fasta_path=dct['fasta_path']
     threshold=dct['threshold']
     bed_path=dct['bed']
-    bed_file=bed_path+'%s.bed' %chrom
-    with open(bed_file) as file:
-        content=[x.rstrip('\n') for x in file]
     
-    content=[x.split('\t')[1:] for x in content]
-    content=[(int(x[0]),int(x[1])) for x in content]
-    t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
-    
-    
+    if bed_path:
+        bed_file=bed_path+'%s.bed' %chrom
+        with open(bed_file) as file:
+            content=[x.rstrip('\n') for x in file]
+
+        content=[x.split('\t')[1:] for x in content]
+        content=[(int(x[0]),int(x[1])) for x in content]
+        t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
+
+
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
 
@@ -202,14 +211,19 @@ def get_candidates(dct):
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             alt_freq=None
             
-            if not t[pcol.pos+1]:
+            if bed_path:
+                if not t[pcol.pos+1]:
                     continue
             n=pcol.get_num_aligned()
             r=rlist[pcol.pos+1-start]
 
-            if r!='N' and n>=12:
+            if r!='N' and n>=dct['mincov']:
                 r=rlist[pcol.pos+1-start]
-                seq=''.join(pcol.get_query_sequences()).upper()
+                try:
+                    seq=''.join(pcol.get_query_sequences()).upper()
+
+                except AssertionError:
+                    seq=''.join([pread.alignment.query_sequence[pread.query_position] if pread.query_position else '' for pread in pcol.pileups ])
                 alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
                 if alt_freq:
                     output.append((pcol.pos+1,r,r))
@@ -296,8 +310,12 @@ def create_pileup_image(dct,v_pos=None):
         for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,\
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             name=pcol.get_query_names()
-
-            seq=pcol.get_query_sequences()
+            try:
+                seq=''.join(pcol.get_query_sequences()).upper()
+        
+            except AssertionError:
+                seq=''.join([pread.alignment.query_sequence[pread.query_position] if pread.query_position else '*' for pread in pcol.pileups ])
+                
             qual=pcol.get_query_qualities()
 
             d[pcol.pos+1]={n:s.upper() if len(s)>0 else '*' for (n,s) in zip(name,seq)}
@@ -349,13 +367,13 @@ def generate(params,mode='training'):
         #print('starting pileups',flush=True)
         
         pool = mp.Pool(processes=cores)
-        fname='%s_pileups' %params['chrom']
-        true_fname=os.path.join(params['out_path'],fname+'_pos')
+        fname='%s.pileups' %params['chrom']
+        true_fname=os.path.join(params['out_path'],fname+'.pos')
         p_file=open(true_fname , "w")
         
         neg_file_list={}
         for i in [0,5,10,15,20,25]:
-            tmp_name=os.path.join(params['out_path'],'%s_neg_%d' %(fname,i))
+            tmp_name=os.path.join(params['out_path'],'%s.neg.%d' %(fname,i))
             neg_file_list[i]=open(tmp_name , "w")
         
         start,end=params['start'],params['end']
@@ -403,7 +421,7 @@ def generate(params,mode='training'):
     elif mode=='testing':
         print('starting pileups',flush=True)
         pool = mp.Pool(processes=cores)
-        fname='%s_pileups_test' %(params['chrom'])
+        fname='%s.pileups.test' %(params['chrom'])
         fname=os.path.join(params['out_path'],fname)
         file=open(fname , "w")
         start,end=params['start'],params['end']
@@ -496,6 +514,7 @@ if __name__ == '__main__':
     parser.add_argument("-d", "--depth", help="Depth",type=int)
     parser.add_argument("-t", "--threshold", help="Threshold",type=float)
     parser.add_argument("-bed", "--bed", help="BED file")
+    parser.add_argument("-mincov", "--mincov", help="min coverage",type=int)
     
     
     args = parser.parse_args()
@@ -509,7 +528,10 @@ if __name__ == '__main__':
         start,end=1,chrom_length[chrom]
         
     in_dict={'mode':args.mode, 'chrom':chrom,'start':start,'end':end,\
-         'sam_path':args.bam,'fasta_path':args.ref,'vcf_path':args.vcf,'out_path':args.output,'window':args.window,'depth':args.depth,'threshold':args.threshold,'cpu':args.cpu,'bed':args.bed}    
+         'sam_path':args.bam, 'fasta_path':args.ref, 'vcf_path':args.vcf,\
+             'out_path':args.output, 'window':args.window, 'depth':args.depth,\
+             'threshold':args.threshold, 'cpu':args.cpu, 'bed':args.bed,\
+            'mincov':args.mincov}    
     
     t=time.time()
     generate(in_dict)

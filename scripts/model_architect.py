@@ -15,12 +15,13 @@ def conv_net(x,ref, weights, biases,keep):
     conv1_3 = conv2d(x, weights['wc1_3'], biases['bc1_3'],1,pad_type='SAME')
     
     merge_conv1=tf.concat([conv1_1, conv1_2,conv1_3],3)
-    print(tf.shape(merge_conv1))
     pool_output = tf.cond(tf.equal(tf.shape(merge_conv1)[1], 100),
                       lambda:tf.nn.max_pool(merge_conv1,ksize=[1,18,1,1],strides=[1,3,1,1],padding='VALID'),
-                      lambda: tf.nn.max_pool(merge_conv1,ksize=[1,5,1,1],strides=[1,1,1,1],padding='VALID'))
+                      lambda: tf.cond(tf.equal(tf.shape(merge_conv1)[1], 64),
+                      lambda:tf.nn.max_pool(merge_conv1,ksize=[1,9,1,1],strides=[1,2,1,1],padding='VALID'),
+                      lambda: tf.nn.max_pool(merge_conv1,ksize=[1,5,1,1],strides=[1,1,1,1],padding='VALID')))
     
-    
+    #pool_output=tf.nn.max_pool(merge_conv1,ksize=[1,5,1,1],strides=[1,1,1,1],padding='VALID')
     conv2 = conv2d(pool_output, weights['wc2'], biases['bc2'],2)
     
     conv3 = conv2d(conv2, weights['wc3'], biases['bc3'],2)
@@ -47,7 +48,7 @@ def conv_net(x,ref, weights, biases,keep):
 
 def get_tensors(n_input,learning_rate=0):
     h_in,w_in,depth=n_input
-    
+    h_in=28
     for i in range(2):
         h_in=int(np.ceil(float(h_in-3+1)/float(2)))
         w_in=int(np.ceil(float(w_in-3+1)/float(2)))
@@ -88,7 +89,7 @@ def get_tensors(n_input,learning_rate=0):
         'out-gtp': tf.get_variable('B7', shape=(2), initializer=tf.contrib.layers.xavier_initializer()),
     }
     
-    x,y = tf.placeholder("float", [None]+n_input), tf.placeholder("float", [None, 2])
+    x,y = tf.placeholder("float", [None,None,33,5]), tf.placeholder("float", [None, 2])
     allele,ref=tf.placeholder("float", [None, 4]),tf.placeholder("float", [None, 4])
     keep = tf.placeholder(tf.float32)
     

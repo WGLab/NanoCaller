@@ -2,7 +2,6 @@ import time,os,copy,argparse,subprocess,psutil
 import pandas as pd
 import numpy as np
 import multiprocessing as mp
-import generate_pileups as gcp
 import tensorflow as tf
 from model_architect import *
 from utils import *
@@ -355,8 +354,7 @@ def test_model(params):
     tf.reset_default_graph()
     
     tr_dim=n_input[:]
-    if params['window']:
-        tr_dim[1]=2*params['window']+1
+    params['window']=None
 
     weights,biases,t1,t2=get_tensors(tr_dim,1)
     (x,y,allele,ref,fc_layer,pred,cost,optimizer,cost_gt,cost_allele,keep)=t1

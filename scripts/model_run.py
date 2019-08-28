@@ -6,6 +6,9 @@ import tensorflow as tf
 from model_architect import *
 from utils import *
 
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+
 def genotype_caller(params,input_type='path',data=None):
     tf.reset_default_graph()
     cpu=params['cpu']
@@ -169,7 +172,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0):
     cpu=params['cpu']
     n_input=params['dims']
     
-    chrom_list=[int(x) for x in params['chrom'].split(':')]
+    chrom_list=[17,18,19,20,21]
     
     
     
@@ -182,8 +185,11 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0):
 
     if params['val']:
         val_list=[]
-        for v_path in params['test_path'].split('.'):
-            val_list.append((v_path,get_train_test(params, mode='test', path=v_path)))
+        for v_path in params['test_path'].split(','):
+            d = copy.deepcopy(params)
+            d['dims']=[int(v_path.split(':')[1]),33,5]
+            v_path=v_path.split(':')[0]
+            val_list.append((v_path,get_train_test(d, mode='test', path=v_path)))
         
     
     init = tf.global_variables_initializer()
@@ -195,7 +201,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0):
     
     
     n_size=1
-    with tf.Session()  as sess:
+    with tf.Session(config=config)  as sess:
         sess.run(init)
         sess.run(tf.local_variables_initializer())
         stats=[]
@@ -225,7 +231,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0):
                 else:
                     chnk=4
                 tot_list={}
-                f_path=os.path.join(params['train_path'],'chr%d/chr%d_pileups_' %(chrom,chrom))
+                f_path=os.path.join(params['train_path'],'chr%d/chr%d.pileups.' %(chrom,chrom))
                 statinfo = os.stat(f_path+'pos')
                 sz=statinfo.st_size
                 
@@ -236,7 +242,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0):
 
 
                 for i in [0,5,10,15,20,25]:
-                    statinfo = os.stat(f_path+'neg_%d' %i)
+                    statinfo = os.stat(f_path+'neg.%d' %i)
                     sz=statinfo.st_size
                     tmp_sz=list(range(0,sz,rec_size*(sz//(chnk*rec_size))))
                     tmp_sz=tmp_sz[:chnk]
@@ -252,7 +258,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0):
 
                     
                     
-                    false_mltplr=2
+                    false_mltplr=1
                     n_start=-false_mltplr*len(x_train)
                     n_end=0
                     for i in range(iters):
@@ -331,7 +337,6 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0):
                         print('validation Precision= %.4f     Validation Recall= %.4f' %(tp/(tp+fp),tp/true), flush=True)
                         print(30*'-')
                         print('\n')
-
                     
             saver.save(sess, save_path=params['model'],global_step=save_num)
             elapsed=time.time()-t
@@ -341,6 +346,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0):
             
             save_num+=1
             t=time.time()
+            #params['val']=0
         #saver.save(sess, save_path=params['model'],global_step=save_num)
     if restart:
         return genotype_caller_skinny(params,input_type=input_type,data=data,attempt=attempt+1)

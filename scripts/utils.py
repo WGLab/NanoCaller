@@ -33,7 +33,7 @@ def print_vcf(file,chrom,df):
             s='%s\t%d\t.\t%s\t%s\t%d\tPASS\t.\tGT\t%s\n' %(chrom,v[0],v[1],v[2],0,v[3])
             f.write(s)
 
-def get_train_test(params,mode='train',verbose=False,tot_list=None,i=None,path=None):
+def get_train_test(params,mode='train',verbose=False,tot_list=None,i=None,path=None,skip_pos=False):
     cpu=params['cpu']
     n_input=params['dims']
     if mode=='train':
@@ -69,11 +69,15 @@ def get_train_test(params,mode='train',verbose=False,tot_list=None,i=None,path=N
             f_path=path
         else:
             f_path=params['train_path']
+        if skip_pos:
+            _,x_train,y_train,train_allele,train_ref=None,None,None,None,None
         
-        _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',a=tot_list['pos'][i], b=tot_list['pos'][i+1], cpu=cpu, dims=n_input, verbose=verbose,window=params['window'])
+        else:
+            _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',a=tot_list['pos'][i], b=tot_list['pos'][i+1], cpu=cpu, dims=n_input, verbose=verbose,window=params['window'])
 
         negative_variants=[get_data(f_path+'neg.%d' %freq,a=tot_list[freq][i], b=tot_list[freq][i+1], cpu=cpu,verbose=verbose,dims=n_input, window=params['window']) for freq in [0,5,10,15,20,25]]
 
+        n_pos=np.vstack([tmp[0] for tmp in negative_variants])
         nx_train=np.vstack([tmp[1] for tmp in negative_variants])
         ny_train=np.vstack([tmp[2] for tmp in negative_variants])
         ntrain_allele=np.vstack([tmp[3] for tmp in negative_variants])
@@ -81,12 +85,13 @@ def get_train_test(params,mode='train',verbose=False,tot_list=None,i=None,path=N
 
         perm=np.random.permutation(len(nx_train))
         
+        np.take(n_pos,perm,axis=0,out=n_pos)
         np.take(nx_train,perm,axis=0,out=nx_train)
         np.take(ny_train,perm,axis=0,out=ny_train)
         np.take(ntrain_allele,perm,axis=0,out=ntrain_allele)
         np.take(ntrain_ref,perm,axis=0,out=ntrain_ref)
 
-        return (_,x_train,y_train,train_allele,train_ref), (_,nx_train,ny_train,ntrain_allele,ntrain_ref)
+        return (_,x_train,y_train,train_allele,train_ref), (n_pos,nx_train,ny_train,ntrain_allele,ntrain_ref)
 
     else:
         cpu=params['cpu']

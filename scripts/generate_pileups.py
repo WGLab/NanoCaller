@@ -261,7 +261,31 @@ def create_pileup(in_dct):
                 d[v_pos]=(test_sites_df['REF'].loc[v_pos],res[0])
 
         return d
+    
+    elif in_dct['mode']=='direct':
+        test_sites_df=get_candidates(in_dct)
+        if test_sites_df.shape[0]==0:
+            return None
 
+        test_sites_df.set_index('POS',drop=False,inplace=True)
+        pos=[]
+        ref=[]
+        mat=[]
+        for v_pos in test_sites_df.POS:
+
+            res=create_pileup_image(in_dct,v_pos=v_pos)
+            if res:
+                pos.append(v_pos)
+                ref.append(test_sites_df['REF'].loc[v_pos])
+                mat.append(res[0])
+                
+        if len(pos)==0:
+          return None
+        pos=np.array(pos).astype(np.int16)
+        ref=np.eye(4)[np.array(ref)]
+        mat=np.array(mat)
+        return (pos,mat,ref)
+    
     elif in_dct['mode']=='common':
         d={}
         fastafile=pysam.FastaFile(in_dct['fasta_path'])
@@ -363,6 +387,7 @@ def create_pileup_image(dct,v_pos=None):
 def generate(params,mode='training'):
     cores=params['cpu']
     mode=params['mode']
+    chrom=params['chrom']
     if mode=='training':
         #print('starting pileups',flush=True)
         
@@ -425,70 +450,69 @@ def generate(params,mode='training'):
         fname=os.path.join(params['out_path'],fname)
         file=open(fname , "w")
         start,end=params['start'],params['end']
-        for mbase in range(start,end,int(1e6)):
-            print('starting pool:'+str(mbase),flush=True)
+        pos,mat,ref=[],[],[]
+        print('generating pileups for region chr%s:%d-%d'%(chrom,start,end),flush=True)
+        for mbase in range(start,end,int(1e5)):
+            
             t=time.time()                
 
             in_dict_list=[]
-            for k in range(mbase,min(end,mbase+int(1e6)),50000):
+            for k in range(mbase,min(end,mbase+int(1e5)),10000):
                 d = copy.deepcopy(params)
                 d['start']=k
-                d['end']=min(end,k+50000)
+                d['end']=min(end,k+10000)
                 in_dict_list.append(d)
             results = pool.map(create_pileup, in_dict_list)
-            for res_dict in results:
-                if res_dict:
-                    for k,p in res_dict.items():
-                        ref,mat=p
-
-                        ft=mat[:,:,-1].reshape(-1)
-                        mat=mat[:,:,:-1].reshape(-1)
-                        s='%s%d%d%s%s' %((11-len(str(k)))*'0',k,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
-                        file.write(s)
-
             
+            for res_tuple in results:
+                if res_tuple:
+                    pos.append(res_tuple[0])
+                    mat.append(res_tuple[1])
+                    res.append(res_tuple[2])
+
             elapsed=time.time()-t
             print ('Elapsed: %.2f seconds' %elapsed,flush=True)
-            print('finishing pool:'+str(mbase),flush=True)
-    
-    elif mode=='common':
-        with open(params['vcf_path'],'r') as file:
-            content=[int(x.rstrip('\n')) for x in file]
-        
+        print('pileups generated for region chr%s:%d-%d' %(chrom,start,end),flush=True)
+        pos=np.vstack(pos)
+        mat=np.vstack(mat)
+        ref=np.vstack(ref)
+        return (pos,mat,ref)
             
-        ind_list=[content[i*(len(content)//10):(i+1)*(len(content)//10)] for i in range(10+(len(content)%10!=0))]
+    elif mode=='direct':
         pool = mp.Pool(processes=cores)
-        print('starting pileups',flush=True)
-        for c,ind in enumerate(ind_list):
-            t=time.time()
-            fname='%s_known_sites_pileups_%d' %(params['chrom'],c+1)
-            print('starting: %s' %fname,flush=True)
-            fname=os.path.join(params['out_path'],fname)
+        
+        start,end=params['start'],params['end']
+        pos,mat,ref=[],[],[]
+        print('generating pileups for region chr%s:%d-%d'%(chrom,start,end),flush=True)
+        for mbase in range(start,end,int(1e5)):
             
-            pool_list=[ind[i*(len(ind)//cores):(i+1)*(len(ind)//cores)] for i in range(cores+(len(content)%cores!=0))]
-            
+            t=time.time()                
+
             in_dict_list=[]
-            for k in pool_list:
-                d = copy.deepcopy(params)    
-                d['list']=k
+            for k in range(mbase,min(end,mbase+int(1e5)),10000):
+                d = copy.deepcopy(params)
+                d['start']=k
+                d['end']=min(end,k+10000)
                 in_dict_list.append(d)
             results = pool.map(create_pileup, in_dict_list)
             
-                
-            with open(fname,'w') as file:
-                for res_dict in results:
-                    if res_dict:
-                        for k,p in res_dict.items():
-                            ref,mat=p
+            for res_tuple in results:
+                if res_tuple:
+                    pos.append(res_tuple[0])
+                    mat.append(res_tuple[1])
+                    res.append(res_tuple[2])
 
-                            ft=mat[:,:,-1].reshape(-1)
-                            mat=mat[:,:,:-1].reshape(-1)
-                            s='%s%d%d%s%s' %((11-len(str(k)))*'0',k,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
-                            file.write(s)
-            
             elapsed=time.time()-t
             print ('Elapsed: %.2f seconds' %elapsed,flush=True)
-            print('finishing pool',flush=True)
+        print('pileups generated for region chr%s:%d-%d' %(chrom,start,end),flush=True)
+        
+        if len(pos)==0:
+          return None
+        pos=np.vstack(pos)
+        mat=np.vstack(mat)
+        ref=np.vstack(ref)
+        return (pos,mat,ref)
+    
             
 
         

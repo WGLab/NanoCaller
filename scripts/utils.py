@@ -112,7 +112,85 @@ def get_data(fname,a=None, b=None,dims=(32,33,5), cpu=4,mode='train',verbose=Fal
     
     return pos,mat,gt,allele,ref
 
-            
+def get_train_test_old(params,mode='train',verbose=False,tot_list=None,i=None,path=None,skip_pos=False):
+    cpu=params['cpu']
+    n_input=params['dims']
+    if mode=='train':
+
+        if path:
+            f_path=path
+        else:
+            f_path=params['train_path']
+        
+        _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',verbose=verbose,cpu=cpu,dims=n_input)
+        
+        negative_variants=[get_data(f_path+'neg.%d' %freq,cpu=cpu,verbose=verbose,dims=n_input) for freq in [0,5,10,15,20,25]]
+
+        nx_train=np.vstack([tmp[1] for tmp in negative_variants])
+        ny_train=np.vstack([tmp[2] for tmp in negative_variants])
+        ntrain_allele=np.vstack([tmp[3] for tmp in negative_variants])
+        ntrain_ref=np.vstack([tmp[4] for tmp in negative_variants])
+
+        perm=np.random.permutation(len(nx_train))
+
+        np.take(nx_train,perm,axis=0,out=nx_train)
+        np.take(ny_train,perm,axis=0,out=ny_train)
+        np.take(ntrain_allele,perm,axis=0,out=ntrain_allele)
+        np.take(ntrain_ref,perm,axis=0,out=ntrain_ref)
+
+        return (_,x_train,y_train,train_allele,train_ref), (_,nx_train,ny_train,ntrain_allele,ntrain_ref)
+    
+    elif mode=='train_chunk':
+        cpu=params['cpu']
+        n_input=params['dims']
+        
+        if path:
+            f_path=path
+        else:
+            f_path=params['train_path']
+        if skip_pos:
+            _,x_train,y_train,train_allele,train_ref=None,None,None,None,None
+        
+        else:
+            _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',a=tot_list['pos'][i], b=tot_list['pos'][i+1], cpu=cpu, dims=n_input, verbose=verbose)
+
+        negative_variants=[get_data(f_path+'neg.%d' %freq,a=tot_list[freq][i], b=tot_list[freq][i+1], cpu=cpu,verbose=verbose,dims=n_input) for freq in [0,5,10,15,20,25]]
+
+        n_pos=np.vstack([tmp[0] for tmp in negative_variants])
+        nx_train=np.vstack([tmp[1] for tmp in negative_variants])
+        ny_train=np.vstack([tmp[2] for tmp in negative_variants])
+        ntrain_allele=np.vstack([tmp[3] for tmp in negative_variants])
+        ntrain_ref=np.vstack([tmp[4] for tmp in negative_variants])
+
+        perm=np.random.permutation(len(nx_train))
+        
+        np.take(n_pos,perm,axis=0,out=n_pos)
+        np.take(nx_train,perm,axis=0,out=nx_train)
+        np.take(ny_train,perm,axis=0,out=ny_train)
+        np.take(ntrain_allele,perm,axis=0,out=ntrain_allele)
+        np.take(ntrain_ref,perm,axis=0,out=ntrain_ref)
+
+        return (_,x_train,y_train,train_allele,train_ref), (n_pos,nx_train,ny_train,ntrain_allele,ntrain_ref)
+
+    else:
+        cpu=params['cpu']
+        n_input=params['dims']
+        
+        if path:
+            f_path=path
+        else:
+            f_path=params['test_path']
+        
+        _,vpx_train,vpy_train,vptrain_allele,vptrain_ref= get_data(f_path+'pos',cpu=cpu,dims=n_input)
+
+        negative_variants=[get_data(f_path+'neg.%d' %freq,cpu=cpu,dims=n_input, verbose=verbose) for freq in [0,5,10,15,20,25]]
+
+        vx_test=np.vstack([tmp[1] for tmp in negative_variants]+[vpx_train])[len(negative_variants[0][0])//2:]
+        vy_test=np.vstack([tmp[2] for tmp in negative_variants]+[vpy_train])[len(negative_variants[0][0])//2:]
+        vtest_allele=np.vstack([tmp[3] for tmp in negative_variants]+[vptrain_allele])[len(negative_variants[0][0])//2:]
+        vtest_ref=np.vstack([tmp[4] for tmp in negative_variants]+[vptrain_ref])[len(negative_variants[0][0])//2:]
+        
+        return vx_test,vy_test,vtest_allele,vtest_ref            
 
 def read_pileups_from_file(options):
     

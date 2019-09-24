@@ -5,21 +5,7 @@ import multiprocessing as mp
 
 from matplotlib import pyplot as plt
 
-def gpu_stats():
-    bashCommand = "python2 /home/ahsanm1/scratch/gpu_stats.py"
-    process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
-    output, error = process.communicate()
-    print(output.decode('utf-8').rstrip(),flush=True)
-    
-def usage_stats(verbose=True):
-    pid = os.getpid()
-    py = psutil.Process(pid)
-    if verbose:
-        print('PID: %d    JOB ID:%s\nCPU PERCENT: %.2f    CPU NUM: %d\nMEM USAGE: %.2fGB    MEM PERCENT: %.2f\nNUM CHILDREN: %d     NUM THREADS: %d\nCPU TIMES:: user:%.2f   system:%.2f    children_user:%.2f    children system: %.2f ' %(pid,py.environ()['JOB_ID'],py.cpu_percent(),py.cpu_num(),py.memory_info()[0]/2.**30,py.memory_percent(),len(py.children()),py.num_threads(),py.cpu_times()[0],py.cpu_times()[1],py.cpu_times()[2],py.cpu_times()[3]),flush=True)
-    
-    else:
-        print('PID: %d    MEM USAGE: %.2fGB    MEM PERCENT: %.2f' %(pid,py.memory_info()[0]/2.**30,py.memory_percent()))
-    print('READ COUNTS:%d     READ BYTES:%d     READ CHARS: %d\n' %(py.io_counters()[0],py.io_counters()[2],py.io_counters()[4]),flush=True)
+
     
 def print_vcf(file,chrom,df):
     with open(file,'w') as f:
@@ -71,13 +57,13 @@ def get_data(fname,a=None, b=None,dims=(32,33,5), cpu=4,mode='train',verbose=Fal
     l=os.stat(fname).st_size
     
     if mode=='train':
-        rec_size=14+dims[0]*dims[1]*7
+        rec_size=14+dims[0]*dims[1]*dims[2]*6
         if a!=None and b!=None:
             my_array=[(fname,x,mode,dims) for x in range(a,b,1000*rec_size)]
         else:
             my_array=[(fname,x,mode,dims) for x in range(0,l,1000*rec_size)]
     else:
-        rec_size=12+dims[0]*dims[1]*7
+        rec_size=12+dims[0]*dims[1]*dims[2]*6
         if a!=None and b!=None:
             my_array=[(fname,x,mode,dims) for x in range(a,b,1000*rec_size)]
         else:
@@ -216,15 +202,10 @@ def read_pileups_from_file(options):
             ref.append(int(c[13]))
 
 
-            m1=file.read(dims[0]*dims[1]*(dims[2]-1))
-            m1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],dims[2]-1))
 
+            m=file.read(dims[0]*dims[1]*dims[2]*6)
+            p_mat=np.array([int(m[6*i:6*i+6]) for i in range(dims[0]*dims[1]*dims[2])]).reshape((dims[0],dims[1],dims[2]))
 
-
-            m2=file.read(dims[0]*dims[1]*3)
-            m2=np.array([int(m2[3*i:3*i+3]) for i in range(dims[0]*dims[1])]).reshape((dims[0],dims[1],1))
-
-            p_mat=np.dstack((m1,m2))
             mat.append(p_mat)
 
         mat=np.array(mat)    
@@ -232,7 +213,6 @@ def read_pileups_from_file(options):
         ref=np.eye(4)[np.array(ref)].astype(np.int8)
         allele=np.eye(4)[np.array(allele)].astype(np.int8)
         gt=np.eye(2)[np.array(gt)].astype(np.int8)
-
 
         return (pos,mat,ref,allele,gt)
 
@@ -242,27 +222,23 @@ def read_pileups_from_file(options):
             c=file.read(12)
             if not c:
                 break
-            pos.append(int(c[:11]))
-            ref.append(int(c[11]))
-
-
-            m1=file.read(dims[0]*dims[1]*(dims[2]-1))
-            m1=np.array(list(m1)).astype(np.int8).reshape((dims[0],dims[1],dims[2]-1))
+            
+            try:
+                pos.append(int(c[:11]))
+                ref.append(int(c[11]))
 
 
 
-            m2=file.read(dims[0]*dims[1]*3)
-            m2=np.array([int(m2[3*i:3*i+3]) for i in range(dims[0]*dims[1])]).reshape((dims[0],dims[1],1))
+                m=file.read(dims[0]*dims[1]*dims[2]*6)
+                p_mat=np.array([int(m[6*i:6*i+6]) for i in range(dims[0]*dims[1]*dims[2])]).reshape((dims[0],dims[1],dims[2]))
 
-            p_mat=np.dstack((m1,m2))
-            mat.append(p_mat)
-
+                mat.append(p_mat)
+            except ValueError:
+                print(i,n)
         mat=np.array(mat)    
         pos=np.array(pos)
-        ref=np.eye(4)[np.array(ref)].astype(np.int8)
-        
-        #print(options)
-        #usage_stats()
+        ref=np.eye(max(ref)+1)[np.array(ref)].astype(np.int8)
+        ref=ref[:,:4]
         
         return (pos,mat,ref)
 

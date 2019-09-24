@@ -1,185 +1,176 @@
-import sys,pysam, time,os,re,copy,argparse,gzip
+import sys,pysam, time,os,re,copy,argparse,gzip,itertools
 from collections import Counter
 import pandas as pd
 import numpy as np
 import multiprocessing as mp
 from pysam import VariantFile
-from matplotlib import pyplot as plt
 from intervaltree import Interval, IntervalTree
 
-def extract_vcf(dct):
+
+def get_training_candidates(dct):
+    
     chrom=dct['chrom']
     start=dct['start']
     end=dct['end']
     sam_path=dct['sam_path']
-    vcf_path=dct['vcf_path']
     fasta_path=dct['fasta_path']
-
+    vcf_path=dct['vcf_path']
+    bed_path=dct['bed']
+    window=dct['window']
+    nbr_size=dct['nbr_size']
+    cnd_df=dct['cand_list']
+    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
     
-    mapping={'A':0,'G':1,'T':2,'C':3}
+    tr_output=[]
+    output={'pos':[],0:[],5:[],10:[],15:[],20:[],25:[]}
+    
+    if bed_path:
+        bed_file=os.path.join(bed_path,'%s.bed' %chrom)
+        with open(bed_file) as file:
+            content=[x.rstrip('\n') for x in file]
+
+        content=[x.split('\t')[1:] for x in content]
+        content=[(int(x[0]),int(x[1])) for x in content]
+        t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
+
+
     samfile = pysam.Samfile(sam_path, "rb")
+    fastafile=pysam.FastaFile(fasta_path)
+    
     bcf_in = VariantFile(vcf_path)  # auto-detect input format
     fastafile=pysam.FastaFile(fasta_path)
+    
+    gt_map={(0,0):0, (1,1):0, (2,2):0, (1,2):1, (2,1):1, (0,1):1, (1,0):1, (0,2):1,(2,0):1}
+    tr_pos={}
+    for rec in bcf_in.fetch(chrom,start,end+1):
+        tr_pos[rec.pos]=(gt_map[rec.samples.items()[0][1].get('GT')],mapping[rec.alleles[1]])
+        
 
-    d={}
-    for rec in bcf_in.fetch(chrom,start,end):
-        v_pos=rec.pos
-        for pcol in samfile.pileup(chrom,rec.pos-1,rec.pos,min_base_quality=0,\
+    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-40),end+40+1),fastafile.fetch(chrom,max(1,start-40)-1,end+40)) }
+    
+    ref_df=pd.DataFrame(list(ref_dict.items()), columns=['pos', 'ref'])
+    ref_df.set_index('pos',drop=False,inplace=True)
+    
+    pileup_dict={}
+    
+    for pcol in samfile.pileup(chrom,max(0,start-1-30),end+30,min_base_quality=0,\
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
-            if pcol.get_num_aligned()>=12:
-                alleles=rec.samples.items()[0][1].items()[0][1]
-                d[rec.pos]=[alleles[0]!=alleles[1], mapping[rec.alleles[1]],mapping[rec.ref]]
+            
+            if ref_df.loc[pcol.pos+1].ref!='*':
+                    
+                seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
+                name=pcol.get_query_names()
+                n=pcol.get_num_aligned()
 
-    df=pd.DataFrame.from_dict(d,orient='index')
-    df.reset_index(inplace=True)
-    df.rename(columns={'index':'POS',0:'gtype',1:'ALL',2:'REF'},inplace=True)
-    #df.sort_values('POS',inplace=True)
-    return df
-
+                pileup_dict[pcol.pos+1]={n:s for (n,s) in zip(name,seq)}
 
 
-def get_training_candidates(dct,tr_pos):
+                if bed_path:
+                    if not t[pcol.pos+1]:
+                        continue
+
+                if pcol.pos+1 in tr_pos.keys() and n>=dct['mincov'] :
+                    output['pos'].append(pcol.pos+1)
+                    
+                if n>=dct['mincov'] and pcol.pos+1>=start and pcol.pos+1<=end and pcol.pos+1 not in tr_pos:
+                    alt_freq=max([x[1] for x in Counter(seq).items() if (x[0]!=ref_df.loc[pcol.pos+1].ref and x[0] in 'AGTC')]+[0])/n
+
+                    if alt_freq<0.05:
+                        output[0].append(pcol.pos+1)
+
+                    elif 0.05<=alt_freq<0.10:
+                        output[5].append(pcol.pos+1)
+                    elif 0.10<=alt_freq<0.15:
+                        output[10].append(pcol.pos+1)
+                    elif 0.15<=alt_freq<0.20:
+                        output[15].append(pcol.pos+1)
+                    elif 0.20<=alt_freq<0.25:
+                        output[20].append(pcol.pos+1)
+                    elif 0.25<=alt_freq:
+                        output[25].append(pcol.pos+1)
+                    
     
-    chrom=dct['chrom']
-    start=dct['start']
-    end=dct['end']
-    sam_path=dct['sam_path']
-    fasta_path=dct['fasta_path']
-    threshold=dct['threshold']
-
-    samfile = pysam.Samfile(sam_path, "rb")
-    fastafile=pysam.FastaFile(fasta_path)
+    pileup_list={'pos':[],0:[],5:[],10:[],15:[],20:[],25:[]}
     
-    bed_path=dct['bed']
-    if bed_path:
-        bed_file=bed_path+'%s.bed' %chrom
-        with open(bed_file) as file:
-            content=[x.rstrip('\n') for x in file]
+    ref_df[['ref']]=ref_df[['ref']].applymap(lambda x:mapping[x])
+    
+    pileup_df=pd.DataFrame.from_dict(pileup_dict)
+    pileup_df.dropna(axis=1, how='all',inplace=True)
 
-        content=[x.split('\t')[1:] for x in content]
-        content=[(int(x[0]),int(x[1])) for x in content]
-        t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
+    np.random.seed(76)
+    
+    if output['pos']:
+        tr_len=len(output['pos'])    
+    else:
+        tr_len=1e16
+        
+    sizes={0:2*tr_len, 5:tr_len//3,10:tr_len//3,15:tr_len//3, 20:tr_len//2, 25:tr_len}
 
-
-
-    fasta_chr,sam_chr=chrom,chrom
-    #fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
-    #sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
-    rlist=[s for s in fastafile.fetch(fasta_chr,start-1,end-1)]
-    output={0:[],5:[],10:[],15:[],20:[],25:[]}
-    for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0, flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
-            alt_freq=None
-            if bed_path:
-                if not t[pcol.pos+1]:
-                    continue
-            n=pcol.get_num_aligned()
-            r=rlist[pcol.pos+1-start]
-
-            if r!='N' and n>=dct['mincov']:
-                r=rlist[pcol.pos+1-start]
-                try:
-                    seq=''.join(pcol.get_query_sequences()).upper()
-
-                except AssertionError:
-                    seq=''.join([pread.alignment.query_sequence[pread.query_position] if pread.query_position else '' for pread in pcol.pileups ])
-                alt_freq=max([x[1] for x in Counter(seq).items() if x[0]!=r]+[0])/n
-                #alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
-
-                if alt_freq<0.05:
-                    output[0].append((pcol.pos+1,r,r))
-
-                elif 0.05<=alt_freq<0.10:
-                    output[5].append((pcol.pos+1,r,r))
-                elif 0.10<=alt_freq<0.15:
-                    output[10].append((pcol.pos+1,r,r))
-                elif 0.15<=alt_freq<0.20:
-                    output[15].append((pcol.pos+1,r,r))
-                elif 0.20<=alt_freq<0.25:
-                    output[20].append((pcol.pos+1,r,r))
-                elif 0.25<=alt_freq:
-                    output[25].append((pcol.pos+1,r,r))
-                        
-
-    np.random.seed(42)
-    result={}
-    sizes={0:2*len(tr_pos), 5:len(tr_pos)//2,10:len(tr_pos)//2,15:len(tr_pos)//2, 20:len(tr_pos)//2, 25:2*len(tr_pos)}
-    for i in [0,5,10,15,20,25]:
+    for i in ['pos',0,5,10,15,20,25]:
         pos_list=output[i]
-        candidates_df=pd.DataFrame()
         
         if pos_list:
-            candidates_df=pd.DataFrame(pos_list)
+            if i!='pos':
+                if sizes[i]<len(output[i]):
+                    perm=np.random.permutation(sizes[i])
+                    pos_list=np.take(pos_list,perm,axis=0)
+        
+            for v_pos in pos_list:
+                p_df=pileup_df.reindex(list(range(v_pos-window,v_pos+window+1)),axis=1)
+                ls=cnd_df[(cnd_df['pos']<v_pos+20000) & (cnd_df['pos']>v_pos-20000)].pos
+                #p_df.dropna(axis=1, how='all',inplace=True)
 
-            candidates_df.rename(columns={0:'POS',1:'ALL',2:'REF'},inplace=True)
+                ls1=[p for p in ls if p<v_pos-window][-nbr_size:]
+                ls2=[p for p in ls if p>v_pos+window][:nbr_size]
 
-            candidates_df.set_index('POS',drop=False,inplace=True)
-            candidates_df.drop([x for x in tr_pos if x in candidates_df.index],inplace=True)
+                nbr1_dict={}
+                nbr2_dict={}
 
-            sample=np.random.choice(len(candidates_df), min(len(candidates_df),sizes[i]), replace=False)
-            candidates_df=candidates_df.iloc[sample]
-
-            mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
-            candidates_df=candidates_df[candidates_df['ALL'].map(lambda x: x in ['A','G','T','C'])] 
-            
-            try:
-                candidates_df[['ALL','REF']]=candidates_df[['ALL','REF']].applymap(lambda x:mapping[x])
-            #candidates_df.rename(columns={0:'POS',1:'ALT_FREQ',2:'REF_FREQ',3:'DEPTH', 4:'ALT_NUM', 5:'REF_NUM'}, inplace=True)
-            except KeyError:
-                pass
+                rlist1=[]
+                rlist2=[]
                 
-        result[i]=candidates_df
+                for nb_pos in ls1:
+                            nbr1_dict[nb_pos]={n:s for (n,s) in zip(cnd_df.loc[nb_pos].names.split(':'),cnd_df.loc[nb_pos].seq) if n in p_df.index}
+                            rlist1.append(cnd_df.loc[nb_pos].ref)
 
-    return result
+                for nb_pos in ls2:
+                            nbr2_dict[nb_pos]={n:s for (n,s) in zip(cnd_df.loc[nb_pos].names.split(':'),cnd_df.loc[nb_pos].seq) if n in p_df.index}
+                            rlist2.append(cnd_df.loc[nb_pos].ref)
 
-    
-def create_training_pileup(in_dct):
-    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
-    neg_list={0:[],5:[],10:[],15:[],20:[],25:[]}
-    tr_list=[]
-    if in_dct['mode']=='training':
-        tr_df=extract_vcf(in_dct)
                 
-        tr_pos=[]
-        if tr_df.shape[0]!=0:
+                total_rlist=rlist1+ref_df.loc[p_df.columns.to_list()].ref.to_list()+rlist2
+                
+                nbr1_df=pd.DataFrame.from_dict(nbr1_dict)
+                nbr2_df=pd.DataFrame.from_dict(nbr2_dict)
 
-            tr_df['gtype']=tr_df['gtype'].astype(int)
-            tr_pos=list(tr_df.POS)
-            tr_df.set_index('POS',drop=False,inplace=True)
+                p_df=pd.concat([nbr1_df,p_df,nbr2_df],axis=1,sort=False)
 
-            for v_pos in tr_df.POS:
-                res=create_pileup_image(in_dct,v_pos=v_pos)
-                if res:
-                    tr_list.append((v_pos,tr_df['gtype'].loc[v_pos],tr_df['ALL'].loc[v_pos],\
-                              tr_df['REF'].loc[v_pos],res[0]))
+                p_df.dropna(subset=[v_pos],inplace=True)
 
+                p_df['counter']=p_df[v_pos]
+                new_df=p_df.groupby('counter').agg(['value_counts']).reindex(list(itertools.product('AGTC*','AGTC*'))).fillna(0)
+                mat=np.array(new_df).reshape([5,5,new_df.shape[1]]).swapaxes(1,2)
 
+                total_ref=np.eye(5)[total_rlist]
+                total_ref=total_ref[np.newaxis,:]
+                
+                total_ref[:,4]=0
+                
+                data=np.vstack([total_ref,np.multiply(mat,1-2*total_ref)])
+                data=np.hstack([np.zeros([6,nbr_size-len(ls1),5]),data,np.zeros([6,nbr_size-len(ls2),5])]).astype(np.int8)
 
-            neg_df_list=get_training_candidates(in_dct,tr_pos)
+                if i=='pos':
+                    pileup_list[i].append((v_pos,tr_pos[v_pos][0],tr_pos[v_pos][1],ref_df.loc[v_pos].ref,data))
+                else:
+                    pileup_list[i].append((v_pos,0,ref_df.loc[v_pos].ref,ref_df.loc[v_pos].ref,data))
+               
 
-            
-
-            for i in [0,5,10,15,20,25]:
-                c_df=neg_df_list[i]
-
-                if c_df.shape[0]!=0:
-
-                    c_df['gtype']=0
-
-                    for v_pos in c_df.POS:
-
-                        res=create_pileup_image(in_dct,v_pos=v_pos)
-                        if res:
-                            neg_list[i].append((v_pos,c_df['gtype'].loc[v_pos],c_df['ALL'].loc[v_pos],\
-                                  c_df['REF'].loc[v_pos],res[0]))
-                #gtype, matrix, reads
-
-        return (tr_list,neg_list)    
-    
+    return pileup_list
 
 
 
 
-def get_candidates(dct):
+def get_testing_candidates(dct):
     
     chrom=dct['chrom']
     start=dct['start']
@@ -188,9 +179,14 @@ def get_candidates(dct):
     fasta_path=dct['fasta_path']
     threshold=dct['threshold']
     bed_path=dct['bed']
+    window=dct['window']
+    nbr_size=dct['nbr_size']
+    cnd_df=dct['cand_list']
+    
+    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
     
     if bed_path:
-        bed_file=bed_path+'%s.bed' %chrom
+        bed_file=os.path.join(bed_path,'%s.bed' %chrom)
         with open(bed_file) as file:
             content=[x.rstrip('\n') for x in file]
 
@@ -202,321 +198,364 @@ def get_candidates(dct):
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
 
-    fasta_chr,sam_chr=chrom,chrom
-    #fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
-    #sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
-    rlist=[s for s in fastafile.fetch(fasta_chr,start-1,end-1)]
-    output=[]
-    for pcol in samfile.pileup(sam_chr,start-1,end-1,min_base_quality=0,\
+    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-40),end+40+1),fastafile.fetch(chrom,max(1,start-40)-1,end+40)) }
+    
+    ref_df=pd.DataFrame(list(ref_dict.items()), columns=['pos', 'ref'])
+    ref_df.set_index('pos',drop=False,inplace=True)
+    
+    pileup_dict={}
+    
+    output={5:[],10:[],15:[],20:[]}
+    
+    for pcol in samfile.pileup(chrom,max(0,start-1-30),end+30,min_base_quality=0,\
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
-            alt_freq=None
-            
-            if bed_path:
-                if not t[pcol.pos+1]:
-                    continue
-            n=pcol.get_num_aligned()
-            r=rlist[pcol.pos+1-start]
+            if ref_df.loc[pcol.pos+1].ref!='*':
+                seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
+                name=pcol.get_query_names()
+                n=pcol.get_num_aligned()
 
-            if r!='N' and n>=dct['mincov']:
-                r=rlist[pcol.pos+1-start]
-                try:
-                    seq=''.join(pcol.get_query_sequences()).upper()
-
-                except AssertionError:
-                    seq=''.join([pread.alignment.query_sequence[pread.query_position] if pread.query_position else '' for pread in pcol.pileups ])
-                alt_freq=[x[1] for x in Counter(seq).items() if (x[1]>=n*threshold and x[0]!=r)]
-                if alt_freq:
-                    output.append((pcol.pos+1,r,r))
-
-    if output:
-        candidates_df=pd.DataFrame(output)
-        candidates_df.rename(columns={0:'POS',1:'ALL',2:'REF'},inplace=True)
-        mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
-        candidates_df=candidates_df[candidates_df['ALL'].map(lambda x: x in ['A','G','T','C'])] 
-        
-        try:
-            candidates_df[['ALL','REF']]=candidates_df[['ALL','REF']].applymap(lambda x:mapping[x])
-        except KeyError:
-            return pd.DataFrame()
-        #candidates_df.rename(columns={0:'POS',1:'ALT_FREQ',2:'REF_FREQ',3:'DEPTH',4:'ALT_NUM',5:'REF_NUM'},inplace=True)
-        return candidates_df
-    else:
-        return pd.DataFrame()
+                pileup_dict[pcol.pos+1]={n:s for (n,s) in zip(name,seq)}
 
 
-def create_pileup(in_dct):
-    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+                if bed_path:
+                    if not t[pcol.pos+1]:
+                        continue
 
-    if in_dct['mode']=='testing':
-        test_sites_df=get_candidates(in_dct)
-        if test_sites_df.shape[0]==0:
-            return None
 
-        test_sites_df.set_index('POS',drop=False,inplace=True)
-        d={}
-        for v_pos in test_sites_df.POS:
+                if n>=dct['mincov'] and pcol.pos+1>=start and pcol.pos+1<=end:
+                    alt_freq=max([x[1] for x in Counter(seq).items() if (x[0]!=ref_df.loc[pcol.pos+1].ref and x[0] in 'AGTC')]+[0])/n
 
-            res=create_pileup_image(in_dct,v_pos=v_pos)
-            if res:
-                d[v_pos]=(test_sites_df['REF'].loc[v_pos],res[0])
-
-        return d
+                    if 0.5<=alt_freq<0.10 and 5 in threshold:
+                            output[5].append(pcol.pos+1)
+                    
+                    elif 0.10<=alt_freq<0.15 and 10 in threshold:
+                            output[10].append(pcol.pos+1)
+                        
+                    elif 0.15<=alt_freq<0.20 and 15 in threshold:
+                            output[15].append(pcol.pos+1)
+                            
+                    elif 0.20<=alt_freq and 20 in threshold:
+                            output[20].append(pcol.pos+1)
+                    
+    pileup_list={x:[] for x in threshold}
     
-    elif in_dct['mode']=='direct':
-        test_sites_df=get_candidates(in_dct)
-        if test_sites_df.shape[0]==0:
-            return None
+    ref_df[['ref']]=ref_df[['ref']].applymap(lambda x:mapping[x])
+    
+    pileup_df=pd.DataFrame.from_dict(pileup_dict)
+    pileup_df.dropna(axis=1, how='all',inplace=True)
+    
+    for i in threshold:
+        pos_list=output[i]
+        
+        if pos_list:
 
-        test_sites_df.set_index('POS',drop=False,inplace=True)
-        pos=[]
-        ref=[]
-        mat=[]
-        for v_pos in test_sites_df.POS:
+            for v_pos in pos_list:
+                p_df=pileup_df.reindex(list(range(v_pos-window,v_pos+window+1)),axis=1)
+                ls=cnd_df[(cnd_df['pos']<v_pos+20000) & (cnd_df['pos']>v_pos-20000)].pos
+                #p_df.dropna(axis=1, how='all',inplace=True)
 
-            res=create_pileup_image(in_dct,v_pos=v_pos)
-            if res:
-                pos.append(v_pos)
-                ref.append(test_sites_df['REF'].loc[v_pos])
-                mat.append(res[0])
+                ls1=[p for p in ls if p<v_pos-window][-nbr_size:]
+                ls2=[p for p in ls if p>v_pos+window][:nbr_size]
+
+
+                nbr1_dict={}
+                nbr2_dict={}
+
+                rlist1=[]
+                rlist2=[]
+                for nb_pos in ls1:
+                            nbr1_dict[nb_pos]={n:s for (n,s) in zip(cnd_df.loc[nb_pos].names.split(':'),cnd_df.loc[nb_pos].seq) if n in p_df.index}
+                            rlist1.append(cnd_df.loc[nb_pos].ref)
+
+                for nb_pos in ls2:
+                            nbr2_dict[nb_pos]={n:s for (n,s) in zip(cnd_df.loc[nb_pos].names.split(':'),cnd_df.loc[nb_pos].seq) if n in p_df.index}
+                            rlist2.append(cnd_df.loc[nb_pos].ref)
+
+                total_rlist=rlist1+ref_df.loc[p_df.columns.to_list()].ref.to_list()+rlist2
+                nbr1_df=pd.DataFrame.from_dict(nbr1_dict)
+                nbr2_df=pd.DataFrame.from_dict(nbr2_dict)
+
+                p_df=pd.concat([nbr1_df,p_df,nbr2_df],axis=1,sort=False)
+
+                p_df.dropna(subset=[v_pos],inplace=True)
+
+                p_df['counter']=p_df[v_pos]
+                new_df=p_df.groupby('counter').agg(['value_counts']).reindex(list(itertools.product('AGTC*','AGTC*'))).fillna(0)
+                mat=np.array(new_df).reshape([5,5,new_df.shape[1]]).swapaxes(1,2)
                 
-        if len(pos)==0:
-          return None
-        pos=np.array(pos).astype(np.int16)
-        ref=np.eye(4)[np.array(ref)]
-        mat=np.array(mat)
-        return (pos,mat,ref)
-    
-    elif in_dct['mode']=='common':
-        d={}
-        fastafile=pysam.FastaFile(in_dct['fasta_path'])
-        for v_pos in in_dct['list']:
-            r=fastafile.fetch(in_dct['chrom'],v_pos-1,v_pos)
-            if r in ['A','G','T','C']:
-                res=create_pileup_image(in_dct,v_pos=v_pos)
-                if res:
-                    d[v_pos]=(mapping[r],res[0])
+                total_ref=np.eye(5)[total_rlist]
+                total_ref=total_ref[np.newaxis,:]
+                total_ref[:,4]=0
+                
+                data=np.vstack([total_ref,np.multiply(mat,1-2*total_ref)])
+                data=np.hstack([np.zeros([6,nbr_size-len(ls1),5]),data,np.zeros([6,nbr_size-len(ls2),5])]).astype(np.int8)
+                pileup_list[i].append((v_pos,ref_df.loc[v_pos].ref,data))
 
-        return d
-        
-        
-        
-def create_pileup_image(dct,v_pos=None):
-    chrom=dct['chrom']
+
+    return pileup_list
     
+    
+def redo_candidates(dct):
+    chrom=dct['chrom']
+    start=dct['start']
+    end=dct['end']
     sam_path=dct['sam_path']
     fasta_path=dct['fasta_path']
-    
+    threshold=dct['threshold']
+    bed_path=dct['bed']
+    window=dct['window']
+    nbr_size=dct['nbr_size']
+    cnd_df=dct['cand_list']
+
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
+
+    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-40),end+40+1),fastafile.fetch(chrom,max(1,start-40)-1,end+40)) }
     
-    #this function creates pileup dataframe
-    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
-    fasta_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
-    sam_chr=re.findall("(.*?)\d",fastafile.references[0])[0]+re.findall("\d+",chrom)[0]
+    ref_df=pd.DataFrame(list(ref_dict.items()), columns=['pos', 'ref'])
+    ref_df.set_index('pos',drop=False,inplace=True)
     
-    try:
-        
-        du_lim=dct['depth']
-        window=dct['window']
-
-        v_start=v_pos-window
-        v_end=v_pos+window
-
-        d={x:{} for x in range(v_start,v_end+1)}
-        features={x:{} for x in range(v_start,v_end)}
-        
-        try:
-            rlist=[mapping[s] for s in fastafile.fetch(fasta_chr,v_start-1,v_end)]
-
-        except KeyError:
-            return None
-        
-        for pcol in samfile.pileup(chrom,v_start-1,v_end,min_base_quality=0,\
-                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
-            name=pcol.get_query_names()
-            try:
-                seq=''.join(pcol.get_query_sequences()).upper()
-        
-            except AssertionError:
-                seq=''.join([pread.alignment.query_sequence[pread.query_position] if pread.query_position else '*' for pread in pcol.pileups ])
+    pileup_dict={}
+    
+    output=[]
+    
+    bcf_in = VariantFile(dct['vcf_path'])
+    for rec in bcf_in.fetch(chrom,start,end):
+        output.append(rec.pos)
                 
-            qual=pcol.get_query_qualities()
+    for pcol in samfile.pileup(chrom,max(0,start-1-30),end+30,min_base_quality=0,\
+                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
+            if pcol.pos+1 in ref_df.pos:
+                seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
+                name=pcol.get_query_names()
+                n=pcol.get_num_aligned()
 
-            d[pcol.pos+1]={n:s.upper() if len(s)>0 else '*' for (n,s) in zip(name,seq)}
-            features[pcol.pos+1]={n:q for (n,q) in zip(name,qual)}
+                pileup_dict[pcol.pos+1]={n:s for (n,s) in zip(name,seq)}
 
-        p_df=pd.DataFrame.from_dict(d)
-        p_df.dropna(subset=[v_pos],inplace=True)
+    if output:
+        ts_list=[]
+        mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+        ref_df[['ref']]=ref_df[['ref']].applymap(lambda x:mapping[x])
+        pileup_df=pd.DataFrame.from_dict(pileup_dict)
+        pileup_df.dropna(axis=1, how='all',inplace=True)
 
-        if p_df.shape[0]>du_lim:
-            p_df=p_df.sample(n=du_lim,replace=False, random_state=1)
-        p_df.sort_values(v_pos,inplace=True,ascending=False)
+        for v_pos in output:
+            p_df=pileup_df.reindex(list(range(v_pos-window,v_pos+window+1)),axis=1)
+            #p_df.dropna(axis=1, how='all',inplace=True)
 
-        p_df.fillna('N',inplace=True)
-        p_df=p_df.applymap(lambda x: mapping[x])
-        p_mat=np.array(p_df)
-        rnames=list(p_df.index)
+            ls_10=cnd_df[(cnd_df['gt']=='1/0') & (cnd_df['pos']<v_pos+20000) & (cnd_df['pos']>v_pos-20000)].pos
+            ls_01=cnd_df[(cnd_df['gt']=='0/1') & (cnd_df['pos']<v_pos+20000) & (cnd_df['pos']>v_pos-20000)].pos
+            
+            
+            ls1=[p for p in ls_10 if p<v_pos-window][-nbr_size:]
+            
+            if len(ls1)<nbr_size:
+                    ls1=ls1+[p for p in ls_01 if p<v_pos-window][-(nbr_size-len(ls1)):]
+                    ls1.sort()
+                    
+            
+            ls2=[p for p in ls_10 if p>v_pos+window][:nbr_size]
+            
+            if len(ls2)<nbr_size:
+                    ls2=ls2+[p for p in ls_01 if p>v_pos+window][-(nbr_size-len(ls2)):]
+                    ls2.sort()
+                    
+            nbr1_dict={}
+            nbr2_dict={}
+            
+            rlist1=[]
+            rlist2=[]
+            
+            for nb_pos in ls1:
+                        nbr1_dict[nb_pos]={n:s for (n,s) in zip(cnd_df.loc[nb_pos].names.split(':'), cnd_df.loc[nb_pos].seq) if n in p_df.index}
+                        rlist1.append(cnd_df.loc[nb_pos].ref)
+            
 
-        #generatre quality df
-        f_df=pd.DataFrame.from_dict(features)
-        f_df.fillna(0,inplace=True)
-        f_df=f_df.reindex(p_df.index)
+                
+            for nb_pos in ls2:
+                        nbr2_dict[nb_pos]={n:s for (n,s) in zip(cnd_df.loc[nb_pos].names.split(':'),cnd_df.loc[nb_pos].seq) if n in p_df.index}
+                        rlist2.append(cnd_df.loc[nb_pos].ref)
+            
+            total_rlist=rlist1+ref_df.loc[p_df.columns.to_list()].ref.to_list()+rlist2
+            nbr1_df=pd.DataFrame.from_dict(nbr1_dict)
+            nbr2_df=pd.DataFrame.from_dict(nbr2_dict)
 
-        ref_match=(p_mat==rlist)
+            
+            p_df=pd.concat([nbr1_df,p_df,nbr2_df],axis=1,sort=False)
 
-        #tmp2=2*np.array(ref_match)[:,:,np.newaxis]-1
-        tmp=np.dstack([(p_mat==i) for i in range(4)])
+            p_df.dropna(subset=[v_pos],inplace=True)
+            p_df['counter']=p_df[v_pos]
+            new_df=p_df.groupby('counter').agg(['value_counts']).reindex(list(itertools.product('AGTC*','AGTC*'))).fillna(0)
+            mat=np.array(new_df).reshape([5,5,new_df.shape[1]]).swapaxes(1,2)
+            
+            total_ref=np.eye(5)[total_rlist]
+            total_ref=total_ref[np.newaxis,:]
 
-        #data=np.multiply(tmp,tmp2).astype(np.int8)
-        try:
-            ref_match=2*ref_match-1
-            f_mat=np.array(f_df)*ref_match
-            data=np.dstack((tmp,f_mat))
-        except ValueError:
-            return None
-        if data.shape[0]<du_lim:
-            tmp=np.zeros((du_lim-data.shape[0],data.shape[1],data.shape[2]))
-            data=np.vstack((data,tmp))
-            rnames+=['Buff' for i in range(tmp.shape[0])]
+            total_ref[:,4]=0
+            
+            data=np.vstack([total_ref,np.multiply(mat,1-2*total_ref)])
+            data=np.hstack([np.zeros([6,nbr_size-len(ls1),5]),data,np.zeros([6,nbr_size-len(ls2),5])]).astype(np.int8)
+            ts_list.append((v_pos,ref_df.loc[v_pos].ref,data))
 
-        return (data.astype(np.int8),rnames)
-    
-    except AssertionError:
-        return None
-        
+            
+        p_df,pileup_df,ref_df,pileup_dict=None,None,None,None
+        return ts_list
+    else:
+        return []
+
 def generate(params,mode='training'):
     cores=params['cpu']
     mode=params['mode']
     chrom=params['chrom']
-    if mode=='training':
-        #print('starting pileups',flush=True)
-        
+    threshold=params['threshold']
+    start,end=params['start'],params['end']
+    
+    mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
+    
+    if mode=='training': #'pos,ref,seq,names'
+        cnd_df=pd.read_csv(os.path.join(params['cnd_path'],'%s.pileups.neighbors.train' %chrom))
+        cnd_df.rename(columns={0:'pos',1:'depth',2:'freq',3:'ref',4:'seq',5:'names'},inplace=True)
+        cnd_df=cnd_df[(cnd_df['pos']>=start-20000)& (cnd_df['pos']<=end+20000)]
+        cnd_df.set_index('pos',inplace=True,drop=False)
+        cnd_df[['ref']]=cnd_df[['ref']].applymap(lambda x:mapping[x])
+        params['cand_list']=cnd_df
+
+
         pool = mp.Pool(processes=cores)
-        fname='%s.pileups' %params['chrom']
-        true_fname=os.path.join(params['out_path'],fname+'.pos')
-        p_file=open(true_fname , "w")
+        fname='%s.pileups.' %params['chrom']
+        file_list={}
+        for i in ['pos',0,5,10,15,20,25]:
+            suffix='pos' if i == 'pos' else 'neg.%d' %i
+            tmp_name=os.path.join(params['out_path'],'%s.%s' %(fname,suffix)) 
+            file_list[i]=open(tmp_name , "w")
         
-        neg_file_list={}
-        for i in [0,5,10,15,20,25]:
-            tmp_name=os.path.join(params['out_path'],'%s.neg.%d' %(fname,i))
-            neg_file_list[i]=open(tmp_name , "w")
-        
-        start,end=params['start'],params['end']
-        
-        
-        
-        for mbase in range(start,end,int(1e6)):
+        for mbase in range(start,end,int(1e7)):
             print('starting pool:'+str(mbase),flush=True)
             t=time.time()                
 
             in_dict_list=[]
-            chunk_size=min(100000,int(1e6/cores))
-            for k in range(mbase,min(end,mbase+int(1e6)),chunk_size):
+
+            for k in range(mbase,min(end,mbase+int(1e7)),100000):
                 d = copy.deepcopy(params)
                 d['start']=k
-                d['end']=k+chunk_size
+                d['end']=min(k+100000,end)
                 in_dict_list.append(d)
-            results_dict = pool.map(create_training_pileup, in_dict_list)
+            results_dict = pool.map(get_training_candidates, in_dict_list)
+                
             for result in results_dict:
-                neg_pile_list=result[1]
-                for i in [0,5,10,15,20,25]:
-                    neg_pile=neg_pile_list[i]
-                    if neg_pile:
-                        for data in neg_pile:
+                for i in ['pos',0,5,10,15,20,25]:
+                    pileups=result[i]
+                    if pileups:
+                        for data in pileups:
                                 pos,gt,allele,ref,mat=data
-                                ft=mat[:,:,-1].reshape(-1)
-                                mat=mat[:,:,:-1].reshape(-1)
-                                s='%s%d%d%d%d%s%s' %((11-len(str(pos)))*'0',pos,gt,allele,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
-                                neg_file_list[i].write(s)
-
-                if result[0]:
-                    for data in result[0]:
-                        pos,gt,allele,ref,mat=data
-
-                        ft=mat[:,:,-1].reshape(-1)
-                        mat=mat[:,:,:-1].reshape(-1)
-                        s='%s%d%d%d%d%s%s' %((11-len(str(pos)))*'0',pos,gt,allele,ref, ''.join(mat.astype('<U1')),''.join([(3-len(x))*' '+x for x in ft.astype('<U3')]))
-                        p_file.write(s)
-
+                                mat=mat.reshape(-1)
+                                s='%s%d%d%d%d%s' %((11-len(str(pos)))*'0',pos,gt,allele,ref,''.join([(6-len(x))*' '+x for x in mat.astype('<U6')]))
+                                file_list[i].write(s)
             
+            results_dict=None
+            elapsed=time.time()-t
+            
+            print ('Elapsed: %.2f seconds' %elapsed,flush=True)
+            print('finishing pool:'+str(mbase),flush=True)                    
+
+                
+    elif mode=='testing':#'pos,depth,freq,ref,seq,names'
+        cnd_df=pd.read_csv(os.path.join(params['cnd_path'],'%s.pileups.neighbors.test' %chrom))
+        
+        cnd_df=cnd_df[(cnd_df['pos']>=start-20000)& (cnd_df['pos']<=end+20000)]
+
+        cnd_df=cnd_df[cnd_df['ref'].map(lambda x: x in ['A','G','T','C'])]
+
+        cnd_df[['ref']]=cnd_df[['ref']].applymap(lambda x:mapping[x])
+
+
+        cnd_df.set_index('pos',inplace=True,drop=False)
+        params['cand_list']=cnd_df
+        
+        print('starting pileups',flush=True)
+        pool = mp.Pool(processes=cores)
+        fname='%s.pileups.' %params['chrom']
+        file_list={}
+        for i in [15,20]:
+            suffix='test.%d' %i
+            tmp_name=os.path.join(params['out_path'],'%s%s' %(fname,suffix)) 
+            file_list[i]=open(tmp_name , "w")
+
+        start,end=params['start'],params['end']
+        
+        for mbase in range(start,end,int(1e7)):
+            print('starting pool:'+str(mbase),flush=True)
+            t=time.time()                
+
+            in_dict_list=[]
+            for k in range(mbase,min(end,mbase+int(1e7)),100000):
+                d = copy.deepcopy(params)
+                d['start']=k
+                d['end']=min(end,k+100000)
+                in_dict_list.append(d)
+            results_dict = pool.map(get_testing_candidates, in_dict_list)
+            
+            for result in results_dict:
+                for i in threshold:
+                    pileups=result[i]
+                    if pileups:
+                        for data in pileups:
+                            
+                            pos,ref,mat=data
+                            mat=mat.reshape(-1)
+                            s='%s%d%d%s' %((11-len(str(pos)))*'0',pos,ref,''.join([(6-len(x))*' '+x for x in mat.astype('<U6')]))
+                            file_list[i].write(s)
+
+            results_dict=None
             elapsed=time.time()-t
             print ('Elapsed: %.2f seconds' %elapsed,flush=True)
             print('finishing pool:'+str(mbase),flush=True)
             
-    elif mode=='testing':
+            
+    elif mode=='redo':#'pos,ref,gt,seq,names'
+        cnd_df=pd.read_csv(os.path.join(params['cnd_path'],'%s.pileups.neighbors.redo' %chrom))
+        cnd_df=cnd_df[(cnd_df['pos']>=start-20000)& (cnd_df['pos']<=end+20000)]
+
+        cnd_df=cnd_df[cnd_df['ref'].map(lambda x: x in ['A','G','T','C'])]
+
+        
+        cnd_df[['ref']]=cnd_df[['ref']].applymap(lambda x:mapping[x])
+
+        cnd_df.set_index('pos',inplace=True,drop=False)
+        
+
+        params['cand_list']=cnd_df
+        
         print('starting pileups',flush=True)
         pool = mp.Pool(processes=cores)
-        fname='%s.pileups.test' %(params['chrom'])
+        fname='%s.pileups.test.redov3' %params['chrom']
         fname=os.path.join(params['out_path'],fname)
         file=open(fname , "w")
         start,end=params['start'],params['end']
-        pos,mat,ref=[],[],[]
-        print('generating pileups for region chr%s:%d-%d'%(chrom,start,end),flush=True)
-        for mbase in range(start,end,int(1e5)):
-            
+        for mbase in range(start,end,int(1e7)):
+            print('starting pool:'+str(mbase),flush=True)
             t=time.time()                
 
             in_dict_list=[]
-            for k in range(mbase,min(end,mbase+int(1e5)),10000):
+            for k in range(mbase,min(end,mbase+int(1e7)),100000):
                 d = copy.deepcopy(params)
                 d['start']=k
-                d['end']=min(end,k+10000)
+                d['end']=min(end,k+100000)
                 in_dict_list.append(d)
-            results = pool.map(create_pileup, in_dict_list)
+            results_dict = pool.map(redo_candidates, in_dict_list)
             
-            for res_tuple in results:
-                if res_tuple:
-                    pos.append(res_tuple[0])
-                    mat.append(res_tuple[1])
-                    res.append(res_tuple[2])
+            for result in results_dict:
+                if result:
+                    for data in result:
+                        pos,ref,mat=data
+                        mat=mat.reshape(-1)
+                        s='%s%d%d%s' %((11-len(str(pos)))*'0',pos,ref,''.join([(6-len(x))*' '+x for x in mat.astype('<U6')]))
+                        file.write(s)
 
+            results_dict=None
             elapsed=time.time()-t
             print ('Elapsed: %.2f seconds' %elapsed,flush=True)
-        print('pileups generated for region chr%s:%d-%d' %(chrom,start,end),flush=True)
-        pos=np.vstack(pos)
-        mat=np.vstack(mat)
-        ref=np.vstack(ref)
-        return (pos,mat,ref)
-            
-    elif mode=='direct':
-        pool = mp.Pool(processes=cores)
-        
-        start,end=params['start'],params['end']
-        pos,mat,ref=[],[],[]
-        print('generating pileups for region chr%s:%d-%d'%(chrom,start,end),flush=True)
-        for mbase in range(start,end,int(1e5)):
-            
-            t=time.time()                
-
-            in_dict_list=[]
-            for k in range(mbase,min(end,mbase+int(1e5)),10000):
-                d = copy.deepcopy(params)
-                d['start']=k
-                d['end']=min(end,k+10000)
-                in_dict_list.append(d)
-            results = pool.map(create_pileup, in_dict_list)
-            
-            for res_tuple in results:
-                if res_tuple:
-                    pos.append(res_tuple[0])
-                    mat.append(res_tuple[1])
-                    res.append(res_tuple[2])
-
-            elapsed=time.time()-t
-            print ('Elapsed: %.2f seconds' %elapsed,flush=True)
-        print('pileups generated for region chr%s:%d-%d' %(chrom,start,end),flush=True)
-        
-        if len(pos)==0:
-          return None
-        pos=np.vstack(pos)
-        mat=np.vstack(mat)
-        ref=np.vstack(ref)
-        return (pos,mat,ref)
-    
-            
-
-        
-        
+            print('finishing pool:'+str(mbase),flush=True)
 
 
 if __name__ == '__main__':
@@ -527,7 +566,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     #-r chromosome region   -m mode   -bam bam file   -ref reference file   -vcf ground truth variants   -o output path
-    parser.add_argument("-r", "--region", help="Chromosome region")
+    parser.add_argument("-chrom", "--chrom", help="Chromosome region")
     parser.add_argument("-m", "--mode", help="Mode")
     parser.add_argument("-bam", "--bam", help="Bam file")
     parser.add_argument("-ref", "--ref", help="Size")
@@ -536,29 +575,43 @@ if __name__ == '__main__':
     parser.add_argument("-w", "--window", help="Window",type=int)
     parser.add_argument("-cpu", "--cpu", help="CPUs",type=int)
     parser.add_argument("-d", "--depth", help="Depth",type=int)
-    parser.add_argument("-t", "--threshold", help="Threshold",type=float)
+    parser.add_argument("-t", "--threshold", help="Threshold")
     parser.add_argument("-bed", "--bed", help="BED file")
+    parser.add_argument("-cnd", "--cnd_path", help="Candidates file")
     parser.add_argument("-mincov", "--mincov", help="min coverage",type=int)
-    
+    parser.add_argument("-start", "--start", help="start",type=int)
+    parser.add_argument("-end", "--end", help="end",type=int)
+    parser.add_argument("-nbr", "--nbr_size", help="Number of neighboring het SNPs",type=int)
+
     
     args = parser.parse_args()
     
-    if len(args.region.split(':'))==2:
-        chrom,region=args.region.split(':')
-        start,end=int(region.split('-')[0]),int(region.split('-')[1])
-        
+    chrom=args.chrom
+    
+    if not args.end:
+        end=chrom_length[chrom]
     else:
-        chrom=args.region.split(':')[0]
-        start,end=1,chrom_length[chrom]
-        
+        end=args.end
+    
+    if not args.start:
+        start=1
+    else:
+        start=args.start
+    if not args.threshold:
+        threshold=[15,20]
+    else:
+        threshold=[int(x) for x in args.threshold.split(':')]
     in_dict={'mode':args.mode, 'chrom':chrom,'start':start,'end':end,\
          'sam_path':args.bam, 'fasta_path':args.ref, 'vcf_path':args.vcf,\
              'out_path':args.output, 'window':args.window, 'depth':args.depth,\
-             'threshold':args.threshold, 'cpu':args.cpu, 'bed':args.bed,\
-            'mincov':args.mincov}    
+             'threshold':threshold, 'cpu':args.cpu, 'bed':args.bed,'cnd_path':args.cnd_path,\
+            'mincov':args.mincov, 'nbr_size':args.nbr_size}    
     
     t=time.time()
     generate(in_dict)
     elapsed=time.time()-t
     print ('Total Time Elapsed: %.2f seconds' %elapsed)
+    
+
+    
     

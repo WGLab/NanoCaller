@@ -3,11 +3,11 @@ import pandas as pd
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
-from compact_model_architect import *
-from utils_compact import *
+from model_architect import *
+from utils import *
 
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
+config = tf.ConfigProto(device_count={"CPU": 64})
+#config.gpu_options.allow_growth = True
 
 
 def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part='neg.combined'):
@@ -18,7 +18,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
     cpu=params['cpu']
     n_input=params['dims']
     dims=n_input
-    chrom_list=list(range(2,23)) #params['chrom'].split(':') 
+    chrom_list=[1]#list(range(2,23)) #params['chrom'].split(':') 
     #chrom_list=list(range(int(chrom_list[0]),int(chrom_list[1])+1))
     
     training_iters, learning_rate, batch_size= params['iters'],\
@@ -46,10 +46,10 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
         sess.run(init)
         sess.run(tf.local_variables_initializer())
         if params['retrain']:
-            saver.restore(sess, params['model'])        
+            saver.restore(sess, params['rt_path'])        
 
         stats,v_stats=[],[]
-        print('starting training',flush=True)
+        
         count=0
         
         save_num=1
@@ -59,103 +59,89 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
         
         iter_steps=max(training_iters//iter_ratio,1)
         iters=min(iter_ratio,training_iters)
+        chrom_data={}
         
+        print('Starting reading pileups',flush=True)
+        for chrom in chrom_list:
+                f_path=os.path.join(params['train_path'],'chr%d/chr%d.pileups.' %(chrom,chrom))
+                
+             
+                    
+                _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',cpu=cpu, dims=n_input)
+
+                _,nx_train,ny_train,ntrain_allele,ntrain_ref=get_data(f_path+neg_part, cpu=cpu, dims=n_input)
+
+                train_allele=make_allele(y_train,train_allele,train_ref)
+                ntrain_allele=make_allele(ny_train,ntrain_allele,ntrain_ref)
+                
+                chrom_data['chr%d'%chrom]=((x_train,y_train,train_allele,train_ref),(nx_train,ny_train,ntrain_allele,ntrain_ref))
+                print('chromosome %d done | '%chrom,end='',flush=True)
+
+        print('Finished reading pileups',flush=True)
         
         for k in range(iter_steps):
             
             for chrom in chrom_list:
                 print('Training on chrom %d ' %(chrom),end='',flush=True)
-                
-                if chrom<10:
-                    chnk=10
-                elif chrom<16:
-                    chnk=8
-                else:
-                    chnk=4
+                (x_train,y_train,train_allele,train_ref),(nx_train,ny_train,ntrain_allele,ntrain_ref)=chrom_data['chr%d'%chrom]
 
-                f_path=os.path.join(params['train_path'],'chr%d/chr%d.pileups.' %(chrom,chrom))
-                
-                tot_list={}
-                
-                for ftype in ['pos',neg_part]:
 
-                    statinfo = os.stat(f_path+ftype)
-                    sz=statinfo.st_size
+                n_start=-false_mltplr*len(x_train)
+                n_end=0
+                for i in range(iters):
 
-                    tmp_sz=list(range(0,sz,rec_size*(sz//(chnk*rec_size))))
-                    tmp_sz=tmp_sz[:chnk]
-                    tmp_sz=tmp_sz+[sz] if tmp_sz[-1]!=sz else tmp_sz
-                    tot_list[ftype]=tmp_sz
 
-                for i in range(len(tot_list['pos'])-1):
-                    
-                    _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',a=tot_list['pos'][i], b=tot_list['pos'][i+1], cpu=cpu, dims=n_input)
-                    
-                    _,nx_train,ny_train,ntrain_allele,ntrain_ref=get_data(f_path+neg_part,a=tot_list[neg_part][i], b=tot_list[neg_part][i+1], cpu=cpu, dims=n_input)
-                
-                    train_allele=make_allele(y_train,train_allele,train_ref)
-                    ntrain_allele=make_allele(ny_train,ntrain_allele,ntrain_ref)
-                    
-                    
-                    n_start=-false_mltplr*len(x_train)
-                    n_end=0
-                    for i in range(iters):
-                        
-                        
-                        n_start+=false_mltplr*len(x_train)
+                    n_start+=false_mltplr*len(x_train)
+                    n_end=n_start+false_mltplr*len(x_train)
+
+                    if n_end>len(nx_train):
+                        batch_nx_train= np.vstack([nx_train[n_start:,:,:,:],nx_train[:n_end-len(nx_train),:,:,:]]) 
+
+                        batch_ny_train= np.vstack([ny_train[n_start:,:],ny_train[:n_end-len(nx_train),:]])
+                        batch_ntrain_allele=np.vstack([ntrain_allele[n_start:,:],ntrain_allele[:n_end-len(nx_train),:]])
+                        batch_ntrain_ref = np.vstack([ntrain_ref[n_start:,:],ntrain_ref[:n_end-len(nx_train),:]])
+
+
+                        n_start=n_end-len(nx_train)
                         n_end=n_start+false_mltplr*len(x_train)
-
-                        if n_end>len(nx_train):
-                            batch_nx_train= np.vstack([nx_train[n_start:,:,:,:],nx_train[:n_end-len(nx_train),:,:,:]]) 
-
-                            batch_ny_train= np.vstack([ny_train[n_start:,:],ny_train[:n_end-len(nx_train),:]])
-                            batch_ntrain_allele=np.vstack([ntrain_allele[n_start:,:],ntrain_allele[:n_end-len(nx_train),:]])
-                            batch_ntrain_ref = np.vstack([ntrain_ref[n_start:,:],ntrain_ref[:n_end-len(nx_train),:]])
+                    else:    
+                        batch_nx_train,batch_ny_train,batch_ntrain_allele, batch_ntrain_ref = \
+                        nx_train[n_start:n_end,:,:,:],ny_train[n_start:n_end,:],\
+                        ntrain_allele[n_start:n_end,:], ntrain_ref[n_start:n_end,:]
 
 
-                            n_start=n_end-len(nx_train)
-                            n_end=n_start+false_mltplr*len(x_train)
-                        else:    
-                            batch_nx_train,batch_ny_train,batch_ntrain_allele, batch_ntrain_ref = \
-                            nx_train[n_start:n_end,:,:,:],ny_train[n_start:n_end,:],\
-                            ntrain_allele[n_start:n_end,:], ntrain_ref[n_start:n_end,:]
-                        
-                        
-                        training_loss=0
-                        total_train_data=0
+                    training_loss=0
+                    total_train_data=0
 
-                        total_false_size=int(false_mltplr*batch_size)
+                    total_false_size=int(false_mltplr*batch_size)
 
-                        for batch in range(int(np.ceil(len(x_train)/batch_size))):
-                            batch_x = np.vstack([x_train[batch*batch_size:min((batch+1)*batch_size,len(x_train))],\
-                                      batch_nx_train[ total_false_size*batch : min(total_false_size*(batch+1),\
-                                      len(batch_nx_train))]])
+                    for batch in range(int(np.ceil(len(x_train)/batch_size))):
+                        batch_x = np.vstack([x_train[batch*batch_size:min((batch+1)*batch_size,len(x_train))],\
+                                  batch_nx_train[ total_false_size*batch : min(total_false_size*(batch+1),\
+                                  len(batch_nx_train))]])
 
-                            batch_y = np.vstack([y_train[batch*batch_size:min((batch+1)*batch_size, len(y_train))],\
-                                      batch_ny_train[total_false_size*batch :min(total_false_size*(batch+1),\
-                                      len(batch_ny_train))]])
+                        batch_y = np.vstack([y_train[batch*batch_size:min((batch+1)*batch_size, len(y_train))],\
+                                  batch_ny_train[total_false_size*batch :min(total_false_size*(batch+1),\
+                                  len(batch_ny_train))]])
 
-                            batch_allele = np.vstack([train_allele[batch*batch_size :min((batch+1)*batch_size,\
-                                                       len(train_allele))], batch_ntrain_allele[total_false_size*batch : \
-                                                       min(total_false_size*(batch+1), len(batch_ntrain_allele))]])
+                        batch_allele = np.vstack([train_allele[batch*batch_size :min((batch+1)*batch_size,\
+                                                   len(train_allele))], batch_ntrain_allele[total_false_size*batch : \
+                                                   min(total_false_size*(batch+1), len(batch_ntrain_allele))]])
 
-                            batch_ref = np.vstack([train_ref[batch*batch_size :min((batch+1)*batch_size,\
-                                                    len(train_ref))], batch_ntrain_ref[ total_false_size*batch:\
-                                                    min(total_false_size*(batch+1), len(batch_ntrain_ref))]])
-                
-                            opt,loss = sess.run([optimizer,cost], feed_dict={x: batch_x, GT_label:batch_y, A_label:np.eye(2)[batch_allele[:,0]], G_label:np.eye(2)[batch_allele[:,1]], T_label:np.eye(2)[batch_allele[:,2]], C_label:np.eye(2)[batch_allele[:,3]] , A_ref:batch_ref[:,0][:,np.newaxis], G_ref:batch_ref[:,1][:,np.newaxis], T_ref:batch_ref[:,2][:,np.newaxis], C_ref:batch_ref[:,3][:,np.newaxis], keep:0.5})
-                            training_loss+=loss*len(batch_x)
-                            total_train_data+=len(batch_x)
+                        batch_ref = np.vstack([train_ref[batch*batch_size :min((batch+1)*batch_size,\
+                                                len(train_ref))], batch_ntrain_ref[ total_false_size*batch:\
+                                                min(total_false_size*(batch+1), len(batch_ntrain_ref))]])
+
+                        opt,loss = sess.run([optimizer,cost], feed_dict={x: batch_x, GT_label:batch_y, A_label:np.eye(2)[batch_allele[:,0]], G_label:np.eye(2)[batch_allele[:,1]], T_label:np.eye(2)[batch_allele[:,2]], C_label:np.eye(2)[batch_allele[:,3]] , A_ref:batch_ref[:,0][:,np.newaxis], G_ref:batch_ref[:,1][:,np.newaxis], T_ref:batch_ref[:,2][:,np.newaxis], C_ref:batch_ref[:,3][:,np.newaxis], keep:0.5})
+                        training_loss+=loss*len(batch_x)
+                        total_train_data+=len(batch_x)
 
 
-                        training_loss=training_loss/total_train_data
-                       
-                    _,x_train,y_train,train_allele,train_ref= None,None,None,None,None
-                    _,nx_train,ny_train,ntrain_allele,ntrain_ref= None,None,None,None,None
+                    training_loss=training_loss/total_train_data
 
                     print('.',end='',flush=True)
 
-                if params['val'] and (k<2 or chrom==22):
+                if params['val'] and (k<1 or chrom==22):
 
                     for val in val_list:
                         print('\n')
@@ -165,7 +151,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
 
 
                         v_loss,v_acc,A_acc,G_acc,T_acc,C_acc,GT_acc,v_loss,v_acc=0,0,0,0,0,0,0,0,0
-                        
+
                         v_score,v_pred=[],[]
 
                         for batch in range(int(np.ceil(len(vx_test)/(batch_size)))):
@@ -232,7 +218,7 @@ def test_model(params,suffix='',prob_save=False):
     total=[]
     
     neg_file=open(vcf_path+'.neg'+suffix,'w')
-    vcf_path=vcf_path+suffix+'.vcf'
+    vcf_path=vcf_path+suffix
     
     with open(vcf_path,'w') as f:
 
@@ -242,7 +228,7 @@ def test_model(params,suffix='',prob_save=False):
         f.write('##contig=<ID=%s>\n' %chrom)
         
 
-        f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Consensus Genotype across all datasets with called genotype">\n')
+        f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         f.write('##FORMAT=<ID=GP,Number=1,Type=Integer,Description="Genotype Probability">\n')
         f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
         ttt=[]
@@ -284,30 +270,32 @@ def test_model(params,suffix='',prob_save=False):
                         batch_ref=np.argmax(batch_ref,1)
                         total_ref.append(batch_ref[:,np.newaxis])
                         
+                        batch_pred_GT=np.sum(batch_probs>=0.01,axis=1)
+                        
                         for j in range(len(batch_pred_GT)):
                             
-                            if batch_pred_GT[j]: # if het
+                            if batch_pred_GT[j]>=2: # if het
                                     pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
-                                    if pred1==batch_ref[j]:
-                                                s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred2], 0,'PASS','0/1', int(min(99,-10*np.log10(1e-10+ 1-batch_prob_GT[j,1]))))
+                                    if pred1==batch_ref[j]:# and batch_probs[j,pred1]*batch_probs[j,pred2]>0.8:
+                                                s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred2], 0,'PASS','0/1', int(min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2]))))
                                                 f.write(s)
                                         
 
                                     
                                     elif pred2==batch_ref[j]:
-                                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom,batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0,'PASS','1/0', int(min(99,-10*np.log10(1e-10+1-batch_prob_GT[j,1]))))
+                                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom,batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0,'PASS','1/0', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred1]))))
 
                                         f.write(s)
                                         
-                                    else:
+                                    elif pred2!=batch_ref[j] and pred1!=batch_ref[j]:
                                         s='%s\t%d\t.\t%s\t%s,%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %\
-                            (chrom,batch_pos[j],rev_mapping[batch_ref[j]],rev_mapping[pred1],rev_mapping[pred2],0,'PASS','1/2', int(min(99,-10*np.log10(1e-10+1-batch_prob_GT[j,1]))))
+                            (chrom,batch_pos[j],rev_mapping[batch_ref[j]],rev_mapping[pred1],rev_mapping[pred2],0,'PASS','1/2', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))))
 
                                         f.write(s)
                                 
-                            elif batch_ref[j]!=batch_pred[j,-1]:
+                            elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1]:
                                 pred1=batch_pred[j,-1]
-                                s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0, 'PASS', '1/1', int(min(99,-10*np.log10(1e-10+1-batch_prob_GT[j,0]))))
+                                s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0, 'PASS', '1/1', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred1]))))
                                 f.write(s)
                             else:
                                 neg_file.write('%d,%.4f,%.4f,%.4f,%.4f,%.4f\n' %(batch_pos[j], batch_prob_GT[j,0], batch_probs[j,0], batch_probs[j,1], batch_probs[j,2], batch_probs[j,3]))
@@ -321,7 +309,7 @@ def test_model(params,suffix='',prob_save=False):
     if prob_save:
         np.savez('prob_file'+suffix,total_prob=total_prob,total_gt_prob=total_gt_prob,total_ref=total_ref)
     return vcf_path
-
+'''
 def test_with_hap(params):
     count=1
     change=1
@@ -344,7 +332,7 @@ def test_with_hap(params):
             #name change
             break
     
-        
+'''        
 
 def make_allele(ylabel,allele,reference):
     new_allele=allele.copy()
@@ -381,6 +369,7 @@ if __name__ == '__main__':
     parser.add_argument("-ratio", "--ratio", help="iterations per batch",type=int)
     parser.add_argument("-neg", "--neg_part", help="Negative Part")
     parser.add_argument("-wdir", "--workdir", help="Working Directory")
+    parser.add_argument("-rt_path", "--rt_path", help="re-train directory")
     
     args = parser.parse_args()
     input_dims=[int(x) for x in args.dimensions.split(':')]
@@ -389,7 +378,7 @@ if __name__ == '__main__':
     if args.mode=='train':
         in_dict={'cpu':args.cpu,'rate':args.rate, 'iters':args.iterations, 'size':args.size,'dims':input_dims,'chrom':args.chrom,\
                  'train_path':args.train, 'test_path':args.test, 'model':args.model, 'val':args.validation,'retrain':args.retrain,\
-                'window':args.window,'ratio':args.ratio}
+                'window':args.window,'ratio':args.ratio,'rt_path':args.rt_path}
         genotype_caller_skinny(in_dict,neg_part=args.neg_part)
     
     else:

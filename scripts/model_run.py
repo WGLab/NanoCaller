@@ -141,7 +141,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
 
                     print('.',end='',flush=True)
 
-                if params['val'] and (k<1 or chrom==22):
+                if params['val'] and (k<3 or chrom==22):
 
                     for val in val_list:
                         print('\n')
@@ -270,30 +270,30 @@ def test_model(params,suffix='',prob_save=False):
                         batch_ref=np.argmax(batch_ref,1)
                         total_ref.append(batch_ref[:,np.newaxis])
                         
-                        batch_pred_GT=np.sum(batch_probs>=0.01,axis=1)
+                        batch_pred_GT=np.sum(batch_probs>=0.5,axis=1)
                         
                         for j in range(len(batch_pred_GT)):
                             
                             if batch_pred_GT[j]>=2: # if het
                                     pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
-                                    if pred1==batch_ref[j]:# and batch_probs[j,pred1]*batch_probs[j,pred2]>0.8:
+                                    if pred1==batch_ref[j] and batch_probs[j,pred2]>=0.99:
                                                 s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred2], 0,'PASS','0/1', int(min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2]))))
                                                 f.write(s)
                                         
 
                                     
-                                    elif pred2==batch_ref[j]:
-                                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom,batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0,'PASS','1/0', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred1]))))
+                                    elif pred2==batch_ref[j] and batch_probs[j,pred2]>=0.99:
+                                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom,batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0,'PASS','1/0', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))))
 
                                         f.write(s)
                                         
-                                    elif pred2!=batch_ref[j] and pred1!=batch_ref[j]:
+                                    elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=0.99:
                                         s='%s\t%d\t.\t%s\t%s,%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %\
                             (chrom,batch_pos[j],rev_mapping[batch_ref[j]],rev_mapping[pred1],rev_mapping[pred2],0,'PASS','1/2', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))))
 
                                         f.write(s)
                                 
-                            elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1]:
+                            elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=0.99:
                                 pred1=batch_pred[j,-1]
                                 s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0, 'PASS', '1/1', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred1]))))
                                 f.write(s)

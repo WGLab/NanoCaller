@@ -16,6 +16,18 @@ mapping={'A':0,'G':1,'T':2,'C':3,'*':4,'N':4}
     
 def create_pileup_df(params):
     
+    with open(os.path.join(params['tree_path'],'%s.tree' %params['chrom']),'r') as file:
+        content=file.readlines()
+    
+    hap_tree=IntervalTree()
+
+    for line in content:
+        line=line.rstrip('\n')
+        line=line.split('>')
+        begin,end=int(line[0].split('-')[0]),int(line[0].split('-')[1])
+        hap_tree[begin:end+1]=set(line[1].split(':'))
+        
+        
     bcf_in = VariantFile(params['vcf_path'])
     neg_vcf=params['vcf_path'][:-3]+'.neg'
     fastafile=pysam.FastaFile(params['fasta_path'])
@@ -35,9 +47,7 @@ def create_pileup_df(params):
     tot_cand=[]
     for rec in bcf_in.fetch(params['chrom'],start=start,end=end):
         tot_cand.append(rec.pos)
-        if rec.samples.items()[0][1].get('GT')[0]!=rec.samples.items()[0][1].get('GT')[1]:
-            cand.append(rec.pos)
-    cand=set(cand)
+
     tot_cand=set(tot_cand)
     
     mapping={'A':0,'G':1,'T':2,'C':3,'*':4,'N':4}
@@ -57,114 +67,24 @@ def create_pileup_df(params):
     
     ref_df=pd.DataFrame(list(ref_dict.items()), columns=['pos', 'ref'])
     ref_df.set_index('pos',drop=False,inplace=True)
-    
-    
-    for pcol in samfile.pileup(params['chrom'],start=start,end=end,min_base_quality=0, flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
         
-        if pcol.pos+1 in cand:
-                seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
-                name=pcol.get_query_names()
-                n=pcol.get_num_aligned()
-
-                pileup_dict[pcol.pos+1]={n:mapping[s] for (n,s) in zip(name,seq)}
-                                    
-    print('%d-%d pileups done'%(params['start'],params['end']),flush=True)    
-    
-    name_pileup='%d-%d'%(params['start'],params['end'])
-    
-    tmp_df=pd.DataFrame.from_dict(pileup_dict)
-    tmp_df.fillna(4,inplace=True)
-    tmp_df.dropna(axis=1, how='all',inplace=True)
-    if len(tmp_df)==0:
-        return []
-    mat=np.array(tmp_df)
-    mat=mat.astype(np.int16)
-    mat_hot=np.eye(5)[mat]
-    mat_hot[:,:,4]=0
-
-    bad_haps=[]
-    hap_list={'hap1':{'mat':np.copy(mat_hot[0]),'names':{tmp_df.index[0]:1},'count':1}}
-    hap_num=1
-    count=1
-
-    t=time.time()
-    for i in range(1,len(tmp_df)):
-        count+=1
-        name=tmp_df.index[i]
-        read=np.copy(mat_hot[i])
-        max_score=-np.inf
-        max_hap=''
-
-        for hap in list(hap_list.keys())[-25:]:
-            seq=np.copy(hap_list[hap]['mat'])
-
-            seq=np.multiply(seq!=0,(seq==seq.max(axis=1,keepdims=True))).astype(int)
-            pos_score=np.sum(np.multiply(seq,read))
-            neg_score=seq-read
-            neg_score=np.multiply(neg_score,seq.any(axis=1)[:,np.newaxis])
-            neg_score=np.multiply(neg_score,read.any(axis=1)[:,np.newaxis])
-            neg_score=np.sum(neg_score!=0)//2
-            score=pos_score-neg_score
-            if score>max_score:
-                max_score=score
-                max_hap=hap
-
-        if max_score>0:
-            hap_list[max_hap]['mat']+=read
-            hap_list[max_hap]['names'][name]=max_score
-
-
-        else:
-            hap_num+=1
-            hap_list['hap%d' %hap_num]={'mat':read,'names':{name:max_score},'count':count}
-
-
-        if count%500==0:    
-            key_list=list(hap_list.keys())
-
-            for hap in key_list:
-                if count-hap_list[hap]['count']>=300 and len(hap_list[hap]['names'])<=3:
-                    bad_haps.append((hap,hap_list.pop(hap, None)))
-                    
-    t=IntervalTree()
-    glob_min,glob_max=int(name_pileup.split('-')[0]),int(name_pileup.split('-')[1])
-
-    for k in hap_list.keys():
-
-        name_list=list(hap_list[k]['names'].keys())
-        if len(name_list)<=3:
-            continue
-        tt=tmp_df.loc[name_list,:].copy()
-        tt.dropna(axis=0, how='all',inplace=True)
-        tt.dropna(axis=1, how='all',inplace=True)
-        tt=tt.replace(4,np.nan).dropna(axis=1,how="all")
-        if len(tt)<=3:
-            continue
-
-        hap_min,hap_max=min(tt.columns.to_list()), max(tt.columns.to_list())
-        hap_min,hap_max=max(hap_min, glob_min), min(hap_max,glob_max)
-        if hap_min<hap_max:
-            t[hap_min:hap_max]=name_list
-        tt=None
-    print('%d-%d haplotyping done'%(params['start'],params['end']),flush=True)
-    tmp_df=None
-
-    hap_tree=t
-    
     output=[]
     
     for pcol in samfile.pileup(chrom,max(0,start-1-30),end+30,min_base_quality=0,\
                                            flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             v_pos=pcol.pos+1
             cand_ref=ref_df.loc[v_pos].ref
+            
+            if bed_path:
+                if not bed_tree[v_pos]:
+                    continue
+            
             if cand_ref!='*' and hap_tree[v_pos] and v_pos not in tot_cand:
                 seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
                 #seq_nodel=''.join([pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
                 n=pcol.get_num_aligned()
                 #dp_nodel=len(seq_nodel)
-                if bed_path:
-                    if not t[v_pos]:
-                        continue
+                
 
 
                 if n>=params['mincov'] and v_pos>=start and v_pos<=end:
@@ -244,19 +164,14 @@ def generate_calls(params):
     bcf_in = VariantFile(params['vcf_path'])
     fastafile=pysam.FastaFile(params['fasta_path'])
     samfile = pysam.Samfile(params['sam_path'], "rb")
-    
-    cand={}
-    pred_pos=[]
-    for rec in bcf_in.fetch(params['chrom']):
-        pred_pos.append(rec.pos)
-        if rec.samples.items()[0][1].get('GT')[0]!=rec.samples.items()[0][1].get('GT')[1]:
-            cand[rec.pos]=(rec.ref,rec.alleles[1],'het')
-            
-            
+
     dict_list=[]
 
     for i in range(0,chrom_length[params['chrom']],int(1e6)):
-        dict_list.append({'chrom':params['chrom'],'start':i,'end':i+1000000, 'sam_path':params['sam_path'], 'fasta_path':params['fasta_path'], 'vcf_path':params['vcf_path'], 'bed':params['bed'],'mincov':8})
+        tmp_dict=copy.deepcopy(params)
+        tmp_dict['start']=i
+        tmp_dict['end']=i+1000000
+        dict_list.append(tmp_dict)
 
     pool = mp.Pool(processes=params['cpu'])
     calls = pool.map(create_pileup_df, dict_list)
@@ -276,7 +191,7 @@ def generate_calls(params):
         for output in calls:
             for cand in output:
  
-                if cand[1]==(1/2):
+                if cand[1]==(1,2):
                     s='%s\t%d\t.\t%s\t%s,%s\t%d\t%s\t.\tGT:GP\t%s/%s:%d\n' %(chrom,cand[0], cand[2], cand[3], cand[4], 0,'PASS',cand[1][0],cand[1][1],cand[-1])
                     f.write(s)
                 else:
@@ -297,6 +212,7 @@ if __name__ == '__main__':
     parser.add_argument("-mincov", "--mincov", help="min coverage",type=int)
     parser.add_argument("-start", "--start", help="start",type=int)
     parser.add_argument("-end", "--end", help="end",type=int)
+    parser.add_argument("-tree", "--tree", help="Haplotype tree path")
 
     
     args = parser.parse_args()
@@ -312,7 +228,7 @@ if __name__ == '__main__':
         start=1
         
     in_dict={'chrom':chrom,'start':start,'end':end, 'sam_path':args.bam, 'fasta_path':args.ref, 'vcf_path':args.vcf,\
-             'out_path':args.output, 'cpu':args.cpu, 'bed':args.bed,'mincov':args.mincov}    
+             'out_path':args.output, 'cpu':args.cpu, 'bed':args.bed,'mincov':args.mincov,'tree_path':args.tree}    
     
     t=time.time()
     generate_calls(in_dict)

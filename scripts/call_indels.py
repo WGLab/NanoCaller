@@ -11,6 +11,9 @@ from Bio.Align.Applications import ClustalwCommandline
 from Bio import AlignIO
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
+from tempfile import mkstemp
+from subprocess import Popen, PIPE, STDOUT
+
 os.environ["PATH"] += os.pathsep + '/home/ahsanm/lib/tcoffee/t_coffee/src'
 chrom_length={'chr1':248956422, 'chr2':242193529, 'chr3':198295559, 'chr4':190214555, 'chr5':181538259, 'chr6':170805979, \
              'chr7':159345973, 'chr8':145138636, 'chr9':138394717, 'chr10':133797422, 'chr11':135086622, 'chr12':133275309,\
@@ -36,7 +39,7 @@ def repeat_check(x):
     count=1
     letter=x[0]
     i=1
-    while count<5 and i<11:
+    while count<4 and i<len(x):
         
         if x[i]==letter:
             count+=1
@@ -44,11 +47,11 @@ def repeat_check(x):
             letter=x[i]
             count=1
         i+=1
-    return count>=5
+    return count>=4
 
 
 def indel_calls(params):
-    window_before,window_after=60,100
+    window_before,window_after=30,35
     fasta_path=params['fasta_path']
     fastafile=pysam.FastaFile(fasta_path)
     sam_path=params['sam_path']
@@ -56,9 +59,10 @@ def indel_calls(params):
     chrom=params['chrom']
     bed_path=params['bed']
 
-    with open(os.path.join(params['tree_path'],'%s.tree' %chrom),'r') as file:
-        content=file.readlines()
-
+    file=open(os.path.join(params['tree_path'],'%s.tree' %chrom),'r')
+    content=file.readlines()
+    file.close()
+    
     hap_tree=IntervalTree()
 
     for line in content:
@@ -69,9 +73,11 @@ def indel_calls(params):
 
     if bed_path:
         bed_file=os.path.join(bed_path,'%s.bed' %params['chrom'])
-        with open(bed_file) as file:
-            content=[x.rstrip('\n') for x in file]
-
+        
+        file=open(bed_file)
+        content=[x.rstrip('\n') for x in file]
+        file.close()
+        
         content=[x.split('\t')[1:] for x in content]
         content=[(int(x[0]),int(x[1])) for x in content]
         bed_tree=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
@@ -100,7 +106,7 @@ def indel_calls(params):
         try:
             n=pcol.get_num_aligned()
             if n>params['mincov']:
-                nbr=''.join(ref_df.loc[pcol.pos-4:pcol.pos+6].ref.to_list())
+                nbr=''.join(ref_df.reindex(range(pcol.pos-3,pcol.pos+6)).ref.to_list())
                 check=repeat_check(nbr)
 
                 if check==False:                    
@@ -108,7 +114,7 @@ def indel_calls(params):
                     p_count=seq.count('+')
                     n_count=seq.count('-')+seq.count('*')
 
-                    if p_count/n>=0.15 or n_count/n>=0.5:
+                    if p_count/n>=0.2 or n_count/n>=0.6:
                         cand_reads={pread.alignment.query_name:pread.query_position for pread in pcol.pileups}
                         read_names=set(cand_reads.keys())
 
@@ -120,68 +126,73 @@ def indel_calls(params):
 
                         hap1_reads=[]
                         for tmp_read in best_1:
-                            if cand_reads[tmp_read]:
-                                rd=reads_dict[tmp_read][max(0,cand_reads[tmp_read]-window_before):min(cand_reads[tmp_read]+window_after+1,len(reads_dict[tmp_read])-1)]
-                                if len(rd)>4:
-                                    hap1_reads.append(rd)
-                            elif tmp_read in prev_cand_reads.keys():
-                                rd=reads_dict[tmp_read][max(0,prev_cand_reads[tmp_read]-window_before):min(prev_cand_reads[tmp_read]+window_after+1,len(reads_dict[tmp_read])-1)]
-                                if len(rd)>4:
-                                    hap1_reads.append(rd)
+                            if reads_dict[tmp_read]:
+                                if cand_reads[tmp_read]:
+                                    rd=reads_dict[tmp_read][max(0,cand_reads[tmp_read]-window_before):min(cand_reads[tmp_read]+window_after+1,len(reads_dict[tmp_read])-1)]
+                                    if rd:
+                                        if len(rd)>4:
+                                            hap1_reads.append(rd)
+                                elif tmp_read in prev_cand_reads.keys():
+                                    rd=reads_dict[tmp_read][max(0,prev_cand_reads[tmp_read]-window_before):min(prev_cand_reads[tmp_read]+window_after+1,len(reads_dict[tmp_read])-1)]
+                                    if rd:
+                                        if len(rd)>4:
+                                            hap1_reads.append(rd)
                         hap2_reads=[]
                         for tmp_read in best_2:
-                            if cand_reads[tmp_read]:
-                                rd=reads_dict[tmp_read][max(0,cand_reads[tmp_read]-window_before):min(cand_reads[tmp_read]+window_after+1,len(reads_dict[tmp_read])-1)]
-                                if len(rd)>4:
-                                    hap2_reads.append(rd)
-                            elif tmp_read in prev_cand_reads.keys():
-                                rd=reads_dict[tmp_read][max(0,prev_cand_reads[tmp_read]-window_before):min(prev_cand_reads[tmp_read]+window_after+1,len(reads_dict[tmp_read])-1)]
-                                if len(rd)>4:
-                                    hap2_reads.append(rd)
+                            if reads_dict[tmp_read]:
+                                if cand_reads[tmp_read]:
+                                    rd=reads_dict[tmp_read][max(0,cand_reads[tmp_read]-window_before):min(cand_reads[tmp_read]+window_after+1,len(reads_dict[tmp_read])-1)]
+                                    if rd:
+                                        if len(rd)>4:
+                                            hap2_reads.append(rd)
+                                elif tmp_read in prev_cand_reads.keys():
+                                    rd=reads_dict[tmp_read][max(0,prev_cand_reads[tmp_read]-window_before):min(prev_cand_reads[tmp_read]+window_after+1,len(reads_dict[tmp_read])-1)]
+                                    if rd:
+                                        if len(rd)>4:
+                                            hap2_reads.append(rd)
 
 
                         if len(hap1_reads)==0 or len(hap2_reads)==0:
                             continue
-
-                        with open('/home/ahsanm/dt_Nanovar/indels/%s.%d.hap1.fa' %(params['chrom'],params['start']),'w') as file:
-                            seq_count=0
-                            for b in hap1_reads:
-                                file.write('>hap1seq%d\n'%seq_count)
-                                file.write(b+'\n')
-                                seq_count+=1
-
-                        with open('/home/ahsanm/dt_Nanovar/indels/%s.%d.hap2.fa' %(params['chrom'],params['start']),'w') as file:
-                            seq_count=0
-                            for b in hap2_reads:
-                                file.write('>hap1seq%d\n'%seq_count)
-                                file.write(b+'\n')
-                                seq_count+=1
-
-
                         
+                        hap1_dnd_tmp_file,hap1_dnd_tmp= mkstemp()
+                        hap1_fa_tmp_file=''
+                        seq_count=0
+                        for b in hap1_reads:
+                            hap1_fa_tmp_file+='>hap1seq%d\n'%seq_count
+                            hap1_fa_tmp_file+= '%s\n' %b
+                            seq_count+=1
+                            
+                        
+                        hap2_dnd_tmp_file,hap2_dnd_tmp= mkstemp()
+                        hap2_fa_tmp_file=''
 
-                        output = subprocess.run(['t_coffee', '/home/ahsanm/dt_Nanovar/indels/%s.%d.hap1.fa' %(params['chrom'],params['start']), '-outfile','/home/ahsanm/dt_Nanovar/indels/%s.%d.hap1.aln' %(params['chrom'],params['start'])], stdout=subprocess.PIPE)
-                        hap1_file=output.stdout
+                        seq_count=0
+                        for b in hap2_reads:
+                            hap2_fa_tmp_file+='>hap2seq%d\n'%seq_count
+                            hap2_fa_tmp_file+='%s\n' %b
+                            seq_count+=1
 
-
-                        hap1_file=hap1_file.decode('utf-8')
+                        msa_process = Popen(['t_coffee', '-infile=stdin','-outfile','stdout','-out_lib=/dev/null', '-no_warning', '-quiet','-newtree=%s'%hap1_dnd_tmp,'-quicktree','-distance_matrix_mode=fast'], stdout=PIPE, stdin=PIPE, stderr=PIPE)
+                        hap1_file=msa_process.communicate(input=hap1_fa_tmp_file.encode('utf-8'))[0]
+                        
+                        try:
+                            os.remove(hap1_dnd_tmp)
+                        except FileNotFoundError:
+                            pass
+                        
                         hap1_re_al={}
-
+                        hap1_file=hap1_file.decode('utf-8')
                         if 'hap' in hap1_file:
                             for line in hap1_file.split('\n'):
-                                if 'hap' in line or 'Ref' in line:
+                                if 'hap' in line:
                                     if line.split()[0] not in hap1_re_al.keys():
                                         hap1_re_al[line.split()[0]]=''
                                     hap1_re_al[line.split()[0]]+=line.split()[1]
 
                         else:
-                            with open('/home/ahsanm/dt_Nanovar/indels/%s.%d.hap1.aln' %(params['chrom'],params['start']), 'r') as file:
-                                for line in file:#hap1_file.decode('utf-8').split('\n'):
-                                    if 'hap' in line or 'Ref' in line:
-
-                                        if line.split()[0] not in hap1_re_al.keys():
-                                            hap1_re_al[line.split()[0]]=''
-                                        hap1_re_al[line.split()[0]]+=line.split()[1]
+                            continue
+                            
                         seq_cons_nosub=''
                         seq_cons=''
                         seq_cons_nodel=''
@@ -208,13 +219,16 @@ def indel_calls(params):
 
                         hap1_cons=seq_cons_nodel
 
-
-                        output = subprocess.run(['t_coffee', '/home/ahsanm/dt_Nanovar/indels/%s.%d.hap2.fa' %(params['chrom'],params['start']),'-outfile','/home/ahsanm/dt_Nanovar/indels/%s.%d.hap2.aln' %(params['chrom'],params['start'])], stdout=subprocess.PIPE)
-                        hap2_file=output.stdout
-
-                        hap2_file=hap2_file.decode('utf-8')
+                        msa_process = Popen(['t_coffee', '-infile=stdin','-outfile','stdout','-out_lib=/dev/null', '-no_warning', '-quiet','-newtree=%s'%hap1_dnd_tmp,'-quicktree','-distance_matrix_mode=fast'], stdout=PIPE, stdin=PIPE, stderr=PIPE)
+                        hap2_file=msa_process.communicate(input=hap2_fa_tmp_file.encode('utf-8'))[0]
+                        
+                        try:
+                            os.remove(hap2_dnd_tmp)
+                        except FileNotFoundError:
+                            pass
+                        
                         hap2_re_al={}
-
+                        hap2_file=hap2_file.decode('utf-8')
                         if 'hap' in hap2_file:
                             for line in hap2_file.split('\n'):
                                 if 'hap' in line or 'Ref' in line:
@@ -223,14 +237,10 @@ def indel_calls(params):
                                     hap2_re_al[line.split()[0]]+=line.split()[1]
 
                         else:
-                            with open('/home/ahsanm/dt_Nanovar/indels/%s.%d.hap2.aln' %(params['chrom'],params['start']), 'r') as file:
-                                for line in file:#hap1_file.decode('utf-8').split('\n'):
-                                    if 'hap' in line or 'Ref' in line:
-
-                                        if line.split()[0] not in hap2_re_al.keys():
-                                            hap2_re_al[line.split()[0]]=''
-                                        hap2_re_al[line.split()[0]]+=line.split()[1]
-
+                            continue
+        
+     
+                        
                         seq_cons_nosub=''
                         seq_cons=''
                         seq_cons_nodel_2=''
@@ -258,7 +268,7 @@ def indel_calls(params):
 
                         hap2_cons=seq_cons_nodel_2
 
-                        ref=''.join(ref_df.loc[v_pos-window_before:v_pos+window_after].ref.to_list())
+                        ref=''.join(ref_df.reindex(range(v_pos-window_before,v_pos+window_after+1)).ref.to_list())
 
                         pair_1=pairwise(hap1_cons,ref)
                         pair_2=pairwise(hap2_cons,ref)
@@ -276,7 +286,7 @@ def indel_calls(params):
                         var_1=False
                         var_type_1=None
                         while cnt<10:
-                            if cnt==4 and var_1==False:
+                            if cnt==6 and var_1==False:
                                 break
                             if seq_ts[cnt_del+1+cnt]!=seq_ts_all[cnt_del+1+cnt] and (seq_ts[cnt_del+1+cnt]=='-' or seq_ts_all[cnt_del+1+cnt]=='-'):
                                 var_1=True
@@ -320,7 +330,7 @@ def indel_calls(params):
                         var_type_2=None
 
                         while cnt<10:
-                            if cnt==4 and var_2==False:
+                            if cnt==6 and var_2==False:
                                 break
                             if seq_ts[cnt_del+1+cnt]!=seq_ts_all[cnt_del+1+cnt] and (seq_ts[cnt_del+1+cnt]=='-' or seq_ts_all[cnt_del+1+cnt]=='-'):
                                     var_2=True
@@ -356,24 +366,30 @@ def indel_calls(params):
                         if var_1_alleles and var_2_alleles:
                             if var_1_alleles[1]==var_2_alleles[1]:
                                 res=(v_pos,(1,1),ref_pair1, var_1_alleles[1])
+                                if len(res[2])>0 and len(res[3])>0:
+                                    if var_1_alleles[-3:]!=var_1_alleles[-1]*3 and ref_pair1[-3:]!=ref_pair1[-1]*3:
+                                        output_list.append(res)
 
                             else:
                                 ref_pair=ref_pair1 if len(ref_pair1)>len(ref_pair2) else ref_pair2
                                 res=(v_pos,(1,2),ref_pair,var_1_alleles[1], var_2_alleles[1])
-
-                            print(res)
-                            output_list.append(res)
+                            
+                                if len(res[2])>0 and len(res[3])>0 and len(res[4])>0:
+                                    if var_1_alleles[-3:]!=var_1_alleles[-1]*3 and var_2_alleles[-3:]!=var_2_alleles[-1]*3 and ref_pair[-3:]!=ref_pair[-1]*3:
+                                        output_list.append(res)
 
                         elif var_1_alleles:
                             res=(v_pos,(1,0),ref_pair1,var_1_alleles[1])
-                            print(res)
-                            output_list.append(res)
+                            
+                            if len(res[2])>0 and len(res[3])>0:
+                                if var_1_alleles[-3:]!=var_1_alleles[-1]*3 and ref_pair1[-3:]!=ref_pair1[-1]*3:
+                                    output_list.append(res)
 
                         elif var_2_alleles:
                             res=(v_pos,(0,1),ref_pair2,var_2_alleles[1])
-
-                            print(res)
-                            output_list.append(res)
+                            if len(res[2])>0 and len(res[3])>0:
+                                if var_2_alleles[-3:]!=var_2_alleles[-1]*3 and ref_pair2[-3:]!=ref_pair2[-1]*3:
+                                    output_list.append(res)
 
                 for pread in pcol.pileups:
                     if pread.query_position:
@@ -385,41 +401,30 @@ def indel_calls(params):
     return output_list
 def generate_calls(params):
     #482375
-
-    file_name=os.path.join(params['out_path'],'%d-%d.vcf' %(params['start'],params['end']))
-    dict_list=[]
-
-    for i in range(params['start'],params['end'],int(1e4)):
-        tmp_dict=copy.deepcopy(params)
-        tmp_dict['start']=i
-        tmp_dict['end']=i+10000
-        dict_list.append(tmp_dict)
-
-    pool = mp.Pool(processes=1)
-    calls = pool.map(indel_calls, dict_list)
+    file_name=os.path.join(params['out_path'],'%s.%d-%d.vcf' %(params['chrom'],params['start'],params['end']))
+    
+    calls=indel_calls(params)
 
     
-    with open(file_name,'w') as f:
+    f= open(file_name,'w')
 
-        f.write('##fileformat=VCFv4.2\n')
-        f.write('##FILTER=<ID=PASS,Description="All filters passed">\n')
-        c='##contig=<ID=%s>\n' %chrom
-        f.write('##contig=<ID=%s>\n' %chrom)
-        
+    f.write('##fileformat=VCFv4.2\n')
+    f.write('##FILTER=<ID=PASS,Description="All filters passed">\n')
+    c='##contig=<ID=%s>\n' %chrom
+    f.write('##contig=<ID=%s>\n' %chrom)
 
-        f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
-        f.write('##FORMAT=<ID=GP,Number=1,Type=Integer,Description="Genotype Probability">\n')
-        f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
-        for output in calls:
-            for cand in output:
- 
-                if cand[1]==(1,2):
-                    s='%s\t%d\t.\t%s\t%s,%s\t%d\t%s\t.\tGT:GP\t%s/%s:%d\n' %(chrom,cand[0], cand[2], cand[3], cand[4], 0,'PASS',cand[1][0],cand[1][1],0)
-                    f.write(s)
-                else:
-                    s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s/%s:%d\n' %(chrom,cand[0], cand[2], cand[3], 0,'PASS',cand[1][0],cand[1][1],0)
-                    f.write(s)
-    return calls
+
+    f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
+    f.write('##FORMAT=<ID=GP,Number=1,Type=Integer,Description="Genotype Probability">\n')
+    f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
+    for cand in calls:
+            if cand[1]==(1,2):
+                s='%s\t%d\t.\t%s\t%s,%s\t%d\t%s\t.\tGT:GP\t%s/%s:%d\n' %(chrom,cand[0], cand[2], cand[3], cand[4], 0,'PASS',cand[1][0],cand[1][1],0)
+                f.write(s)
+            else:
+                s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s/%s:%d\n' %(chrom,cand[0], cand[2], cand[3], 0,'PASS',cand[1][0],cand[1][1],0)
+                f.write(s)
+    f.close()
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 

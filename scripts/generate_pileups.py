@@ -35,7 +35,6 @@ def get_training_candidates(dct):
 
 
     samfile = pysam.Samfile(sam_path, "rb")
-    fastafile=pysam.FastaFile(fasta_path)
     
     bcf_in = VariantFile(vcf_path)  # auto-detect input format
     fastafile=pysam.FastaFile(fasta_path)
@@ -148,16 +147,18 @@ def get_training_candidates(dct):
                 p_df.dropna(subset=[v_pos],inplace=True)
 
                 p_df['counter']=p_df[v_pos]
-                new_df=p_df.groupby('counter').agg(['value_counts']).reindex(list(itertools.product('AGTC*','AGTC*'))).fillna(0)
-                mat=np.array(new_df).reshape([5,5,new_df.shape[1]]).swapaxes(1,2)
+                new_df=p_df.groupby('counter').agg(['value_counts']).reindex(list(itertools.product('AGTC','AGTC'))).fillna(0)
+                mat=np.array(new_df).reshape([4,4,new_df.shape[1]]).swapaxes(1,2)
 
                 total_ref=np.eye(5)[total_rlist]
                 total_ref=total_ref[np.newaxis,:]
                 
                 total_ref[:,4]=0
                 
+                mat=np.dstack([mat,np.zeros([4,mat.shape[1]])+np.eye(4)[ref_df.loc[v_pos].ref][:,np.newaxis]])
+                
                 data=np.vstack([total_ref,np.multiply(mat,1-2*total_ref)])
-                data=np.hstack([np.zeros([6,nbr_size-len(ls1),5]),data,np.zeros([6,nbr_size-len(ls2),5])]).astype(np.int8)
+                data=np.hstack([np.zeros([5,nbr_size-len(ls1),5]),data,np.zeros([5,nbr_size-len(ls2),5])]).astype(np.int8)
 
                 if i=='pos':
                     pileup_list[i].append((v_pos,tr_pos[v_pos][0],tr_pos[v_pos][1],ref_df.loc[v_pos].ref,data))
@@ -280,15 +281,20 @@ def get_testing_candidates(dct):
                 p_df.dropna(subset=[v_pos],inplace=True)
 
                 p_df['counter']=p_df[v_pos]
-                new_df=p_df.groupby('counter').agg(['value_counts']).reindex(list(itertools.product('AGTC*','AGTC*'))).fillna(0)
-                mat=np.array(new_df).reshape([5,5,new_df.shape[1]]).swapaxes(1,2)
                 
+                new_df=p_df.groupby('counter').agg(['value_counts']).reindex(list(itertools.product('AGTC','AGTC'))).fillna(0)
+                mat=np.array(new_df).reshape([4,4,new_df.shape[1]]).swapaxes(1,2)
+
                 total_ref=np.eye(5)[total_rlist]
                 total_ref=total_ref[np.newaxis,:]
+                
                 total_ref[:,4]=0
                 
+                mat=np.dstack([mat,np.zeros([4,mat.shape[1]])+np.eye(4)[ref_df.loc[v_pos].ref][:,np.newaxis]])
+                
                 data=np.vstack([total_ref,np.multiply(mat,1-2*total_ref)])
-                data=np.hstack([np.zeros([6,nbr_size-len(ls1),5]),data,np.zeros([6,nbr_size-len(ls2),5])]).astype(np.int8)
+                data=np.hstack([np.zeros([5,nbr_size-len(ls1),5]),data,np.zeros([5,nbr_size-len(ls2),5])]).astype(np.int8)
+                
                 pileup_list[i].append((v_pos,ref_df.loc[v_pos].ref,data))
 
 
@@ -384,17 +390,21 @@ def redo_candidates(dct):
             p_df=pd.concat([nbr1_df,p_df,nbr2_df],axis=1,sort=False)
 
             p_df.dropna(subset=[v_pos],inplace=True)
-            p_df['counter']=p_df[v_pos]
-            new_df=p_df.groupby('counter').agg(['value_counts']).reindex(list(itertools.product('AGTC*','AGTC*'))).fillna(0)
-            mat=np.array(new_df).reshape([5,5,new_df.shape[1]]).swapaxes(1,2)
             
+            p_df['counter']=p_df[v_pos]
+            new_df=p_df.groupby('counter').agg(['value_counts']).reindex(list(itertools.product('AGTC','AGTC'))).fillna(0)
+            mat=np.array(new_df).reshape([4,4,new_df.shape[1]]).swapaxes(1,2)
+
             total_ref=np.eye(5)[total_rlist]
             total_ref=total_ref[np.newaxis,:]
 
             total_ref[:,4]=0
-            
+
+            mat=np.dstack([mat,np.zeros([4,mat.shape[1]])+np.eye(4)[ref_df.loc[v_pos].ref][:,np.newaxis]])
+
             data=np.vstack([total_ref,np.multiply(mat,1-2*total_ref)])
-            data=np.hstack([np.zeros([6,nbr_size-len(ls1),5]),data,np.zeros([6,nbr_size-len(ls2),5])]).astype(np.int8)
+            data=np.hstack([np.zeros([5,nbr_size-len(ls1),5]),data,np.zeros([5,nbr_size-len(ls2),5])]).astype(np.int8)
+
             ts_list.append((v_pos,ref_df.loc[v_pos].ref,data))
 
             
@@ -404,6 +414,7 @@ def redo_candidates(dct):
         return []
 
 def generate(params,mode='training'):
+    print('adfasd',flush=True)
     cores=params['cpu']
     mode=params['mode']
     chrom=params['chrom']
@@ -412,7 +423,8 @@ def generate(params,mode='training'):
     
     mapping={'*':4,'A':0,'G':1,'T':2,'C':3,'N':5}
     
-    if mode=='training': #'pos,ref,seq,names'
+    if mode in ['training','train']: #'pos,ref,seq,names'
+        print('starting training pileups',flush=True)
         cnd_df=pd.read_csv(os.path.join(params['cnd_path'],'%s.pileups.neighbors.train' %chrom))
         cnd_df.rename(columns={0:'pos',1:'depth',2:'freq',3:'ref',4:'seq',5:'names'},inplace=True)
         cnd_df=cnd_df[(cnd_df['pos']>=start-20000)& (cnd_df['pos']<=end+20000)]
@@ -459,7 +471,7 @@ def generate(params,mode='training'):
             print('finishing pool:'+str(mbase),flush=True)                    
 
                 
-    elif mode=='testing':#'pos,depth,freq,ref,seq,names'
+    elif mode in ['testing','test']:#'pos,depth,freq,ref,seq,names'
         cnd_df=pd.read_csv(os.path.join(params['cnd_path'],'%s.pileups.neighbors.test' %chrom))
         
         cnd_df=cnd_df[(cnd_df['pos']>=start-20000)& (cnd_df['pos']<=end+20000)]
@@ -476,7 +488,7 @@ def generate(params,mode='training'):
         pool = mp.Pool(processes=cores)
         fname='%s.pileups.' %params['chrom']
         file_list={}
-        for i in [15,20]:
+        for i in threshold:
             suffix='test.%d' %i
             tmp_name=os.path.join(params['out_path'],'%s%s' %(fname,suffix)) 
             file_list[i]=open(tmp_name , "w")

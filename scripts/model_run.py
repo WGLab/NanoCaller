@@ -6,7 +6,7 @@ import tensorflow as tf
 from model_architect import *
 from utils import *
 
-config = tf.ConfigProto(device_count={"CPU": 64})
+#config = tf.ConfigProto(device_count={"CPU": 64})
 #config.gpu_options.allow_growth = True
 
 
@@ -276,24 +276,24 @@ def test_model(params,suffix='',prob_save=False):
                             
                             if batch_pred_GT[j]>=2: # if het
                                     pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
-                                    if pred1==batch_ref[j] and batch_probs[j,pred2]>=0.99:
+                                    if pred1==batch_ref[j] and batch_probs[j,pred2]>=0.97:
                                                 s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred2], 0,'PASS','0/1', int(min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2]))))
                                                 f.write(s)
                                         
 
                                     
-                                    elif pred2==batch_ref[j] and batch_probs[j,pred2]>=0.99:
+                                    elif pred2==batch_ref[j] and batch_probs[j,pred2]>=0.97:
                                         s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom,batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0,'PASS','1/0', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))))
 
                                         f.write(s)
                                         
-                                    elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=0.99:
+                                    elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=0.97:
                                         s='%s\t%d\t.\t%s\t%s,%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %\
                             (chrom,batch_pos[j],rev_mapping[batch_ref[j]],rev_mapping[pred1],rev_mapping[pred2],0,'PASS','1/2', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))))
 
                                         f.write(s)
                                 
-                            elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=0.99:
+                            elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=0.97:
                                 pred1=batch_pred[j,-1]
                                 s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0, 'PASS', '1/1', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred1]))))
                                 f.write(s)

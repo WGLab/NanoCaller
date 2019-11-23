@@ -79,9 +79,9 @@ def get_tensors(n_input,learning_rate=0):
     i=0
 
     weights = {
-        'wc1_1': tf.get_variable('W0_1', shape=(1,4,depth,a), initializer=tf.contrib.layers.xavier_initializer()), 
-        'wc1_2': tf.get_variable('W0_2', shape=(4,1,depth,b), initializer=tf.contrib.layers.xavier_initializer()),
-        'wc1_3': tf.get_variable('W0_3', shape=(3,3,depth,c), initializer=tf.contrib.layers.xavier_initializer()),
+        'wc1_1': tf.get_variable('W0_1', shape=(1,5,depth,a), initializer=tf.contrib.layers.xavier_initializer()), 
+        'wc1_2': tf.get_variable('W0_2', shape=(5,1,depth,b), initializer=tf.contrib.layers.xavier_initializer()),
+        'wc1_3': tf.get_variable('W0_3', shape=(5,5,depth,c), initializer=tf.contrib.layers.xavier_initializer()),
         'wc2': tf.get_variable('W1', shape=(2,3,a+b+c,d), initializer=tf.contrib.layers.xavier_initializer()), 
         'wc3': tf.get_variable('W2', shape=(2,3,d,e), initializer=tf.contrib.layers.xavier_initializer()), 
         'wd1': tf.get_variable('W3', shape=(h_in*w_in*e,f), initializer=tf.contrib.layers.xavier_initializer()),

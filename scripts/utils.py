@@ -5,7 +5,10 @@ import multiprocessing as mp
 
 from matplotlib import pyplot as plt
 
-
+def f1(x,y,z):
+    a=z/(z+y)
+    b=z/(z+x)
+    print('Precision: %.4f    Recall: %.4f    F1: %.4f' %(a,b,2*a*b/(a+b)))
     
 def print_vcf(file,chrom,df):
     with open(file,'w') as f:
@@ -63,7 +66,7 @@ def get_data(fname,a=None, b=None,dims=(32,33,5), cpu=4,mode='train',verbose=Fal
         else:
             my_array=[(fname,x,mode,dims) for x in range(0,l,1000*rec_size)]
     else:
-        rec_size=12+dims[0]*dims[1]*dims[2]*6
+        rec_size=12+8+dims[0]*dims[1]*dims[2]*6
         if a!=None and b!=None:
             my_array=[(fname,x,mode,dims) for x in range(a,b,1000*rec_size)]
         else:
@@ -90,13 +93,25 @@ def get_data(fname,a=None, b=None,dims=(32,33,5), cpu=4,mode='train',verbose=Fal
         allele=np.vstack([res[3] for res in results])
         gt=np.vstack([res[4] for res in results])
     
-    elapsed=time.time()-t
+        elapsed=time.time()-t
+
+        if verbose:
+            print('I/O Time Elapsed: %.2f seconds' %elapsed, flush = True)
+
+
+        return pos,mat,gt,allele,ref
     
-    if verbose:
-        print('I/O Time Elapsed: %.2f seconds' %elapsed, flush = True)
- 
+    else:
+        dp=np.vstack([res[3][:,np.newaxis] for res in results])
+
+        freq=np.vstack([res[4][:,np.newaxis] for res in results])
     
-    return pos,mat,gt,allele,ref
+        elapsed=time.time()-t
+
+        if verbose:
+            print('I/O Time Elapsed: %.2f seconds' %elapsed, flush = True)
+
+        return pos,mat,ref,dp,freq
 
 def get_train_test_old(params,mode='train',verbose=False,tot_list=None,i=None,path=None,skip_pos=False):
     cpu=params['cpu']
@@ -188,6 +203,10 @@ def read_pileups_from_file(options):
     ref=[]
     allele=[]
     gt=[]
+    
+    dp=[]
+    freq=[]
+    
     i=0
     if mode=='train':
 
@@ -219,28 +238,29 @@ def read_pileups_from_file(options):
     else:
         while i<1000:
             i+=1
-            c=file.read(12)
+            c=file.read(20)
             if not c:
                 break
             
-            try:
-                pos.append(int(c[:11]))
-                ref.append(int(c[11]))
+            pos.append(int(c[:11]))
+            dp.append(int(c[11:17]))
+            freq.append(int(c[17:19]))
+            ref.append(int(c[19]))
 
 
 
-                m=file.read(dims[0]*dims[1]*dims[2]*6)
-                p_mat=np.array([int(m[6*i:6*i+6]) for i in range(dims[0]*dims[1]*dims[2])]).reshape((dims[0],dims[1],dims[2]))
+            m=file.read(dims[0]*dims[1]*dims[2]*6)
+            p_mat=np.array([int(m[6*i:6*i+6]) for i in range(dims[0]*dims[1]*dims[2])]).reshape((dims[0],dims[1],dims[2]))
 
-                mat.append(p_mat)
-            except ValueError:
-                print(i,n)
-        mat=np.array(mat)    
+            mat.append(p_mat)
+
+        mat=np.array(mat).astype(np.int16)    
         pos=np.array(pos)
-        ref=np.eye(max(ref)+1)[np.array(ref)].astype(np.int8)
+        ref=np.eye(np.max(ref)+1)[np.array(ref)].astype(np.int8)
         ref=ref[:,:4]
-        
-        return (pos,mat,ref)
+        dp=np.array(dp)
+        freq=np.array(freq)
+        return (pos,mat,ref,dp,freq)
 
 
 

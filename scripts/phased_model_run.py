@@ -3,8 +3,7 @@ import pandas as pd
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
-from model_architect import *
-from utils import *
+from phased_model_architect import *
 
 config = tf.ConfigProto(device_count={"CPU": 64})
 #config = tf.ConfigProto()
@@ -19,33 +18,26 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
     cpu=params['cpu']
     n_input=params['dims']
     dims=n_input
-    chrom_list=[1]#list(range(2,23)) #params['chrom'].split(':') 
+    chrom_list=[21,22]#list(range(3,15))+list(range(16,23))#list(range(2,23)) #params['chrom'].split(':') 
     #chrom_list=list(range(int(chrom_list[0]),int(chrom_list[1])+1))
     
     training_iters, learning_rate, batch_size= params['iters'],\
     params['rate'], params['size']
 
     weights,biases,tensors=get_tensors(n_input,learning_rate)
-    (x,GT_label,A_label, G_label, T_label, C_label,GT_score, A_score, G_score, T_score, C_score, accuracy_GT, accuracy_A,  accuracy_G,  accuracy_T,  accuracy_C, prediction_accuracy_GT, prediction_accuracy_A,  prediction_accuracy_G,  prediction_accuracy_T,  prediction_accuracy_C, prediction_GT, prediction_A,  prediction_G,  prediction_T,  prediction_C, accuracy, cost, optimizer,  cost_GT, cost_A, cost_G, cost_T, cost_C,A_ref,G_ref,T_ref,C_ref,prob_GT,prob_A,prob_G,prob_T,prob_C,keep)=tensors
-
+    (x,allele,ref,fc_layer,cost,optimizer,keep,correct_prediction, accuracy)=tensors
+    
     if params['val']:
         val_list=[]
         for v_path in params['test_path'].split(':'):
-            vx_test, vy_test, vtest_allele, vtest_ref=get_data_20plus(params)
-            vtest_allele=make_allele(vy_test,vtest_allele,vtest_ref)
-            
-            z=np.sum(np.sum(np.abs(vx_test[1:,:,:4]),axis=2),axis=0)
-            z=z[:,np.newaxis]
-            z[z==0]=1
-            vx_test[1:,:,:4]=vx_test[1:,:,:4]/z
-            
-            val_list.append((v_path,(vx_test, vy_test, vtest_allele, vtest_ref)))
+            vx_test, vtest_allele, vtest_ref=get_data_20plus(params,v_path)
+            val_list.append((v_path,(vx_test, vtest_allele, vtest_ref)))
         
     
     init = tf.global_variables_initializer()
     saver = tf.train.Saver(max_to_keep=100)
     
-    rec_size=14+dims[0]*dims[1]*dims[2]*6
+    rec_size=13+dims[0]*dims[1]*dims[2]*3
     
     
     n_size=1
@@ -74,26 +66,11 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
                 
              
                     
-                _,x_train,y_train,train_allele,train_ref= get_data(f_path+'pos',cpu=cpu, dims=n_input)
+                _,x_train,train_allele,train_ref= get_data_ps(f_path+'pos',cpu=cpu, dims=n_input)
 
-                _,nx_train,ny_train,ntrain_allele,ntrain_ref=get_data(f_path+neg_part, cpu=cpu, dims=n_input)
-                
-                
-                z=np.sum(np.sum(np.abs(x_train[1:,:,:4]),axis=2),axis=0)
-                z=z[:,np.newaxis]
-                z[z==0]=1
-                x_train[1:,:,:4]=x_train[1:,:,:4]/z
-                
-                z=np.sum(np.sum(np.abs(nx_train[1:,:,:4]),axis=2),axis=0)
-                z=z[:,np.newaxis]
-                z[z==0]=1
-                nx_train[1:,:,:4]=nx_train[1:,:,:4]/z
-                
-                
-                train_allele=make_allele(y_train,train_allele,train_ref)
-                ntrain_allele=make_allele(ny_train,ntrain_allele,ntrain_ref)
-                
-                chrom_data['chr%d'%chrom]=((x_train,y_train,train_allele,train_ref),(nx_train,ny_train,ntrain_allele,ntrain_ref))
+                _,nx_train,ntrain_allele,ntrain_ref=get_data_ps(f_path+neg_part, cpu=cpu, dims=n_input)
+
+                chrom_data['chr%d'%chrom]=((x_train,train_allele,train_ref),(nx_train,ntrain_allele,ntrain_ref))
                 print('chromosome %d done | '%chrom,end='',flush=True)
 
         print('Finished reading pileups',flush=True)
@@ -102,7 +79,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
             
             for chrom in chrom_list:
                 print('Training on chrom %d ' %(chrom),end='',flush=True)
-                (x_train,y_train,train_allele,train_ref),(nx_train,ny_train,ntrain_allele,ntrain_ref)=chrom_data['chr%d'%chrom]
+                (x_train,train_allele,train_ref), (nx_train,ntrain_allele,ntrain_ref)=chrom_data['chr%d'%chrom]
 
 
                 n_start=-false_mltplr*len(x_train)
@@ -116,7 +93,6 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
                     if n_end>len(nx_train):
                         batch_nx_train= np.vstack([nx_train[n_start:,:,:,:],nx_train[:n_end-len(nx_train),:,:,:]]) 
 
-                        batch_ny_train= np.vstack([ny_train[n_start:,:],ny_train[:n_end-len(nx_train),:]])
                         batch_ntrain_allele=np.vstack([ntrain_allele[n_start:,:],ntrain_allele[:n_end-len(nx_train),:]])
                         batch_ntrain_ref = np.vstack([ntrain_ref[n_start:,:],ntrain_ref[:n_end-len(nx_train),:]])
 
@@ -124,8 +100,8 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
                         n_start=n_end-len(nx_train)
                         n_end=n_start+false_mltplr*len(x_train)
                     else:    
-                        batch_nx_train,batch_ny_train,batch_ntrain_allele, batch_ntrain_ref = \
-                        nx_train[n_start:n_end,:,:,:],ny_train[n_start:n_end,:],\
+                        batch_nx_train,batch_ntrain_allele, batch_ntrain_ref = \
+                        nx_train[n_start:n_end,:,:,:],\
                         ntrain_allele[n_start:n_end,:], ntrain_ref[n_start:n_end,:]
 
 
@@ -139,9 +115,6 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
                                   batch_nx_train[ total_false_size*batch : min(total_false_size*(batch+1),\
                                   len(batch_nx_train))]])
 
-                        batch_y = np.vstack([y_train[batch*batch_size:min((batch+1)*batch_size, len(y_train))],\
-                                  batch_ny_train[total_false_size*batch :min(total_false_size*(batch+1),\
-                                  len(batch_ny_train))]])
 
                         batch_allele = np.vstack([train_allele[batch*batch_size :min((batch+1)*batch_size,\
                                                    len(train_allele))], batch_ntrain_allele[total_false_size*batch : \
@@ -151,10 +124,9 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
                                                 len(train_ref))], batch_ntrain_ref[ total_false_size*batch:\
                                                 min(total_false_size*(batch+1), len(batch_ntrain_ref))]])
 
-                        opt,loss = sess.run([optimizer,cost], feed_dict={x: batch_x, GT_label:batch_y, A_label:np.eye(2)[batch_allele[:,0]], G_label:np.eye(2)[batch_allele[:,1]], T_label:np.eye(2)[batch_allele[:,2]], C_label:np.eye(2)[batch_allele[:,3]] , A_ref:batch_ref[:,0][:,np.newaxis], G_ref:batch_ref[:,1][:,np.newaxis], T_ref:batch_ref[:,2][:,np.newaxis], C_ref:batch_ref[:,3][:,np.newaxis], keep:0.5})
+                        opt,loss = sess.run([optimizer,cost], feed_dict={x: batch_x, ref:batch_ref, allele:batch_allele, keep:0.5})
                         training_loss+=loss*len(batch_x)
                         total_train_data+=len(batch_x)
-
 
                     training_loss=training_loss/total_train_data
 
@@ -166,34 +138,28 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
                         print('\n')
                         print(30*'-')
                         print(val[0])
-                        vx_test, vy_test, vtest_allele, vtest_ref=val[1]
+                        vx_test, vtest_allele, vtest_ref=val[1]
 
 
-                        v_loss,v_acc,A_acc,G_acc,T_acc,C_acc,GT_acc,v_loss,v_acc=0,0,0,0,0,0,0,0,0
+                        v_loss,v_acc=0,0
 
                         v_score,v_pred=[],[]
 
                         for batch in range(int(np.ceil(len(vx_test)/(batch_size)))):
                             vbatch_x = vx_test[batch*batch_size:min((batch+1)*batch_size,len(vx_test))]
-                            vbatch_y = vy_test[batch*batch_size:min((batch+1)*batch_size,len(vx_test))] 
                             vbatch_allele = vtest_allele[batch*batch_size:min((batch+1)*batch_size,len(vx_test))]
                             vbatch_ref = vtest_ref[batch*batch_size:min((batch+1)*batch_size,len(vx_test))]
 
-                            batch_loss,batch_acc, batch_GT_acc, batch_A_acc, batch_G_acc, batch_T_acc, batch_C_acc,batch_prediction_GT, batch_prediction_A,  batch_prediction_G,  batch_prediction_T,  batch_prediction_C,bGT_score,bA_score,bG_score,bT_score,bC_score = sess.run([cost, accuracy, accuracy_GT, accuracy_A,  accuracy_G,  accuracy_T,  accuracy_C,prediction_GT, prediction_A,  prediction_G,  prediction_T,  prediction_C,GT_score,A_score,G_score,T_score,C_score], feed_dict={x: vbatch_x,GT_label:vbatch_y, A_label:np.eye(2)[vbatch_allele[:,0]], G_label:np.eye(2)[vbatch_allele[:,1]], T_label:np.eye(2)[vbatch_allele[:,2]], C_label:np.eye(2)[vbatch_allele[:,3]],  A_ref:vbatch_ref[:,0][:,np.newaxis], G_ref:vbatch_ref[:,1][:,np.newaxis], T_ref:vbatch_ref[:,2][:,np.newaxis], C_ref:vbatch_ref[:,3][:,np.newaxis], keep:1.0})
+                            batch_loss,batch_acc=sess.run([cost,accuracy], feed_dict={x: vbatch_x, ref:vbatch_ref, allele:vbatch_allele, keep:1.0})
 
                             v_loss+=batch_loss*len(vbatch_x)
                             v_acc+=batch_acc
-                            A_acc+=batch_A_acc
-                            G_acc+=batch_G_acc
-                            T_acc+=batch_T_acc
-                            C_acc+=batch_C_acc
-                            GT_acc+=batch_GT_acc
+                     
 
                         print('train loss= %.4f' %loss)
                         print('valid loss= %.4f\n' %(v_loss/len(vx_test)))
                         print('valid accuracy= %.4f' %(v_acc/len(vx_test)))
-                        print('GT_acc=%.4f, A_acc=%.4f, G_acc=%.4f, T_acc=%.4f, C_acc=%.4f' %(GT_acc/len(vx_test), A_acc/len(vx_test), G_acc/len(vx_test), T_acc/len(vx_test), C_acc/len(vx_test)))
-                        #print('Validation Precision= %.4f      Validation Recall= %.4f' %(true_positive/total_positive, true_positive/total_true))
+                        
                         print(100*'.'+'\n')
 
 
@@ -232,12 +198,11 @@ def test_model(params,suffix='',prob_save=False):
     rev_mapping={0:'A',1:'G',2:'T',3:'C'}
     ts_tv={0:5,1:7,2:2,3:3}
     gt_map={0:1,1:0}
-    rec_size=12+8+dims[0]*dims[1]*dims[2]*6
+    rec_size=12+dims[0]*dims[1]*dims[2]*6
     batch_size=1000
     total=[]
     
-    neg_file=open(vcf_path+'.stats'+suffix,'w')
-    neg_file.write('pos,ref,prob_GT,prob_A,prob_G,prob_T,prob_C,DP,freq\n')
+    neg_file=open(vcf_path+'.neg'+suffix,'w')
     vcf_path=vcf_path+suffix
     
     with open(vcf_path,'w') as f:
@@ -250,8 +215,6 @@ def test_model(params,suffix='',prob_save=False):
 
         f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         f.write('##FORMAT=<ID=GP,Number=1,Type=Integer,Description="Genotype Probability">\n')
-        f.write('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Depth">\n')
-        f.write('##FORMAT=<ID=FQ,Number=1,Type=Integer,Description="max alt allele frequency">\n')
         f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
         ttt=[]
         
@@ -267,72 +230,70 @@ def test_model(params,suffix='',prob_save=False):
         total_prob=[]
         total_gt_prob=[]
         total_ref=[]
-      
-        threshold=0.5
         for i in range(len(tmp_sz)-1):
-            pos,x_test,test_ref,dp,freq= get_data(f_path,a=tmp_sz[i], b=tmp_sz[i+1],dims=n_input,cpu=cpu,mode='test')
+            pos,x_test,_,_,test_ref= get_data(f_path,a=tmp_sz[i], b=tmp_sz[i+1],dims=n_input,cpu=cpu,mode='test')
+            
             z=np.sum(np.sum(np.abs(x_test[1:,:,:4]),axis=2),axis=0)
             z=z[:,np.newaxis]
             z[z==0]=1
             x_test[1:,:,:4]=x_test[1:,:,:4]/z
+            
+            
             for batch in range(int(np.ceil(len(x_test)/batch_size))):
-                batch_freq=dp[batch*batch_size:min((batch+1)*batch_size,len(freq))]
-                batch_dp=dp[batch*batch_size:min((batch+1)*batch_size,len(dp))]
-                batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
-                batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
+                        batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
+                        batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
 
-                batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
+                        batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
 
-                batch_prob_GT,batch_prob_A,batch_prob_G,batch_prob_C,batch_prob_T= sess.run([prob_GT,prob_A,prob_G,prob_C,prob_T],\
-                                       feed_dict={x: batch_x, A_ref:batch_ref[:,0][:,np.newaxis], G_ref:batch_ref[:,1][:,np.newaxis], T_ref:batch_ref[:,2][:,np.newaxis], C_ref:batch_ref[:,3][:,np.newaxis],keep:1.0})
+                        batch_prob_GT,batch_prob_A,batch_prob_G,batch_prob_C,batch_prob_T= sess.run([prob_GT,prob_A,prob_G,prob_C,prob_T],\
+                                                   feed_dict={x: batch_x, A_ref:batch_ref[:,0][:,np.newaxis], G_ref:batch_ref[:,1][:,np.newaxis], T_ref:batch_ref[:,2][:,np.newaxis], C_ref:batch_ref[:,3][:,np.newaxis],keep:1.0})
+                        
+                        batch_pred_GT=np.argmax(batch_prob_GT,axis=1)
+                        
+                        batch_probs=np.hstack([batch_prob_A[:,1][:,np.newaxis], batch_prob_G[:,1][:,np.newaxis], batch_prob_T[:,1][:,np.newaxis], batch_prob_C[:,1][:,np.newaxis]])
+                        
+                        
+                        total_prob.append(batch_probs)
+                        
+                        total_gt_prob.append(batch_prob_GT)
+                        
+                        batch_pred=np.argsort(batch_probs,axis=1)
+                        
+                        batch_ref=np.argmax(batch_ref,1)
+                        total_ref.append(batch_ref[:,np.newaxis])
+                        
+                        batch_pred_GT=np.sum(batch_probs>=0.5,axis=1)
+                        
+                        for j in range(len(batch_pred_GT)):
+                            
+                            if batch_pred_GT[j]>=2: # if het
+                                    pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
+                                    if pred1==batch_ref[j] and batch_probs[j,pred2]>=0.97:
+                                                s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred2], 0,'PASS','0/1', int(min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2]))))
+                                                f.write(s)
+                                        
 
-                batch_pred_GT=np.argmax(batch_prob_GT,axis=1)
+                                    
+                                    elif pred2==batch_ref[j] and batch_probs[j,pred2]>=0.97:
+                                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom,batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0,'PASS','1/0', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))))
 
-                batch_probs=np.hstack([batch_prob_A[:,1][:,np.newaxis], batch_prob_G[:,1][:,np.newaxis], batch_prob_T[:,1][:,np.newaxis], batch_prob_C[:,1][:,np.newaxis]])
-
-
-                total_prob.append(batch_probs)
-
-                total_gt_prob.append(batch_prob_GT)
-
-                batch_pred=np.argsort(batch_probs,axis=1)
-
-                batch_ref=np.argmax(batch_ref,1)
-                total_ref.append(batch_ref[:,np.newaxis])
-
-                batch_pred_GT=np.sum(batch_probs>=0.5,axis=1)
-
-                for j in range(len(batch_pred_GT)):
-
-                    if batch_pred_GT[j]>=2: # if het
-                            pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
-                            if pred1==batch_ref[j] and batch_probs[j,pred2]>=threshold:
-                                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP:DP:FQ\t%s:%d:%d:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred2], 0,'PASS','0/1', int(min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2]))), batch_dp[j],batch_freq[j])
                                         f.write(s)
+                                        
+                                    elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=0.97:
+                                        s='%s\t%d\t.\t%s\t%s,%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %\
+                            (chrom,batch_pos[j],rev_mapping[batch_ref[j]],rev_mapping[pred1],rev_mapping[pred2],0,'PASS','1/2', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))))
 
-
-
-                            elif pred2==batch_ref[j] and batch_probs[j,pred2]>=threshold:
-                                s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP:DP:FQ\t%s:%d:%d:%d\n' %(chrom,batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0,'PASS','1/0', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))), batch_dp[j],batch_freq[j])
-
+                                        f.write(s)
+                                
+                            elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=0.97:
+                                pred1=batch_pred[j,-1]
+                                s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP\t%s:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0, 'PASS', '1/1', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred1]))))
                                 f.write(s)
-
-                            elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=threshold:
-                                s='%s\t%d\t.\t%s\t%s,%s\t%d\t%s\t.\tGT:GP:DP:FQ\t%s:%d:%d:%d\n' %\
-                    (chrom,batch_pos[j],rev_mapping[batch_ref[j]],rev_mapping[pred1],rev_mapping[pred2],0,'PASS','1/2', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))), batch_dp[j],batch_freq[j])
-
-                                f.write(s)
-
-                    elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=threshold:
-                        pred1=batch_pred[j,-1]
-                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP:DP:FQ\t%s:%d:%d:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0, 'PASS', '1/1', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred1]))), batch_dp[j],batch_freq[j])
-                        f.write(s)
-
-
-                    neg_file.write('%d,%s,%.4f,%.4f,%.4f,%.4f,%.4f,%d,%d\n' %(batch_pos[j],rev_mapping[batch_ref[j]], batch_prob_GT[j,0], batch_probs[j,0], batch_probs[j,1], batch_probs[j,2], batch_probs[j,3], batch_dp[j],batch_freq[j]))
-
-
-
+                            else:
+                                neg_file.write('%d,%.4f,%.4f,%.4f,%.4f,%.4f\n' %(batch_pos[j], batch_prob_GT[j,0], batch_probs[j,0], batch_probs[j,1], batch_probs[j,2], batch_probs[j,3]))
+                                                                                                   
+                                                                                                                   
+                       
     neg_file.close()
     total_prob=np.array(total_prob)
     total_gt_prob=np.array(total_gt_prob)
@@ -362,6 +323,7 @@ def test_with_hap(params):
         if change<0.1:
             #name change
             break
+    
 '''        
 
 def make_allele(ylabel,allele,reference):
@@ -369,17 +331,131 @@ def make_allele(ylabel,allele,reference):
     new_allele[ylabel[:,1]==1]=new_allele[ylabel[:,1]==1]+reference[ylabel[:,1]==1]
     return new_allele
 
-def get_data_20plus(params):
+def get_data_ps(fname,a=None, b=None,dims=(32,33,5), cpu=4,mode='train',verbose=False):
+    t=time.time()
+    l=os.stat(fname).st_size
+    
+    if mode=='train':
+        rec_size=13+dims[0]*dims[1]*dims[2]*3
+        if a!=None and b!=None:
+            my_array=[(fname,x,mode,dims) for x in range(a,b,1000*rec_size)]
+        else:
+            my_array=[(fname,x,mode,dims) for x in range(0,l,1000*rec_size)]
+    else:
+        rec_size=12+dims[0]*dims[1]*dims[2]*3
+        if a!=None and b!=None:
+            my_array=[(fname,x,mode,dims) for x in range(a,b,1000*rec_size)]
+        else:
+            my_array=[(fname,x,mode,dims) for x in range(0,l,1000*rec_size)]
+
+    cpu=min(cpu,len(my_array))
+    pool = mp.Pool(processes=cpu)
+    results = pool.map(read_pileups_from_file, my_array)
+    pool.close()  
+    pool.join() 
+    
+    
+    pos=np.vstack([res[0][:,np.newaxis] for res in results])
+    mat=np.vstack([res[1] for res in results])
+    
+    '''if window:
+            w=window
+            l=dims[1]//2
+            mat=mat[:,:,l-w:l+w+1,:]'''
+            
+    ref=np.vstack([res[2] for res in results])
+    allele=None
+    if mode=='train':
+        allele=np.vstack([res[3] for res in results])
+    
+    elapsed=time.time()-t
+    
+    if verbose:
+        print('I/O Time Elapsed: %.2f seconds' %elapsed, flush = True)
+ 
+    
+    return pos,mat,allele,ref
+
+def get_data_20plus(params,f_path):
     cpu=params['cpu']
     n_input=params['dims']
-    f_path=params['test_path']
-    _,vpx_train,vpy_train,vptrain_allele,vptrain_ref= get_data(f_path+'pos',cpu=cpu,dims=n_input)
-    _,vnx_test,vny_test,vntest_allele,vntest_ref=get_data(f_path+'neg.15plus',cpu=cpu,dims=n_input)
-    vx_test,vy_test,vtest_allele,vtest_ref =np.vstack([vpx_train,vnx_test]), np.vstack([vpy_train,vny_test]), np.vstack([vptrain_allele,vntest_allele]), np.vstack([vptrain_ref,vntest_ref])
-    #v_truth=np.vstack((np.ones(len(vpx_train))[:,np.newaxis].astype(int), np.zeros(len(vnx_test))[:,np.newaxis].astype(int)))
-    return (vx_test,vy_test,vtest_allele,vtest_ref)
-    #return (vpx_train,vpy_train,vptrain_allele,vptrain_ref),(vnx_test,vny_test,vntest_allele,vntest_ref)
+    
+    _,vpx_train,vptrain_allele,vptrain_ref= get_data_ps(f_path+'pos',cpu=cpu,dims=n_input)
+    _,vnx_test,vntest_allele,vntest_ref=get_data_ps(f_path+'neg.combined',cpu=cpu,dims=n_input)
+    vx_test,vtest_allele,vtest_ref =np.vstack([vpx_train,vnx_test]), np.vstack([vptrain_allele,vntest_allele]), np.vstack([vptrain_ref,vntest_ref])
+    return (vx_test,vtest_allele,vtest_ref)
 
+    
+def read_pileups_from_file(options):
+    
+    fname,n,mode,dims=options
+    file= open(fname,'r')
+    file.seek(n)
+    mat=[]
+    pos=[]
+    ref=[]
+    allele=[]
+    gt=[]
+    i=0
+    if mode=='train':
+
+        while i<1000:
+            i+=1
+            c=file.read(13)
+            if not c:
+                break
+            try:
+                pos.append(int(c[:11]))
+                allele.append(int(c[11]))
+                ref.append(int(c[12]))
+
+            except ValueError:
+                print(n,i,fname)
+                print(dims)
+                pos.append(int(c[:11]))
+                allele.append(int(c[11]))
+                ref.append(int(c[12]))
+                
+
+
+            m=file.read(dims[0]*dims[1]*dims[2]*3)
+            p_mat=np.array([int(m[3*i:3*i+3]) for i in range(dims[0]*dims[1]*dims[2])]).reshape((dims[0], dims[1], dims[2]))
+
+            mat.append(p_mat)
+
+        mat=np.array(mat)    
+        pos=np.array(pos)
+        ref=np.eye(4)[np.array(ref)].astype(np.int8)
+        allele=np.eye(4)[np.array(allele)].astype(np.int8)
+
+        return (pos,mat,ref,allele)
+
+    else:
+        while i<1000:
+            i+=1
+            c=file.read(12)
+            if not c:
+                break
+            
+            try:
+                pos.append(int(c[:11]))
+                ref.append(int(c[11]))
+
+
+
+                m=file.read(dims[0]*dims[1]*dims[2]*3)
+                p_mat=np.array([int(m[3*i:3*i+3]) for i in range(dims[0]*dims[1]*dims[2])]).reshape((dims[0],dims[1],dims[2]))
+
+                mat.append(p_mat)
+            except ValueError:
+                print(i,n)
+        mat=np.array(mat)    
+        pos=np.array(pos)
+        ref=np.eye(max(ref)+1)[np.array(ref)].astype(np.int8)
+        ref=ref[:,:4]
+        
+        return (pos,mat,ref)
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--rate", help="Learning rate",type=float)

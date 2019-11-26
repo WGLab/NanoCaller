@@ -18,7 +18,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
     cpu=params['cpu']
     n_input=params['dims']
     dims=n_input
-    chrom_list=[21,22]#list(range(3,15))+list(range(16,23))#list(range(2,23)) #params['chrom'].split(':') 
+    chrom_list=list(range(2,23))+list(range(16,23))#list(range(2,23)) #params['chrom'].split(':') 
     #chrom_list=list(range(int(chrom_list[0]),int(chrom_list[1])+1))
     
     training_iters, learning_rate, batch_size= params['iters'],\

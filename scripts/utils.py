@@ -256,7 +256,7 @@ def read_pileups_from_file(options):
 
         mat=np.array(mat).astype(np.int16)    
         pos=np.array(pos)
-        ref=np.eye(np.max(ref)+1)[np.array(ref)].astype(np.int8)
+        ref=np.eye(max(4,np.max(ref)+1))[np.array(ref)].astype(np.int8)
         ref=ref[:,:4]
         dp=np.array(dp)
         freq=np.array(freq)

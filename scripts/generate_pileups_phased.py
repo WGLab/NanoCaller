@@ -46,16 +46,18 @@ def get_training_candidates(dct):
     ref_df=pd.DataFrame(list(ref_dict.items()), columns=['pos', 'ref'])
     ref_df.set_index('pos',drop=False,inplace=True)
     
-    hap_df=pd.read_csv('%s.%s.bam.info' %(dct['hap_path'],chrom), delim_whitespace=True)
-
-    hap_reads_0=set(hap_df[(hap_df.haplotype==0)]['#readname'])
-    hap_reads_1=set(hap_df[(hap_df.haplotype==1)]['#readname'])
-
+    hap_dict={1:[],2:[]}
+    
     flag_dict={}
     #q_dict={}
     #a_score={}
     for pread in samfile.fetch(chrom,max(0,start-1-30),end+30):
         flag_dict[pread.qname]=(pread.flag &0x10)//16
+        if pread.has_tag('HP'):
+            hap_dict[pread.get_tag('HP')].append(pread.qname)
+
+    hap_reads_0=set(hap_dict[1])
+    hap_reads_1=set(hap_dict[2])
 
     pileup_dict={}
     features={}
@@ -189,7 +191,7 @@ def get_training_candidates(dct):
                     
                     if tmp1:
                         pileup_list[i].append((v_pos,ref_df.loc[v_pos].ref, ref_df.loc[v_pos].ref, data_1.astype(np.int16)))
-
+    
     return pileup_list
 
 def get_testing_candidates(dct):
@@ -226,17 +228,19 @@ def get_testing_candidates(dct):
     ref_df=pd.DataFrame(list(ref_dict.items()), columns=['pos', 'ref'])
     ref_df.set_index('pos',drop=False,inplace=True)
     
-    hap_df=pd.read_csv('%s.%s.bam.info' %(dct['hap_path'],chrom), delim_whitespace=True)
-
-    hap_reads_0=set(hap_df[(hap_df.haplotype==0)]['#readname'])
-    hap_reads_1=set(hap_df[(hap_df.haplotype==1)]['#readname'])
-
+    hap_dict={1:[],2:[]}
+    
     flag_dict={}
     #q_dict={}
     #a_score={}
     for pread in samfile.fetch(chrom,max(0,start-1-30),end+30):
         flag_dict[pread.qname]=(pread.flag &0x10)//16
+        if pread.has_tag('HP'):
+            hap_dict[pread.get_tag('HP')].append(pread.qname)
 
+    hap_reads_0=set(hap_dict[1])
+    hap_reads_1=set(hap_dict[2])
+    
     pileup_dict={'hap0':{},'hap1':{}}
     features={'hap0':{},'hap1':{}}
     
@@ -262,8 +266,8 @@ def get_testing_candidates(dct):
                     if not t[pcol.pos+1]:
                         continue
                         
-                hap0_bases=''.join(pileup_dict['hap0'][pcol.pos+1]).replace('*','')
-                hap1_bases=''.join(pileup_dict['hap1'][pcol.pos+1]).replace('*','')
+                hap0_bases=''.join(list(pileup_dict['hap0'][pcol.pos+1].values())).replace('*','')
+                hap1_bases=''.join(list(pileup_dict['hap1'][pcol.pos+1].values())).replace('*','')
                 seq=seq.replace('*','')
 
                 tot_freq=max([x[1] for x in Counter(seq).items() if x[0]!=r]+[0])/len(seq) if len(seq)>0 else 0
@@ -272,9 +276,9 @@ def get_testing_candidates(dct):
                 hap1_freq=max([x[1] for x in Counter(hap1_bases).items() if x[0]!=r]+[0])/len(hap1_bases) if len(hap1_bases)>0 else 0
 
                 if hap0_freq>=0.4 and len(pileup_dict['hap0'][pcol.pos+1])>=dct['mincov']:
-                    output['hap0'][pcol.pos+1]=(len(pileup_dict['hap0'][pcol.pos+1]),hap0_freq)
+                    output['hap0'][pcol.pos+1]=len(pileup_dict['hap0'][pcol.pos+1])
                 if hap1_freq>=0.4 and len(pileup_dict['hap1'][pcol.pos+1])>=dct['mincov']:
-                    output['hap1'][pcol.pos+1]=(len(pileup_dict['hap1'][pcol.pos+1]),hap1_freq)
+                    output['hap1'][pcol.pos+1]=len(pileup_dict['hap1'][pcol.pos+1])
                 
     
     pileup_list={'hap0':[],'hap1':[]}
@@ -299,8 +303,7 @@ def get_testing_candidates(dct):
             if p_df.shape[0]>du_lim:
                     p_df=p_df.sample(n=du_lim,replace=False, random_state=1)
 
-            tmp=np.array(p_df.columns())
-            v_pos_range=(sum(tmp<v_pos),sum(tmp>v_pos))
+         
             p_df=p_df.assign(f = p_df.index.map(lambda x:flag_dict[x]))
             p_df.sort_values([v_pos,'f'],inplace=True,ascending=False)
             p_df_flag=p_df.f
@@ -327,7 +330,7 @@ def get_testing_candidates(dct):
                 print('HAYE MAIN MAR GAYI')
                 return 'asdfg'
                       
-            pileup_list[tp].append((v_pos,ref_df.loc[v_pos].ref, data.astype(np.int16),output[tp][v_pos][0],output[tp][v_pos][1]))
+            pileup_list[tp].append((v_pos,ref_df.loc[v_pos].ref, data.astype(np.int16),output[tp][v_pos]))
 
 
     return pileup_list
@@ -419,10 +422,11 @@ def generate(params,mode='training'):
                 for tp in ['hap0','hap1']:
                     pileups=result[tp]
                     if pileups:
+                        print(len(pileups))
                         for data in pileups:
-                            pos,ref,mat,dp,freq=data
+                            pos,ref,mat,dp=data
                             mat=mat.reshape(-1)
-                            s='%s%d%d%s%s%d%.3f' %((11-len(str(pos)))*'0',pos,ref,''.join([(3-len(x))*' '+x for x in mat.astype('<U3')]),(3-len(str(pos)))*'0',dp,freq)
+                            s='%s%d%d%s%s%d' %((11-len(str(pos)))*'0',pos,ref,(4-len(str(dp)))*'0',dp,''.join([(3-len(x))*' '+x for x in mat.astype('<U3')]))
                             out_file[tp].write(s)
 
             results_dict=None

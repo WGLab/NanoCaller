@@ -77,7 +77,7 @@ def get_tensors(n_input,learning_rate=0):
     keep = tf.placeholder(tf.float32)
     
     fc_layer = conv_net(x,ref,weights, biases, keep)
-    
+    probability=tf.nn.softmax(logits=fc_layer)
     gamma=0.001
     trade_off=1.0
     reg_loss=tf.add_n([tf.nn.l2_loss(t) for t in weights.values()])
@@ -89,5 +89,5 @@ def get_tensors(n_input,learning_rate=0):
     correct_prediction= tf.cast(tf.equal(tf.argmax(fc_layer, 1), tf.argmax(allele, 1)), tf.float32)
     accuracy = tf.reduce_sum(correct_prediction)
         
-    tensors=(x,allele,ref,fc_layer,cost,optimizer,keep,correct_prediction, accuracy)
+    tensors=(x,allele,ref,fc_layer,cost,optimizer,keep,probability, accuracy)
     return weights,biases,tensors

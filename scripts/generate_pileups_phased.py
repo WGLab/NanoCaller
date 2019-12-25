@@ -324,13 +324,15 @@ def get_testing_candidates(dct):
                     tmp=np.zeros((du_lim-data.shape[0],data.shape[1],data.shape[2]))
                     data=np.vstack((data,tmp))
             
-            data=np.hstack([np.zeros([32,window-sum(p_df.columns<v_pos),7]),data,np.zeros([32,window-sum(p_df.columns>v_pos),7])])
-            if data.shape[1]!=17:
-                print(v_pos)
+            data2=np.hstack([np.zeros([32,window-sum(p_df.columns<v_pos),7]),data,np.zeros([32,window-sum(p_df.columns>v_pos),7])])
+            if data2.shape[1]!=2*window+1:
+                print(data.shape,flush=True)
+                print(data2.shape,flush=True)
+                print(v_pos,flush=True)
                 print('HAYE MAIN MAR GAYI')
                 return 'asdfg'
                       
-            pileup_list[tp].append((v_pos,ref_df.loc[v_pos].ref, data.astype(np.int16),output[tp][v_pos]))
+            pileup_list[tp].append((v_pos,ref_df.loc[v_pos].ref, data2.astype(np.int16),output[tp][v_pos]))
 
 
     return pileup_list
@@ -387,7 +389,15 @@ def generate(params,mode='training'):
                     if pileups:
                         for data in pileups:
                                 pos,allele,ref,mat=data
+                                shp=mat.shape
                                 mat=mat.reshape(-1)
+
+                                if len(mat)!=(2*params['window']+1)*32*7:
+                                    print('museebat',flush=True)
+                                    print(pos,flush=True)
+                                    print(shp,flush=True)
+                                    return 'fghj'
+
                                 s='%s%d%d%d%s' %((11-len(str(pos)))*'0',pos,allele,ref,''.join([(3-len(x))*' '+x for x in mat.astype('<U3')]))
                                 file_list[i].write(s)
             results_dict=None
@@ -404,7 +414,7 @@ def generate(params,mode='training'):
         out_file={}
         out_file['hap0']=open(os.path.join(params['out_path'],'%s.pileups.test.hap0' %params['chrom']) , "w")
         out_file['hap1']=open(os.path.join(params['out_path'],'%s.pileups.test.hap1' %params['chrom']) , "w")
-        start,end=params['start'],params['end']
+        start,end=10000000,params['end']#params['start'],params['end']
         
         for mbase in range(start,end,int(5e6)):
             print('starting pool:'+str(mbase),flush=True)
@@ -422,11 +432,19 @@ def generate(params,mode='training'):
                 for tp in ['hap0','hap1']:
                     pileups=result[tp]
                     if pileups:
-                        print(len(pileups))
                         for data in pileups:
                             pos,ref,mat,dp=data
+                            shp=mat.shape
+                            #print(mat.shape,flush=True)
                             mat=mat.reshape(-1)
-                            s='%s%d%d%s%s%d' %((11-len(str(pos)))*'0',pos,ref,(4-len(str(dp)))*'0',dp,''.join([(3-len(x))*' '+x for x in mat.astype('<U3')]))
+                            
+                            if len(mat)!=(2*params['window']+1)*32*7:
+                                print('museebat',flush=True)
+                                print(pos,flush=True)
+                                print(shp,flush=True)
+                                return 'dfghj'
+                            s='%s%d%d%s%d%s' %((11-len(str(pos)))*'0',pos,ref,(4-len(str(dp)))*'0',dp,''.join([(3-len(x))*' '+x for x in mat.astype('<U3')]))
+                            #print(len(s),flush=True)
                             out_file[tp].write(s)
 
             results_dict=None

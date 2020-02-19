@@ -13,7 +13,6 @@ def get_nbr(dct):
     start=dct['start']
     end=dct['end']
 
-    haplotyped=dct['haplotyped']
     
     if dct['type'] in ['training','train']:
         vcf_path=dct['vcf_path']
@@ -27,12 +26,14 @@ def get_nbr(dct):
         gt_map={(0,0):0, (1,1):0, (2,2):0, (1,2):1, (2,1):1, (0,1):1, (1,0):1, (0,2):1,(2,0):1,(1,None):0}
         tr_pos={}
         for rec in bcf_in.fetch(chrom,start,end+1):
-            if haplotyped:
+            if dct['phased']:
+                tr_pos[rec.pos]={'ref':rec.ref}
+                '''
                 try:
                     if rec.samples['SAMPLE']['PS']:
                         tr_pos[rec.pos]={'ref':rec.ref,'PS':rec.samples['SAMPLE']['PS']}
                 except KeyError:
-                    continue
+                    continue'''
             
             else:
                 if gt_map[rec.samples.items()[0][1].get('GT')]:
@@ -47,10 +48,9 @@ def get_nbr(dct):
                     if r!='N' and n>=dct['mincov']:
                         seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
                         name=pcol.get_query_names()
-                        if haplotyped:
-                            output.append([pcol.pos+1,tr_pos[pcol.pos+1]['PS'],r,seq,':'.join(name)])
-                        else:
-                            output.append([pcol.pos+1,r,seq,':'.join(name)])
+                        '''if haplotyped:
+                            output.append([pcol.pos+1,tr_pos[pcol.pos+1]['PS'],r,seq,':'.join(name)])'''
+                        output.append([pcol.pos+1,r,seq,':'.join(name)])
         return output
     
     elif dct['type'] in ['test','testing']:
@@ -119,7 +119,6 @@ def generate(params):
     pool = mp.Pool(processes=cores)
     
     #if not params['haplotyped']:
-    params['haplotyped']=False
     
     start,end=params['start'],params['end']
     if start==None:
@@ -130,8 +129,10 @@ def generate(params):
     print('generating frequencies for %s'%(params['chrom']),flush=True)
     
     if params['type'] in ['training','train']:
-        fname='%s.pileups.neighbors.train' %params['chrom']
-        fname=os.path.join(params['out_path'],fname)
+        if params['phased']:
+            fname=os.path.join(params['out_path'],'%s.pileups.neighbors.ps.test' %params['chrom'])
+        else:
+            fname=os.path.join(params['out_path'],'%s.pileups.neighbors.train' %params['chrom'])
         with open(fname , "w") as file:
             file.write('pos,ref,seq,names\n')
             for mbase in range(start,end,int(4e6)):
@@ -142,16 +143,10 @@ def generate(params):
                     d['end']=min(end,k+100000)
                     in_dict_list.append(d)
                 results = pool.map(get_nbr, in_dict_list)
-                if params['haplotyped']:
-                    for res_tuple in results:
-                        if res_tuple:
-                            for stuff in res_tuple:
-                                file.write('%d,%d,%s,%s,%s\n' %(stuff[0],stuff[1],stuff[2],stuff[3],stuff[4]))
-                else:
-                    for res_tuple in results:
-                        if res_tuple:
-                            for stuff in res_tuple:
-                                file.write('%d,%s,%s,%s\n' %(stuff[0],stuff[1],stuff[2],stuff[3]))
+                for res_tuple in results:
+                    if res_tuple:
+                        for stuff in res_tuple:
+                            file.write('%d,%s,%s,%s\n' %(stuff[0],stuff[1],stuff[2],stuff[3]))
                                 
     elif params['type']  in ['test','testing']:
         fname='%s.pileups.neighbors.test' %params['chrom']
@@ -206,7 +201,7 @@ if __name__ == '__main__':
     chrom_length={'chr1':248956422, 'chr2':242193529, 'chr3':198295559, 'chr4':190214555, 'chr5':181538259, 'chr6':170805979, \
              'chr7':159345973, 'chr8':145138636, 'chr9':138394717, 'chr10':133797422, 'chr11':135086622, 'chr12':133275309,\
              'chr13':114364328, 'chr14':107043718, 'chr15':101991189, 'chr16':90338345, 'chr17':83257441, 'chr18':80373285,\
-             'chr19':58617616, 'chr20':64444167, 'chr21':46709983, 'chr22':50818468, 'chrX':156040895, 'chrY':57227415}
+             'chr19':58617616, 'chr20':64444167, 'chr21':46709983, 'chr22':50818468, 'chrX':156040895, 'chrY':57227415,'1':248956422, '2':242193529, '3':198295559, '4':190214555, '5':181538259, '6':170805979,'7':159345973, '8':145138636, '9':138394717, '10':133797422, '11':135086622, '12':133275309,'13':114364328, '14':107043718, '15':101991189, '16':90338345, '17':83257441, '18':80373285,'19':58617616, '20':64444167, '21':46709983, '22':50818468, 'X':156040895, 'Y':57227415}
     parser = argparse.ArgumentParser()
 
     #-r chromosome region   -m mode   -bam bam file   -ref reference file   -vcf ground truth variants   -o output path
@@ -222,7 +217,7 @@ if __name__ == '__main__':
     parser.add_argument("-mincov", "--mincov", help="min coverage",type=int)
     parser.add_argument("-type", "--type", help="Nbr type")
     parser.add_argument("-vcf", "--vcf", help="Ground truth variants")
-    
+    parser.add_argument("-phased", "--phased", help="phased vcf",type=int)
     args = parser.parse_args()
     
     if len(args.region.split(':'))==2:
@@ -237,7 +232,7 @@ if __name__ == '__main__':
          'sam_path':args.bam, 'fasta_path':args.ref,\
              'out_path':args.output, 'window':args.window, 'depth':args.depth,\
              'threshold':args.threshold, 'cpu':args.cpu, 'bed':args.bed,\
-            'mincov':args.mincov,'type':args.type,'vcf_path':args.vcf}    
+            'mincov':args.mincov,'type':args.type,'vcf_path':args.vcf,'phased':args.phased}    
     
     t=time.time()
     generate(in_dict)

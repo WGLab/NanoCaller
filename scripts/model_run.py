@@ -14,12 +14,12 @@ config.gpu_options.allow_growth = True
 def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part='neg.combined'):
     tf.reset_default_graph()
     
-    false_mltplr=3
+    false_mltplr=2
     
     cpu=params['cpu']
     n_input=params['dims']
     dims=n_input
-    chrom_list=list(range(2,23)) #params['chrom'].split(':') 
+    chrom_list=list(range(17,23)) #params['chrom'].split(':') 
     #chrom_list=list(range(int(chrom_list[0]),int(chrom_list[1])+1))
     
     training_iters, learning_rate, batch_size= params['iters'],\
@@ -33,11 +33,6 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
         for v_path in params['test_path'].split(':'):
             vx_test, vy_test, vtest_allele, vtest_ref=get_data_20plus(params)
             vtest_allele=make_allele(vy_test,vtest_allele,vtest_ref)
-            
-            z=np.sum(np.sum(np.abs(vx_test[1:,:,:4]),axis=2),axis=0)
-            z=z[:,np.newaxis]
-            z[z==0]=1
-            vx_test[1:,:,:4]=vx_test[1:,:,:4]/z
             
             val_list.append((v_path,(vx_test, vy_test, vtest_allele, vtest_ref)))
         
@@ -78,17 +73,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
 
                 _,nx_train,ny_train,ntrain_allele,ntrain_ref=get_data(f_path+neg_part, cpu=cpu, dims=n_input)
                 
-                
-                z=np.sum(np.sum(np.abs(x_train[1:,:,:4]),axis=2),axis=0)
-                z=z[:,np.newaxis]
-                z[z==0]=1
-                x_train[1:,:,:4]=x_train[1:,:,:4]/z
-                
-                z=np.sum(np.sum(np.abs(nx_train[1:,:,:4]),axis=2),axis=0)
-                z=z[:,np.newaxis]
-                z[z==0]=1
-                nx_train[1:,:,:4]=nx_train[1:,:,:4]/z
-                
+
                 
                 train_allele=make_allele(y_train,train_allele,train_ref)
                 ntrain_allele=make_allele(ny_train,ntrain_allele,ntrain_ref)
@@ -249,7 +234,7 @@ def test_model(params,suffix='',prob_save=False):
         
 
         f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
-        f.write('##FORMAT=<ID=GP,Number=1,Type=Integer,Description="Genotype Probability">\n')
+        f.write('##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype Probability">\n')
         f.write('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Depth">\n')
         f.write('##FORMAT=<ID=FQ,Number=1,Type=Integer,Description="max alt allele frequency">\n')
         f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
@@ -271,10 +256,7 @@ def test_model(params,suffix='',prob_save=False):
         threshold=0.5
         for i in range(len(tmp_sz)-1):
             pos,x_test,test_ref,dp,freq= get_data(f_path,a=tmp_sz[i], b=tmp_sz[i+1],dims=n_input,cpu=cpu,mode='test')
-            z=np.sum(np.sum(np.abs(x_test[1:,:,:4]),axis=2),axis=0)
-            z=z[:,np.newaxis]
-            z[z==0]=1
-            x_test[1:,:,:4]=x_test[1:,:,:4]/z
+
             for batch in range(int(np.ceil(len(x_test)/batch_size))):
                 batch_freq=dp[batch*batch_size:min((batch+1)*batch_size,len(freq))]
                 batch_dp=dp[batch*batch_size:min((batch+1)*batch_size,len(dp))]
@@ -296,36 +278,56 @@ def test_model(params,suffix='',prob_save=False):
                 total_gt_prob.append(batch_prob_GT)
 
                 batch_pred=np.argsort(batch_probs,axis=1)
-
+                
+                batch_ref_vec=batch_ref
+                
                 batch_ref=np.argmax(batch_ref,1)
+                
                 total_ref.append(batch_ref[:,np.newaxis])
 
                 batch_pred_GT=np.sum(batch_probs>=0.5,axis=1)
+                
+                sort_probs=np.sort(batch_probs,axis=1)
 
+                qual=-10*np.log10(1e-10+np.prod(1-batch_probs*(1-batch_ref_vec),axis=1))
+                prob_site=1-np.prod(1-batch_probs*(1-batch_ref_vec),axis=1)
+                
+                
+                
+                prob_hom=np.multiply(sort_probs[:,3],np.prod(1-sort_probs[:,:3],axis=1))
+                prob_hom=np.abs((prob_site-prob_hom)/(1e-10+prob_site))
+                prob_hom=-10*np.log10(1e-10+ prob_hom)
+                
+                prob_het=np.multiply(np.prod(sort_probs[:,2:],axis=1),np.prod(1-sort_probs[:,:2],axis=1))
+                prob_het=np.abs((prob_site-prob_het)/(1e-10+prob_site))
+                prob_het=-10*np.log10(1e-10+ prob_het)
+                
+                
+                np.multiply(x[:,-2],x[:,-1])
                 for j in range(len(batch_pred_GT)):
 
-                    if batch_pred_GT[j]>=2: # if het
+                    if batch_pred_GT[j]==2: # if het
                             pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
-                            if pred1==batch_ref[j] and batch_probs[j,pred2]>=threshold:
-                                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP:DP:FQ\t%s:%d:%d:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred2], 0,'PASS','0/1', int(min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2]))), batch_dp[j],batch_freq[j])
+                            if pred1==batch_ref[j]:
+                                        s='%s\t%d\t.\t%s\t%s\t%.2f\t%s\t.\tGT:GQ:DP:FQ\t%s:%.2f:%d:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred2], min(999,qual[j]),'PASS','0/1', min(999,prob_het[j]), batch_dp[j],batch_freq[j])
                                         f.write(s)
 
 
 
                             elif pred2==batch_ref[j] and batch_probs[j,pred2]>=threshold:
-                                s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP:DP:FQ\t%s:%d:%d:%d\n' %(chrom,batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0,'PASS','1/0', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))), batch_dp[j],batch_freq[j])
+                                s='%s\t%d\t.\t%s\t%s\t%.2f\t%s\t.\tGT:GQ:DP:FQ\t%s:%.2f:%d:%d\n' %(chrom,batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], min(999,qual[j]),'PASS','1/0', min(999,prob_het[j]), batch_dp[j],batch_freq[j])
 
                                 f.write(s)
 
                             elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=threshold:
-                                s='%s\t%d\t.\t%s\t%s,%s\t%d\t%s\t.\tGT:GP:DP:FQ\t%s:%d:%d:%d\n' %\
-                    (chrom,batch_pos[j],rev_mapping[batch_ref[j]],rev_mapping[pred1],rev_mapping[pred2],0,'PASS','1/2', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred2]))), batch_dp[j],batch_freq[j])
+                                s='%s\t%d\t.\t%s\t%s,%s\t%.2f\t%s\t.\tGT:GQ:DP:FQ\t%s:%.2f:%d:%d\n' %\
+                    (chrom,batch_pos[j],rev_mapping[batch_ref[j]],rev_mapping[pred1],rev_mapping[pred2],min(999,qual[j]),'PASS','1/2', min(999,prob_het[j]), batch_dp[j],batch_freq[j])
 
                                 f.write(s)
 
                     elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=threshold:
                         pred1=batch_pred[j,-1]
-                        s='%s\t%d\t.\t%s\t%s\t%d\t%s\t.\tGT:GP:DP:FQ\t%s:%d:%d:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], 0, 'PASS', '1/1', int(min(99,-10*np.log10(1e-10+1-batch_probs[j,pred1]))), batch_dp[j],batch_freq[j])
+                        s='%s\t%d\t.\t%s\t%s\t%.2f\t%s\t.\tGT:GQ:DP:FQ\t%s:%.2f:%d:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred1], min(999,qual[j]), 'PASS', '1/1',min(999,prob_hom[j]), batch_dp[j],batch_freq[j])
                         f.write(s)
 
 

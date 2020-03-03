@@ -1,4 +1,4 @@
-import sys,pysam, time,os,re,copy,argparse,gzip,itertools,subprocess
+import sys,pysam, time,os,re,copy,argparse,gzip,itertools,subprocess,git
 from collections import Counter
 import pandas as pd
 import numpy as np
@@ -74,7 +74,7 @@ def msa(seq_list, ref, v_pos, mincov):
             ref_real_0=p2
 
     if len(zz_0)<mincov:
-        return (0,None)
+        return (0,0,None)
     cnt=0
     cnt_del=0
     seq_ts=ref_real_0
@@ -97,12 +97,18 @@ def msa(seq_list, ref, v_pos, mincov):
         print(seq_list)
         print(mat)
         return
+    
     h0_mat=h0_mat[:,cnt_del-1:cnt_del+63]
     h0_mat=h0_mat
     
+    h0_mat_tmp=h0_mat.astype(np.float32)
+    h0_mat_tmp=h0_mat_tmp/(np.sum(h0_mat_tmp,axis=0))-ref_real_0_mat
+    
+    indel_flag=np.sum(np.abs(tmpmat[4,:])>=0.5)>0
+    
     #final_mat_0=ref_real_0_mat-h0_mat
     
-    return (1,np.dstack([h0_mat, ref_real_0_mat])) 
+    return (1,indel_flag,np.dstack([h0_mat, ref_real_0_mat])) 
     
 
 def get_training_candidates(dct):
@@ -236,10 +242,10 @@ def get_training_candidates(dct):
                 d=pileup_dict[v_pos]
                 ref=''.join(ref_df.reindex(range(v_pos-window_before,v_pos+window_after+1)).fillna('').ref.to_list())
                 seq_list=d['hap0']
-                flag0,data_0=msa(seq_list,ref,v_pos,dct['mincov'])
+                flag0,indel_flag0,data_0=msa(seq_list,ref,v_pos,dct['mincov'])
 
                 seq_list=d['hap1']
-                flag1,data_1=msa(seq_list,ref,v_pos,dct['mincov'])
+                flag1,indel_flag1,data_1=msa(seq_list,ref,v_pos,dct['mincov'])
                 
                 if flag0 and flag1:
                     data=(data_0,data_1)
@@ -328,7 +334,7 @@ def get_testing_candidates(dct):
                     ins_freq_1=tmp_seq_1.count('+')/len_seq_1 if len_seq_1>0 else 0
                     
                     
-                    if len_seq_0>=dct['mincov']  and len_seq_1>=dct['mincov']  and (0.6<=del_freq_0 or 0.6<=del_freq_1 or 0.3<=ins_freq_0 or 0.3<=ins_freq_1):
+                    if len_seq_0>=dct['mincov']  and len_seq_1>=dct['mincov']  and (0.4<=del_freq_0 or 0.4<=del_freq_1 or 0.25<=ins_freq_0 or 0.25<=ins_freq_1):
                         v_pos=pcol.pos+1
                         d={'hap0':{},'hap1':{}}
                         for pread in pcol.pileups:
@@ -340,12 +346,13 @@ def get_testing_candidates(dct):
                                 
                         ref=''.join(ref_df.reindex(range(v_pos-window_before,v_pos+window_after+1)).fillna('').ref.to_list())
                         seq_list=d['hap0']
-                        flag0,data_0=msa(seq_list,ref,v_pos,dct['mincov'])
+                        flag0, indel_flag0, data_0=msa(seq_list,ref,v_pos,dct['mincov'])
 
+                        
                         seq_list=d['hap1']
-                        flag1,data_1=msa(seq_list,ref,v_pos,dct['mincov'])
+                        flag1,indel_flag1,data_1=msa(seq_list,ref,v_pos,dct['mincov'])
 
-                        if flag0 and flag1:
+                        if flag0 and flag1  and (indel_flag0 or indel_flag1):
                             data=(data_0,data_1)
                             prev=pcol.pos+1
                             
@@ -448,6 +455,7 @@ def generate(params,mode='training'):
             
     
 if __name__ == '__main__':
+    print('git commit hash: %s' %str(git.Repo("/home/ahsanm/repos/NanoVar").heads[0].commit))
     chrom_length={'chr1':248956422, 'chr2':242193529, 'chr3':198295559, 'chr4':190214555, 'chr5':181538259, 'chr6':170805979, \
              'chr7':159345973, 'chr8':145138636, 'chr9':138394717, 'chr10':133797422, 'chr11':135086622, 'chr12':133275309,\
              'chr13':114364328, 'chr14':107043718, 'chr15':101991189, 'chr16':90338345, 'chr17':83257441, 'chr18':80373285,\

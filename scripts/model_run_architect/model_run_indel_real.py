@@ -5,6 +5,7 @@ import multiprocessing as mp
 import tensorflow as tf
 from model_architect_indel_real import *
 from matplotlib import pyplot as plt
+import git
 
 #config = tf.ConfigProto(device_count={"CPU": 64})
 
@@ -290,7 +291,9 @@ def test_model(params,suffix='',prob_save=False):
         total_prob=[]
         total_gt_prob=[]
         total_ref_=[]
-      
+        
+        f.write('##git commit hash: %s\n' %str(git.Repo("/home/ahsanm/repos/NanoVar").heads[0].commit))\
+        
         for i in range(len(tmp_sz)-1):
             
             pos, x0_test, x1_test= get_data(f_path,a=tmp_sz[i], b=tmp_sz[i+1])
@@ -437,6 +440,7 @@ def get_data(fname,a=None, b=None):
     return pos,mat_0,mat_1
     
 if __name__ == '__main__':
+    print('git commit hash: %s' %str(git.Repo("/home/ahsanm/repos/NanoVar").heads[0].commit))
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--rate", help="Learning rate",type=float)
     parser.add_argument("-i", "--iterations", help="Training iterations",type=int)

@@ -5,9 +5,11 @@ import multiprocessing as mp
 import tensorflow as tf
 from model_architect import *
 from utils import *
+import git
 
-config = tf.ConfigProto(device_count={"CPU": 64})
-#config = tf.ConfigProto()
+
+#config = tf.ConfigProto(device_count={"CPU": 64})
+config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
 
@@ -19,7 +21,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
     cpu=params['cpu']
     n_input=params['dims']
     dims=n_input
-    chrom_list=list(range(17,23)) #params['chrom'].split(':') 
+    chrom_list=list(range(2,23)) #params['chrom'].split(':') 
     #chrom_list=list(range(int(chrom_list[0]),int(chrom_list[1])+1))
     
     training_iters, learning_rate, batch_size= params['iters'],\
@@ -232,11 +234,12 @@ def test_model(params,suffix='',prob_save=False):
         c='##contig=<ID=%s>\n' %chrom
         f.write('##contig=<ID=%s>\n' %chrom)
         
-
+        
         f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         f.write('##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype Probability">\n')
         f.write('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Depth">\n')
         f.write('##FORMAT=<ID=FQ,Number=1,Type=Integer,Description="max alt allele frequency">\n')
+        f.write('##git commit hash: %s\n' %str(git.Repo("/home/ahsanm/repos/NanoVar").heads[0].commit))
         f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE\n')
         ttt=[]
         
@@ -383,6 +386,7 @@ def get_data_20plus(params):
     #return (vpx_train,vpy_train,vptrain_allele,vptrain_ref),(vnx_test,vny_test,vntest_allele,vntest_ref)
 
 if __name__ == '__main__':
+    print('git commit hash: %s' %str(git.Repo("/home/ahsanm/repos/NanoVar").heads[0].commit))
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--rate", help="Learning rate",type=float)
     parser.add_argument("-i", "--iterations", help="Training iterations",type=int)

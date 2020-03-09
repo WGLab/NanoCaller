@@ -104,7 +104,7 @@ def msa(seq_list, ref, v_pos, mincov):
     h0_mat_tmp=h0_mat.astype(np.float32)
     h0_mat_tmp=h0_mat_tmp/(np.sum(h0_mat_tmp,axis=0))-ref_real_0_mat
     
-    indel_flag=np.sum(np.abs(tmpmat[4,:])>=0.5)>0
+    indel_flag=np.sum(np.abs(h0_mat_tmp[4,:])>=0.5)>0
     
     #final_mat_0=ref_real_0_mat-h0_mat
     

@@ -289,7 +289,8 @@ def test_model(params,suffix='',prob_save=False):
         f_path=params['test_path']
         
         statinfo = os.stat(f_path)
-        sz=statinfo.st_size
+        sz=statinfo.st_size        
+        
         tmp_sz=list(range(0,sz,rec_size*(sz//(chnk*rec_size))))
         tmp_sz=tmp_sz[:chnk]
         tmp_sz=tmp_sz+[sz] if tmp_sz[-1]!=sz else tmp_sz
@@ -339,9 +340,10 @@ def test_model(params,suffix='',prob_save=False):
                     if batch_pred_0[j]!=0 or batch_pred_1[j]!=0:
                         q0=min(99,qual_0[j,batch_pred_0[j]])
                         q1=min(99,qual_1[j,batch_pred_1[j]])
-                        allele0_data=allele_prediction(batch_pos[j],batch_x0[j],rev_allele_map[batch_pred_0[j]])
+                        
+                        allele0_data=allele_prediction(batch_pos[j],batch_x0[j],rev_allele_map[batch_pred_0[j]],30)
                             
-                        allele1_data=allele_prediction(batch_pos[j],batch_x1[j],rev_allele_map[batch_pred_1[j]])
+                        allele1_data=allele_prediction(batch_pos[j],batch_x1[j],rev_allele_map[batch_pred_1[j]],30)
                         
                         if batch_pred_0[j]!=0 and allele0_data[0] and batch_pred_1[j]!=0 and allele1_data[0]:
                             q3=(q0+q1)/2
@@ -368,76 +370,104 @@ def test_model(params,suffix='',prob_save=False):
                             #s='%s,%d,%s,%s,%.4f,%.4f,%.4f,%.4f\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1],q0,q1,(q0+q1)/2,q3)
                             s='%s\t%d\t.\t%s\t%s\t%.2f\t%s\t.\tGT\t%s\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q3,'PASS','0|1' )
                             f.write(s)
-                        else:
-                            print('No writing: pos %d \n\n' %(batch_pos[j]))
-                        
-                            
+                       
                     neg_file.write('%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n' %(batch_pos[j], batch_prob_0[j,0], batch_prob_0[j,1], batch_prob_0[j,2], batch_prob_1[j,0],batch_prob_1[j,1],batch_prob_1[j,2]))
 
-def allele_prediction(pos,mat,var_type):
-    ref_mat=mat[:,:,1]
-    tmp_mat=mat[:,:,0]+ref_mat
-    tmp_mat[4,:]=tmp_mat[4,:]-ref_mat[4,:]
-    tmp_mat=np.abs(tmp_mat)
+def allele_prediction(pos,mat1,var_type,l):
+    tmp_mat=mat1[:,:,0]+mat1[:,:,1]
+    tmp_mat[4,:]=tmp_mat[4,:]-mat1[4,:,1]
+    ref_mat=np.argmax(mat1[:,:,1],axis=0)
     
-    if var_type=='D':
-        allele=[]
-        ref_allele=[]
-        ref_mat=np.argmax(ref_mat,axis=0)
+    res=[]
+    
+    if var_type=='N':
+        return (None,None)
+    
+    elif var_type=='D':
+        allele=''
+        ref_allele=''
 
         for i in range(1,64):
-            if max(tmp_mat[:,i])<0.5:
+            if ref_mat[i]!=4:
+                ref_allele+=rev_base_map[ref_mat[i]]
+                
+            if max(abs(tmp_mat[:,i]))<0.5 or ref_mat[i]==4:
                 continue
-            else:
-                if tmp_mat[4,i]<0.5:
-                    ref_allele.append(ref_mat[i])
-                    allele.append(ref_mat[i])
-                else:
-                    ref_allele.append(ref_mat[i])
+            else:                
+                if max(tmp_mat[:4,i])>0.5:
+                        allele+=rev_base_map[np.argmax(tmp_mat[:4,i])]
+                        
+            
+            res.append((ref_allele,allele))
+            
+            if max(len(ref_allele),len(allele))>l:
+                break
+            
                     
-    else:
-        allele=[]
-        ref_allele=[]
-        ref_mat=np.argmax(ref_mat,axis=0)
-
+    elif var_type=='I':
+        allele=''
+        ref_allele=''
+                        
         for i in range(1,64):
-            if max(tmp_mat[:,i])<0.5:
+            if ref_mat[i]!=4:
+                ref_allele+=rev_base_map[ref_mat[i]]
+                
+            if max(abs(tmp_mat[:,i]))<0.5:
                 continue
             else:
-                if tmp_mat[4,i]<0.5:
-                    ref_allele.append(np.argmax(tmp_mat[:4,i]))
-                    allele.append(np.argmax(tmp_mat[:4,i]))
-                else:
-                     allele.append(np.argmax(tmp_mat[:4,i]))
-
-        
+                if ref_mat[i]==4 and max(tmp_mat[:4,i])>=0.5:
+                    allele+=rev_base_map[np.argmax(tmp_mat[:4,i])]
+                
+                elif ref_mat[i]!=4: 
+                    
+                    if max(tmp_mat[:4,i])>=0.5:
+                        allele+=rev_base_map[np.argmax(tmp_mat[:4,i])]
+                    else:
+                        allele+=rev_base_map[ref_mat[i]]
+                        
+            res.append((ref_allele,allele))  
+            
+            if max(len(ref_allele),len(allele))>l:
+                break
     
-    s1=''.join([rev_base_map[x] for x in allele])
-    s2=''.join([rev_base_map[x] for x in ref_allele])
-    i=-1
+    output=[]
+    
+    for pair in res:
+        s1,s2=pair
 
-    try:
-        while s1[i]==s2[i]:
-            i-=1
-        allele=s1[:i+1]
-        ref=s2[:i+1]
-    except IndexError:
-        if var_type!='N':
-            print('pos:%d  vartype:%s\n ref:%s\n alt:%s\n' %(pos,var_type,s2,s1),flush=True)
+        i=-1
+
+        try:
+            while s1[i]==s2[i]:
+                i-=1
+            if i==-1:
+                ref_out=s1
+                allele_out=s2
+            else:
+                ref_out=s1[:i+1]
+                allele_out=s2[:i+1]
+            output.append((ref_out,allele_out))
+            
+        except IndexError:
+            pass
+    if len(output)==0:
         return (None,None)
-    if var_type=='D' and len(ref)>len(allele):
-        return (ref,allele)
-    
-    elif var_type=='I' and len(ref)<len(allele):
-        
-        return (ref,allele)
     
     else:
-        if var_type!='N': 
-            print('pos:%d  vartype:%s   length \n ref:%s\n alt:%s\n' %(pos,var_type,s2,s1),flush=True)
-        return (None,None)
+        if var_type=='I':
+            output.sort(key=lambda x: len(x[0]))
+            lst=[pair for pair in output if len(pair[0])==len(output[0][0])]
+            lst.sort(key=lambda x: len(x[1]), reverse=True)
+
+        elif var_type=='D':
+            output.sort(key=lambda x: len(x[1]))
+            lst=[pair for pair in output if len(pair[1])==len(output[0][1])]
+            lst.sort(key=lambda x: len(x[0]), reverse=True)
+            
+        return lst[0]
     
-    return
+    
+    
 def read_pileups_from_file(options):
     rev_map={0:('I','I'), 1:('D','D'), 2:('N','I'), 3:('I','N'), 4:('N','D'), 5:('D','N'),6:('I','D'), 7:('D','I'), 8:('N','N')}
     allele_map={'N':0,'D':1,'I':2}
@@ -522,10 +552,11 @@ def get_data(fname,a=None, b=None):
     else:
         my_array=[(fname,x,'test',dims) for x in range(0,l,1000*rec_size)]
 
-    results=[]
-    for param_list in my_array:
-        results.append(read_pileups_from_file(param_list))
-    
+    cpu=8
+    pool = mp.Pool(processes=cpu)
+    results = pool.map(read_pileups_from_file, my_array)
+    pool.close()  
+    pool.join() 
     
     pos=np.vstack([res[0][:,np.newaxis] for res in results])
     mat_0=np.vstack([res[1] for res in results])

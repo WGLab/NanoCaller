@@ -7,10 +7,10 @@ from model_architect_indel_real import *
 from matplotlib import pyplot as plt
 import git
 
-#config = tf.ConfigProto(device_count={"CPU": 64})
+config = tf.ConfigProto(device_count={"CPU": 8})
 
 config = tf.compat.v1.ConfigProto()
-config.gpu_options.allow_growth = True
+#config.gpu_options.allow_growth = True
 
 def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part='neg.combined'):
     tf.reset_default_graph()
@@ -292,7 +292,9 @@ def test_model(params,suffix='',prob_save=False):
         total_gt_prob=[]
         total_ref_=[]
         
-        f.write('##git commit hash: %s\n' %str(git.Repo("/home/ahsanm/repos/NanoVar").heads[0].commit))\
+        f.write('##model_%s' %model_path)
+        f.write('##test_path_%s' %test_path)
+        f.write('##git_%s\n' %str(git.Repo("/home/ahsanm/repos/NanoVar").heads[0].commit))\
         
         for i in range(len(tmp_sz)-1):
             
@@ -415,7 +417,6 @@ def read_pileups_from_file(options):
 
         return (pos,mat_0,mat_1)
 
-    
 def get_data(fname,a=None, b=None):
     t=time.time()
     l=os.stat(fname).st_size
@@ -426,10 +427,11 @@ def get_data(fname,a=None, b=None):
     else:
         my_array=[(fname,x,'test',dims) for x in range(0,l,1000*rec_size)]
 
-    results=[]
-    for param_list in my_array:
-        results.append(read_pileups_from_file(param_list))
-    
+    cpu=8
+    pool = mp.Pool(processes=cpu)
+    results = pool.map(read_pileups_from_file, my_array)
+    pool.close()  
+    pool.join() 
     
     pos=np.vstack([res[0][:,np.newaxis] for res in results])
     mat_0=np.vstack([res[1] for res in results])

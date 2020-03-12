@@ -56,7 +56,8 @@ def msa(seq_list, ref, v_pos, mincov):
     fa_tmp_file+='>ref_SEQ\n'
     fa_tmp_file+= '%s' %ref
     
-    msa_process = Popen(['muscle', '-quiet'], stdout=PIPE, stdin=PIPE, stderr=PIPE)
+    gap_penalty=0.5
+    msa_process = Popen(['muscle', '-quiet','-gapopen','%.1f' %gap_penalty], stdout=PIPE, stdin=PIPE, stderr=PIPE)
     hap_file=msa_process.communicate(input=fa_tmp_file.encode('utf-8'))
 
     if len(hap_file)==0:
@@ -118,16 +119,7 @@ def get_training_candidates(dct):
     sam_path=dct['sam_path']
     fasta_path=dct['fasta_path']
     vcf_path=dct['vcf_path']
-    bed_path=dct['bed']
-        
-    if bed_path:
-        bed_file=os.path.join(bed_path,'%s.bed' %chrom)
-        with open(bed_file) as file:
-            content=[x.rstrip('\n') for x in file]
-
-        content=[x.split('\t')[1:] for x in content]
-        content=[(int(x[0]),int(x[1])) for x in content]
-        t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
+    
 
 
     samfile = pysam.Samfile(sam_path, "rb")
@@ -263,19 +255,9 @@ def get_testing_candidates(dct):
     end=dct['end']
     sam_path=dct['sam_path']
     fasta_path=dct['fasta_path']
-    threshold=dct['threshold']
     bed_path=dct['bed']
-    window=dct['window']
 
-        
-    if bed_path:
-        bed_file=os.path.join(bed_path,'%s.bed' %chrom)
-        with open(bed_file) as file:
-            content=[x.rstrip('\n') for x in file]
-
-        content=[x.split('\t')[1:] for x in content]
-        content=[(int(x[0]),int(x[1])) for x in content]
-        t=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
+    tree=dct['tree']
 
 
     samfile = pysam.Samfile(sam_path, "rb")
@@ -308,7 +290,7 @@ def get_testing_candidates(dct):
                                
 
                 if bed_path:
-                    if not t[pcol.pos+1]:
+                    if not tree[pcol.pos+1]:
                         continue
                         
                         
@@ -366,7 +348,6 @@ def generate(params,mode='training'):
     cores=params['cpu']
     mode=params['mode']
     chrom=params['chrom']
-    threshold=params['threshold']
     start,end=params['start'],params['end']
     
     if mode in ['training','train']: #'pos,ref,seq,names'
@@ -416,6 +397,19 @@ def generate(params,mode='training'):
     elif mode in ['testing','test']:#'pos,depth,freq,ref,seq,names'
         
         print('starting pileups',flush=True)
+        
+        
+        bed_path=params['bed']
+        
+        if bed_path:
+            bed_file=os.path.join(bed_path,'%s.bed' %chrom)
+            with open(bed_file) as file:
+                content=[x.rstrip('\n') for x in file]
+
+            content=[x.split('\t')[1:] for x in content]
+            content=[(int(x[0]),int(x[1])) for x in content]
+            tree=IntervalTree(Interval(begin, end, "%d-%d" % (begin, end)) for begin, end in content)
+        
         pool = mp.Pool(processes=cores)
         
         fname='%s.pileups.test' %params['chrom']
@@ -429,10 +423,11 @@ def generate(params,mode='training'):
             t=time.time()                
 
             in_dict_list=[]
-            for k in range(mbase,min(end,mbase+int(1e7)),10000):
+            for k in range(mbase,min(end,mbase+int(1e7)),100000):
                 d = copy.deepcopy(params)
                 d['start']=k
-                d['end']=min(end,k+10000)
+                d['end']=min(end,k+100000)
+                d['tree']=tree
                 in_dict_list.append(d)
             results_dict = pool.map(get_testing_candidates, in_dict_list)
             
@@ -496,15 +491,12 @@ if __name__ == '__main__':
         start=1
     else:
         start=args.start
-    if not args.threshold:
-        threshold=[15,20]
-    else:
-        threshold=[int(x) for x in args.threshold.split(':')]
+
     in_dict={'mode':args.mode, 'chrom':chrom,'start':start,'end':end,\
          'sam_path':args.bam, 'fasta_path':args.ref, 'vcf_path':args.vcf,\
-             'out_path':args.output, 'window':args.window, 'depth':args.depth,\
-             'threshold':threshold, 'cpu':args.cpu, 'bed':args.bed,'cnd_path':args.cnd_path,\
-            'mincov':args.mincov, 'nbr_size':args.nbr_size, 'test_vcf':args.test_vcf, 'nbr_vcf': args.nbr_vcf}    
+             'out_path':args.output,\
+              'cpu':args.cpu, 'bed':args.bed,'cnd_path':args.cnd_path,\
+            'mincov':args.mincov}    
     
     t=time.time()
     generate(in_dict)

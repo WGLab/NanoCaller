@@ -15,7 +15,7 @@ from tempfile import mkstemp
 from subprocess import Popen, PIPE, STDOUT
 
 os.environ["PATH"] += os.pathsep + '/home/ahsanm/lib/tcoffee/t_coffee/src'
-window_before,window_after=40,100
+window_before,window_after=0,100
 gt_map={(0,0):0, (1,1):0, (1,2):2, (2,1):2, (0,1):1, (1,0):1}
 
 mapping={'A':0,'G':1,'T':2,'C':3,'-':4}
@@ -47,16 +47,11 @@ def msa(seq_list, ref, v_pos, mincov):
         fa_tmp_file+='>%s_SEQ\n'%seq_count
         fa_tmp_file+= '%s\n' %b
 
-    '''filter_process = Popen(['t_coffee','-other_pg','seq_reformat', '-in','stdin','-action','+trim','_seq_O85','+upper','-output' ,'fasta'], stdout=PIPE, stdin=PIPE, stderr=PIPE)
-    fltr_seqs=filter_process.communicate(input=fa_tmp_file.encode('utf-8'))[0]
-
-    fltr_seqs+=b'>ref_SEQ\n'
-    fltr_seqs+= b'%b\n' %bytes(ref.encode('utf-8'))'''
 
     fa_tmp_file+='>ref_SEQ\n'
     fa_tmp_file+= '%s' %ref
     
-    gap_penalty=0.5
+    gap_penalty=1.0
     msa_process = Popen(['muscle', '-quiet','-gapopen','%.1f' %gap_penalty], stdout=PIPE, stdin=PIPE, stderr=PIPE)
     hap_file=msa_process.communicate(input=fa_tmp_file.encode('utf-8'))
 
@@ -85,7 +80,7 @@ def msa(seq_list, ref, v_pos, mincov):
             cnt+=1
         cnt_del+=1
 
-    ref_real_0_mat=np.eye(5)[[mapping[x] for x in ref_real_0[cnt_del-1:cnt_del+63]]].transpose()
+    ref_real_0_mat=np.eye(5)[[mapping[x] for x in ref_real_0[cnt_del:cnt_del+64]]].transpose()
     
     mat=np.array([[mapping[c] for c in x] for x in zz_0])
     try:
@@ -99,7 +94,7 @@ def msa(seq_list, ref, v_pos, mincov):
         print(mat)
         return
     
-    h0_mat=h0_mat[:,cnt_del-1:cnt_del+63]
+    h0_mat=h0_mat[:,cnt_del:cnt_del+64]
     h0_mat=h0_mat
     
     h0_mat_tmp=h0_mat.astype(np.float32)
@@ -109,7 +104,7 @@ def msa(seq_list, ref, v_pos, mincov):
     
     #final_mat_0=ref_real_0_mat-h0_mat
     
-    return (1,indel_flag,np.dstack([h0_mat, ref_real_0_mat])) 
+    return (1,indel_flag,np.dstack([h0_mat, ref_real_0_mat]))
     
 
 def get_training_candidates(dct):
@@ -316,7 +311,7 @@ def get_testing_candidates(dct):
                     ins_freq_1=tmp_seq_1.count('+')/len_seq_1 if len_seq_1>0 else 0
                     
                     
-                    if len_seq_0>=dct['mincov']  and len_seq_1>=dct['mincov']  and (0.4<=del_freq_0 or 0.4<=del_freq_1 or 0.25<=ins_freq_0 or 0.25<=ins_freq_1):
+                    if len_seq_0>=dct['mincov']  and len_seq_1>=dct['mincov']  and (0.6<=del_freq_0 or 0.6<=del_freq_1 or 0.3<=ins_freq_0 or 0.3<=ins_freq_1):
                         v_pos=pcol.pos+1
                         d={'hap0':{},'hap1':{}}
                         for pread in pcol.pileups:

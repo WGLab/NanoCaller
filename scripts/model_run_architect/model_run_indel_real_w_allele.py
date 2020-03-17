@@ -387,7 +387,7 @@ def allele_prediction(pos,mat1,var_type,l):
         allele=''
         ref_allele=''
 
-        for i in range(1,64):
+        for i in range(64):
             if ref_mat[i]!=4:
                 ref_allele+=rev_base_map[ref_mat[i]]
                 
@@ -404,11 +404,11 @@ def allele_prediction(pos,mat1,var_type,l):
                 break
             
                     
-    elif var_type=='I':
+    else:
         allele=''
         ref_allele=''
                         
-        for i in range(1,64):
+        for i in range(64):
             if ref_mat[i]!=4:
                 ref_allele+=rev_base_map[ref_mat[i]]
                 

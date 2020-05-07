@@ -21,7 +21,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
     cpu=params['cpu']
     n_input=params['dims']
     dims=n_input
-    chrom_list=list(range(2,23)) #params['chrom'].split(':') 
+    chrom_list=[1]#list(range(2,23)) #params['chrom'].split(':') 
     #chrom_list=list(range(int(chrom_list[0]),int(chrom_list[1])+1))
     
     training_iters, learning_rate, batch_size= params['iters'],\
@@ -33,7 +33,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
     if params['val']:
         val_list=[]
         for v_path in params['test_path'].split(':'):
-            vx_test, vy_test, vtest_allele, vtest_ref=get_data_20plus(params)
+            vx_test, vy_test, vtest_allele, vtest_ref=get_data_20plus(v_path, params)
             vtest_allele=make_allele(vy_test,vtest_allele,vtest_ref)
             
             val_list.append((v_path,(vx_test, vy_test, vtest_allele, vtest_ref)))
@@ -147,7 +147,7 @@ def genotype_caller_skinny(params,input_type='path',data=None,attempt=0,neg_part
 
                     print('.',end='',flush=True)
 
-                if params['val'] and (k<3 or chrom==22):
+                if params['val'] and (k<2 or chrom==chrom_list[-1]):
 
                     for val in val_list:
                         print('\n')
@@ -306,10 +306,10 @@ def test_model(params,suffix='',prob_save=False):
                 prob_het=-10*np.log10(1e-10+ prob_het)
                 
                 
-                np.multiply(x[:,-2],x[:,-1])
+                
                 for j in range(len(batch_pred_GT)):
 
-                    if batch_pred_GT[j]==2: # if het
+                    if batch_pred_GT[j]>=2: # if het
                             pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
                             if pred1==batch_ref[j]:
                                         s='%s\t%d\t.\t%s\t%s\t%.2f\t%s\t.\tGT:GQ:DP:FQ\t%s:%.2f:%d:%d\n' %(chrom, batch_pos[j], rev_mapping[batch_ref[j]], rev_mapping[pred2], min(999,qual[j]),'PASS','0/1', min(999,prob_het[j]), batch_dp[j],batch_freq[j])
@@ -374,10 +374,10 @@ def make_allele(ylabel,allele,reference):
     new_allele[ylabel[:,1]==1]=new_allele[ylabel[:,1]==1]+reference[ylabel[:,1]==1]
     return new_allele
 
-def get_data_20plus(params):
+def get_data_20plus(v_path, params):
     cpu=params['cpu']
     n_input=params['dims']
-    f_path=params['test_path']
+    f_path=v_path
     _,vpx_train,vpy_train,vptrain_allele,vptrain_ref= get_data(f_path+'pos',cpu=cpu,dims=n_input)
     _,vnx_test,vny_test,vntest_allele,vntest_ref=get_data(f_path+'neg.15plus',cpu=cpu,dims=n_input)
     vx_test,vy_test,vtest_allele,vtest_ref =np.vstack([vpx_train,vnx_test]), np.vstack([vpy_train,vny_test]), np.vstack([vptrain_allele,vntest_allele]), np.vstack([vptrain_ref,vntest_ref])

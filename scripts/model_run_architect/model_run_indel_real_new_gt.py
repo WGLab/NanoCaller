@@ -12,10 +12,9 @@ from Bio.Align.Applications import ClustalwCommandline
 from Bio import AlignIO
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
-config = tf.ConfigProto(device_count={"CPU": 64})
 
-#config = tf.compat.v1.ConfigProto()
-config.gpu_options.allow_growth = True
+config =  tf.compat.v1.ConfigProto(device_count={"CPU": 64})
+#config.gpu_options.allow_growth = True
 
 rev_gt_map={0:'hom-ref', 1:'hom-alt', 2:'het-ref', 3:'het-alt'}
 rev_base_map={0:'A',1:'G',2:'T',3:'C',4:'-'}
@@ -314,7 +313,7 @@ def test_model(params,suffix='',prob_save=False):
     batch_size=100
     total=[]
     rec_size=15371
-    chnk=1
+    chnk=4
     neg_file=open(vcf_path+'.stats','w')
     neg_file.write('pos,ref\n')
     vcf_path=vcf_path
@@ -325,7 +324,7 @@ def test_model(params,suffix='',prob_save=False):
         statinfo = os.stat(f_path)
         sz=statinfo.st_size        
         
-        tmp_sz=list(range(0,sz,rec_size*(sz//(chnk*rec_size))))
+        tmp_sz=list(range(0,sz,rec_size*64000))
         tmp_sz=tmp_sz[:chnk]
         tmp_sz=tmp_sz+[sz] if tmp_sz[-1]!=sz else tmp_sz
         total_prob=[]
@@ -350,16 +349,6 @@ def test_model(params,suffix='',prob_save=False):
         for i in range(len(tmp_sz)-1):
             
             pos, x0_test, x1_test, x2_test= get_data(f_path,'test',a=tmp_sz[i], b=tmp_sz[i+1],cpu=params['cpu'])
-            
-
-            x0_test=x0_test.astype(np.float32)
-            x0_test[:,:,:,0]=x0_test[:,:,:,0]/(np.sum(x0_test[:,:,:,0],axis=1)[:,np.newaxis,:])-x0_test[:,:,:,1]
-
-            x1_test=x1_test.astype(np.float32)
-            x1_test[:,:,:,0]=x1_test[:,:,:,0]/(np.sum(x1_test[:,:,:,0],axis=1)[:,np.newaxis,:])-x1_test[:,:,:,1]
-            
-            x2_test=x2_test.astype(np.float32)
-            x2_test[:,:,:,0]=x2_test[:,:,:,0]/(np.sum(x2_test[:,:,:,0],axis=1)[:,np.newaxis,:])-x2_test[:,:,:,1]
 
             for batch in range(int(np.ceil(len(x0_test)/batch_size))):
                 batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
@@ -368,6 +357,15 @@ def test_model(params,suffix='',prob_save=False):
                 batch_x1 = x1_test[batch*batch_size:min((batch+1)*batch_size,len(x1_test))]
                 batch_x2 = x2_test[batch*batch_size:min((batch+1)*batch_size,len(x2_test))]
 
+                batch_x0=batch_x0.astype(np.float32)
+                batch_x0[:,:,:,0]=batch_x0[:,:,:,0]/(np.sum(batch_x0[:,:,:,0],axis=1)[:,np.newaxis,:])-batch_x0[:,:,:,1]
+
+                batch_x1=batch_x1.astype(np.float32)
+                batch_x1[:,:,:,0]=batch_x1[:,:,:,0]/(np.sum(batch_x1[:,:,:,0],axis=1)[:,np.newaxis,:])-batch_x1[:,:,:,1]
+
+                batch_x2=batch_x2.astype(np.float32)
+                batch_x2[:,:,:,0]=batch_x2[:,:,:,0]/(np.sum(batch_x2[:,:,:,0],axis=1)[:,np.newaxis,:])-batch_x2[:,:,:,1]
+                
                 batch_x=np.hstack([batch_x0, batch_x1, batch_x2])
                 batch_prob_all= sess.run(prob, feed_dict={x2: batch_x, rate:0.0})
                 batch_pred_all=np.argmax(batch_prob_all,axis=1)
@@ -387,8 +385,10 @@ def test_model(params,suffix='',prob_save=False):
                     neg_file.write('%s,%d,%s,%.4f,%.4f,%.4f,%.4f\n' %(chrom,batch_pos[j], rev_gt_map[batch_pred_all[j]], batch_prob_all[j,0], batch_prob_all[j,1], batch_prob_all[j,2], batch_prob_all[j,3]))
                     
                     q=min(999,qual_all[j,batch_pred_all[j]])
-                    if batch_pos[j]>prev:
+                    if batch_pos[j]>0:
+                        
                         if batch_pred_all[j]==0 and batch_prob_all[j,0]<=0.95:
+                            q=-10*np.log10(1e-6+batch_prob_all[j,0])
                             allele0_data=allele_prediction(batch_pos[j],batch_x0[j])
                             allele1_data=allele_prediction(batch_pos[j],batch_x1[j])
 
@@ -398,7 +398,7 @@ def test_model(params,suffix='',prob_save=False):
                                     f.write(s)
                                     prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
 
-                                elif batch_pred_all[j]==3:
+                                else:
                                     ref1,alt1=allele0_data
                                     ref2,alt2=allele1_data
 
@@ -424,7 +424,9 @@ def test_model(params,suffix='',prob_save=False):
                                 s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP\t1|0:%s\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, rev_gt_map[batch_pred_all[j]])
                                 f.write(s)
                                 prev=batch_pos[j]+max(len(allele1_data[0]), len(allele1_data[1]))
-                        if batch_pred_all[j]>0:
+                        
+                        
+                        elif batch_pred_all[j]>0:
 
                             if batch_pred_all[j]==1:
 
@@ -434,17 +436,18 @@ def test_model(params,suffix='',prob_save=False):
                                         f.write(s)
                                         prev=batch_pos[j]+max(len(allele_data[0]), len(allele_data[1]))
 
-                            else:
+                            else: #(prediction 2 or 3)
                                 allele0_data=allele_prediction(batch_pos[j],batch_x0[j])
                                 allele1_data=allele_prediction(batch_pos[j],batch_x1[j])
 
-                                if allele0_data[0] and allele1_data[0]:
-                                    if allele0_data[0]==allele1_data[0] and allele0_data[1]==allele1_data[1]:
+                                if allele0_data[0] and allele1_data[0]: #(if two alleles predicted)
+                                    
+                                    if allele0_data[0]==allele1_data[0] and allele0_data[1]==allele1_data[1]: #(two alleles are same)
                                         s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP\t1/1:%s\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1],q,rev_gt_map[batch_pred_all[j]])
                                         f.write(s)
                                         prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
 
-                                    elif batch_pred_all[j]==3:
+                                    else:
                                         ref1,alt1=allele0_data
                                         ref2,alt2=allele1_data
 
@@ -470,6 +473,8 @@ def test_model(params,suffix='',prob_save=False):
                                     s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP\t1|0:%s\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, rev_gt_map[batch_pred_all[j]])
                                     f.write(s)
                                     prev=batch_pos[j]+max(len(allele1_data[0]), len(allele1_data[1]))
+                batch_x0,batch_x1,batch_x2,batch_x=None,None,None,None
+            pos, x0_test, x1_test, x2_test=None,None,None,None
     neg_file.close()
     
     
@@ -512,6 +517,7 @@ def allele_prediction(pos,mat):
     allele_out=s2[:i+1].replace('.','')
     
     return (ref_out,allele_out) 
+
 def read_pileups_from_file(options):
     rev_map={0:('I','I'), 1:('D','D'), 2:('N','I'), 3:('I','N'), 4:('N','D'), 5:('D','N'),6:('I','D'), 7:('D','I'), 8:('N','N')}
     allele_map={'N':0,'D':1,'I':2}

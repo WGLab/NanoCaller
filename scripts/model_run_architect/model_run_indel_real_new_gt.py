@@ -324,7 +324,7 @@ def test_model(params,suffix='',prob_save=False):
         statinfo = os.stat(f_path)
         sz=statinfo.st_size        
         
-        tmp_sz=list(range(0,sz,rec_size*64000))
+        tmp_sz=list(range(0,sz,rec_size*32000))
         tmp_sz=tmp_sz[:chnk]
         tmp_sz=tmp_sz+[sz] if tmp_sz[-1]!=sz else tmp_sz
         total_prob=[]
@@ -385,7 +385,7 @@ def test_model(params,suffix='',prob_save=False):
                     neg_file.write('%s,%d,%s,%.4f,%.4f,%.4f,%.4f\n' %(chrom,batch_pos[j], rev_gt_map[batch_pred_all[j]], batch_prob_all[j,0], batch_prob_all[j,1], batch_prob_all[j,2], batch_prob_all[j,3]))
                     
                     q=min(999,qual_all[j,batch_pred_all[j]])
-                    if batch_pos[j]>0:
+                    if batch_pos[j]>prev:
                         
                         if batch_pred_all[j]==0 and batch_prob_all[j,0]<=0.95:
                             q=-10*np.log10(1e-6+batch_prob_all[j,0])

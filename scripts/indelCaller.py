@@ -1,4 +1,4 @@
-import time,os,copy,argparse,subprocess,psutil
+import time,os,copy,argparse,subprocess
 import pandas as pd
 import numpy as np
 import multiprocessing as mp

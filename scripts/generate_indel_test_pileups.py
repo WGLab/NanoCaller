@@ -1,4 +1,4 @@
-import sys,pysam, time,os,re,copy,argparse,gzip,itertools,subprocess,git
+import sys,pysam, time,os,re,copy,argparse,gzip,itertools,subprocess,gzip
 from collections import Counter
 import pandas as pd
 import numpy as np
@@ -87,8 +87,9 @@ def get_testing_candidates(dct):
     bed_path=dct['bed']
 
     if dct['remove_homopolymer']:
-        bed_file='release_data/GRCh38_minus_homopolymer/%s.bed' %chrom
-        with open(bed_file) as file:
+        bed_file='release_data/GRCh38_minus_homopolymer/%s.bed.gz' %chrom
+    
+        with gzip.open(bed_file,'rb') as file:
             content=[x.rstrip('\n') for x in file]
 
         content=[x.split('\t')[1:] for x in content]

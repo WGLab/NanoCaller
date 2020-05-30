@@ -31,4 +31,14 @@ git clone https://github.com/WGLab/NanoCaller.git
 cd NanoCaller
 ```
 
-##Usage
+## Usage
+```
+python NanoCaller.py -mode both       # what type of variants to call, option 'snps', 'indels and 'both 
+-chrom chr1 \                         # contig name
+-ref ref.fa \                         # FASTA reference file with .fai index
+-bam alignments.bam \                 # BAM file with index (must be phased if 'indels' mode is chosen
+-model NanoCaller1 \                  # model used for SNP calling
+-bed regions.bed \                    # BED files 
+-vcf sample_calls/ \                  # output directory
+-cpu 4 \                              # number of CPUs to use
+```

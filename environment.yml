@@ -1,0 +1,20 @@
+name: NanoCaller
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - bcftools=1.9
+  - biopython=1.74
+  - htslib=1.9
+  - intervaltree=3.0.2
+  - muscle=3.8.1551
+  - numpy=1.14.5
+  - pandas=0.25.1
+  - pysam=0.15.3
+  - python=3.6.8
+  - rtg-tools=3.10.1
+  - samtools=1.9
+  - scipy=1.3.1
+  - tensorflow=1.13.1
+  - whatshap

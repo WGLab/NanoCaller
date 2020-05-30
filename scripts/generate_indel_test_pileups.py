@@ -90,7 +90,7 @@ def get_testing_candidates(dct):
         bed_file='release_data/GRCh38_minus_homopolymer/%s.bed.gz' %chrom
     
         with gzip.open(bed_file,'rb') as file:
-            content=[x.rstrip('\n') for x in file]
+            content=[x.decode('utf-8').rstrip('\n') for x in file]
 
         content=[x.split('\t')[1:] for x in content]
         content=[(int(x[0]),int(x[1])) for x in content if (int(x[0]) <=end+10 and int(x[1])>=start-10)]

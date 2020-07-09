@@ -1,4 +1,4 @@
-import time,os,copy,argparse,subprocess
+import time,os,copy,argparse,subprocess, sys
 import pandas as pd
 import numpy as np
 import multiprocessing as mp
@@ -11,17 +11,15 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
 num_to_base_map={0:'A',1:'G',2:'T',3:'C'}
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 def test_model(params,prob_save=False):
     model,vcf_path,prefix= params['model'],params['vcf_path'], params['prefix']
     chrom,start,end=params['chrom'], params['start'],params['end']
-    
-    prefix=prefix+'.' if prefix else prefix
-    
+        
     stream = os.popen("samtools view %s %s:%d-%d -F 3844|cut -f 10|awk '{sum+=length($0)}END{print sum}'" %(params['sam_path'], chrom,start,end))
-    
     coverage = int(stream.read().rstrip('\n'))/(end-start+1)
-
+    print(coverage,flush=True)
     
     
     n_input=[5,41,5]
@@ -34,17 +32,17 @@ def test_model(params,prob_save=False):
     
 
     
-    
+    dirname = os.path.dirname(__file__)
     if model== 'NanoCaller1':
-        model_path='release_data/NanoCaller1/model-rt-1'
+        model_path=os.path.join(dirname, 'release_data/NanoCaller1/model-rt-1')
         train_coverage=43
     
     elif model== 'NanoCaller2':
-        model_path='release_data/NanoCaller2/model-rt-1'
+        model_path=os.path.join(dirname, 'release_data/NanoCaller2/model-rt-1')
         train_coverage=62
         
     elif model== 'NanoCaller3':
-        model_path='release_data/NanoCaller3/model-30'
+        model_path=os.path.join(dirname, 'release_data/NanoCaller3/model-30')
         train_coverage=28
         
     init = tf.global_variables_initializer()
@@ -55,11 +53,11 @@ def test_model(params,prob_save=False):
     saver.restore(sess, model_path)    
     
     batch_size=1000
-    
-    neg_file=open(os.path.join(vcf_path,'%s%s_%d_%d.stats' %(prefix,chrom,start,end)),'w')
+    print(prefix)
+    neg_file=open(os.path.join(vcf_path,'%s.snp_stats' %prefix),'w')
     neg_file.write('pos,ref,prob_GT,prob_A,prob_G,prob_T,prob_C,DP,freq\n')
 
-    with open(os.path.join(vcf_path,'%s%s_%d_%d.vcf' %(prefix,chrom,start,end)),'w') as f:
+    with open(os.path.join(vcf_path,'%s.snps.vcf' %prefix),'w') as f:
 
         f.write('##fileformat=VCFv4.2\n')
         f.write('##FILTER=<ID=PASS,Description="All filters passed">\n')
@@ -76,6 +74,8 @@ def test_model(params,prob_save=False):
             d['end']=min(end,mbase+int(1e7))
             pos,x_test,test_ref,dp,freq=generate(d)
             
+            if len(pos)==0:
+                continue
        
             x_test=x_test.astype(np.float32)
 
@@ -132,7 +132,7 @@ def test_model(params,prob_save=False):
 
                     neg_file.write('%d,%s,%.4f,%.4f,%.4f,%.4f,%.4f,%d,%.4f\n' %(batch_pos[j],num_to_base_map[batch_ref[j]], batch_prob_GT[j,0], batch_probs[j,0], batch_probs[j,1], batch_probs[j,2], batch_probs[j,3], batch_dp[j], batch_freq[j]))
     
-    output_file=os.path.join(vcf_path,'%s%s_%d_%d' %(prefix,chrom,start,end))
+    output_file=os.path.join(vcf_path,'%s.snps' %prefix)
     stream=os.popen("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(output_file, output_file))
     stream.read()
     return output_file

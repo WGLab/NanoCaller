@@ -5,10 +5,11 @@ import multiprocessing as mp
 import tensorflow as tf
 from model_architect_indel import *
 from Bio import pairwise2
-from generate_indel_test_pileups import generate
+from generate_indel_pileups import generate
 
 config =  tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 rev_gt_map={0:'hom-ref', 1:'hom-alt', 2:'het-ref', 3:'het-alt'}
 rev_base_map={0:'A',1:'G',2:'T',3:'C',4:'-'}
@@ -25,8 +26,6 @@ def test_model(params,suffix='',prob_save=False):
     vcf_path,prefix=params['vcf_path'], params['prefix']
     chrom,start,end=params['chrom'], params['start'],params['end']
 
-    prefix=prefix+'.' if prefix else prefix
-
     tf.reset_default_graph()
 
     weights,biases,tensors=get_tensors([5,128,2],0.0)
@@ -37,14 +36,15 @@ def test_model(params,suffix='',prob_save=False):
     sess.run(init)
     sess.run(tf.local_variables_initializer())
     saver = tf.train.Saver()
-    saver.restore(sess, 'release_data/NanoCaller_indels/model-30')
+    dirname = os.path.dirname(__file__)
+    saver.restore(sess, os.path.join(dirname, 'release_data/NanoCaller_indels/model-30'))
     
     batch_size=100
 
-    neg_file=open(os.path.join(vcf_path,'%s%s_%d_%d.indel_stats' %(prefix,chrom,start,end)),'w')
+    neg_file=open(os.path.join(vcf_path,'%s.indel_stats' %prefix),'w')
     neg_file.write('pos,ref\n')
     
-    with open(os.path.join(vcf_path,'%s%s_%d_%d.indels.vcf' %(prefix,chrom,start,end)),'w') as f:
+    with open(os.path.join(vcf_path,'%s.indels.vcf' %prefix),'w') as f:
 
         f.write('##fileformat=VCFv4.2\n')
         f.write('##FILTER=<ID=PASS,Description="All filters passed">\n')
@@ -65,6 +65,9 @@ def test_model(params,suffix='',prob_save=False):
             d['end']=min(end,mbase+int(1e7))
             
             pos, x0_test, x1_test, x2_test=generate(d)
+            
+            if len(pos)==0:
+                continue
 
             for batch in range(int(np.ceil(len(x0_test)/batch_size))):
                 batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
@@ -184,6 +187,10 @@ def test_model(params,suffix='',prob_save=False):
             pos, x0_test, x1_test, x2_test=None,None,None,None
             
     neg_file.close()
+    outfile=os.path.join(vcf_path,'%s.indels' %prefix)
+    stream=os.popen("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(outfile, outfile))
+    stream.read()
+    return outfile
     
     
 def allele_prediction(pos,mat):

@@ -177,7 +177,8 @@ def get_testing_candidates(dct):
                             output_data_1.append(data_1)
                             output_data_total.append(data_total)
                             
-    
+    if len(output_pos)==0:
+        return (output_pos,output_data_0,output_data_1,output_data_total)
     output_pos=np.array(output_pos)
     output_data_0=np.array(output_data_0)
     output_data_1=np.array(output_data_1)
@@ -185,14 +186,15 @@ def get_testing_candidates(dct):
     
     return (output_pos,output_data_0,output_data_1,output_data_total)
     
-def generate(params):
+def generate(params,pool):
     cores=params['cpu']
     chrom=params['chrom']
     start,end=params['start'],params['end']
     
-    pool = mp.Pool(processes=cores)
     start,end=params['start'],params['end']
 
+    print('generating indel pileups for %s:%d-%d' %(chrom,start,end),flush=True)
+    
     in_dict_list=[]
     
     for k in range(start,end,100000):
@@ -203,6 +205,8 @@ def generate(params):
     
     results = pool.map(get_testing_candidates, in_dict_list)
     
+    if sum([len(res[0]) for res in results])==0:
+        return [],[],[],[]
     pos=np.vstack([res[0][:,np.newaxis] for res in results if len(res[0])>0])
     mat_0=np.vstack([res[1] for res in results if len(res[0])>0])
     mat_1=np.vstack([res[2] for res in results if len(res[0])>0])

@@ -19,7 +19,7 @@ def pairwise(x,y):
 
     return alignments
 
-def test_model(params,suffix='',prob_save=False):
+def test_model(params,pool):
     
     rev_allele_map={0:'N',1:'D',2:'I'}
     
@@ -64,7 +64,7 @@ def test_model(params,suffix='',prob_save=False):
             d['start']=mbase
             d['end']=min(end,mbase+int(1e7))
             
-            pos, x0_test, x1_test, x2_test=generate(d)
+            pos, x0_test, x1_test, x2_test=generate(d,pool)
             
             if len(pos)==0:
                 continue

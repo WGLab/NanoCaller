@@ -1,4 +1,5 @@
 import time, argparse, os
+import multiprocessing as mp
 
 if __name__ == '__main__':
     t=time.time()
@@ -31,8 +32,8 @@ if __name__ == '__main__':
     parser.add_argument("-del_t", "--del_threshold", help="Deletion Threshold",type=float,default=0.6)
     
     args = parser.parse_args()
-    
-    
+
+    pool = mp.Pool(processes=args.cpu)
     
     try:  
         os.mkdir(args.vcf)  
@@ -73,7 +74,8 @@ if __name__ == '__main__':
     snp_vcf=''
     if args.mode in ['snps','both']:
         
-        snp_vcf=snpCaller.test_model(in_dict)
+        snp_vcf=snpCaller.test_model(in_dict, pool)
+        print('SNP calling done',flush=True)
 
         if snp_vcf:
             stream=os.popen("whatshap phase %s.vcf.gz %s -o %s.phased.preclean.vcf -r %s --ignore-read-groups --chromosome %s --distrust-genotypes --include-homozygous" %(snp_vcf,in_dict['sam_path'], snp_vcf, in_dict['fasta_path'], in_dict['chrom'] ))
@@ -97,13 +99,10 @@ if __name__ == '__main__':
                 stream.read()
                 
             stream=os.popen('samtools index %s.phased.bam' %snp_vcf )
+            stream.read()
     
     if args.mode in ['indels','both']:
-        stream=os.popen('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.vcf,args.chrom))
-        stream.read()
-
-        steam=os.popen('rtg format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.chrom,args.vcf,args.vcf))
-        stream.read()
+        
         sam_path= '%s.phased.bam' %snp_vcf if args.mode=='both' else args.bam
         
         in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':sam_path, 'fasta_path':args.ref, \
@@ -111,15 +110,26 @@ if __name__ == '__main__':
              'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, \
                 'del_t':args.del_threshold,'ins_t':args.ins_threshold}
         
-        indel_vcf=indelCaller.test_model(in_dict)
+        indel_vcf=indelCaller.test_model(in_dict, pool)
+        print('indel calling done',flush=True)
         
         if args.mode=='both':
-            
-            stream=os.popen('rtg vcfdecompose -i %s.vcf.gz --break-mnps --break-indels -o %s.decomposed.vcf.gz -t %s/ref.sdf' %(indel_vcf,indel_vcf,args.vcf))
+            stream=os.popen('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.vcf,args.chrom))
             stream.read()
+
+            
+            stream=os.popen('echo "something";rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.vcf,args.chrom,args.vcf))
+            stream.read()
+                        
+            stream=os.popen('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps --break-indels -o %s.decomposed.vcf.gz -t %s/ref.sdf' %(indel_vcf,indel_vcf,args.vcf))
+            stream.read()
+            
             final_path=os.path.join(args.vcf,'%s.final.vcf.gz' %args.prefix)
             stream=os.popen('bcftools concat %s.vcf.gz %s.decomposed.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
             stream.read()
             
+    pool.close()
+    pool.join()
+    
     elapsed=time.time()-t
     print ('Total Time Elapsed: %.2f seconds' %elapsed)

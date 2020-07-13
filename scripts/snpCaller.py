@@ -13,13 +13,13 @@ config.gpu_options.allow_growth = True
 num_to_base_map={0:'A',1:'G',2:'T',3:'C'}
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-def test_model(params,prob_save=False):
+def test_model(params,pool):
     model,vcf_path,prefix= params['model'],params['vcf_path'], params['prefix']
     chrom,start,end=params['chrom'], params['start'],params['end']
         
     stream = os.popen("samtools view %s %s:%d-%d -F 3844|cut -f 10|awk '{sum+=length($0)}END{print sum}'" %(params['sam_path'], chrom,start,end))
     coverage = int(stream.read().rstrip('\n'))/(end-start+1)
-    print(coverage,flush=True)
+    print('coverage=%dx' %coverage,flush=True)
     
     
     n_input=[5,41,5]
@@ -53,10 +53,10 @@ def test_model(params,prob_save=False):
     saver.restore(sess, model_path)    
     
     batch_size=1000
-    print(prefix)
     neg_file=open(os.path.join(vcf_path,'%s.snp_stats' %prefix),'w')
     neg_file.write('pos,ref,prob_GT,prob_A,prob_G,prob_T,prob_C,DP,freq\n')
 
+    
     with open(os.path.join(vcf_path,'%s.snps.vcf' %prefix),'w') as f:
 
         f.write('##fileformat=VCFv4.2\n')
@@ -72,7 +72,7 @@ def test_model(params,prob_save=False):
             d = copy.deepcopy(params)
             d['start']=mbase
             d['end']=min(end,mbase+int(1e7))
-            pos,x_test,test_ref,dp,freq=generate(d)
+            pos,x_test,test_ref,dp,freq=generate(d,pool)
             
             if len(pos)==0:
                 continue
@@ -135,5 +135,8 @@ def test_model(params,prob_save=False):
     output_file=os.path.join(vcf_path,'%s.snps' %prefix)
     stream=os.popen("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(output_file, output_file))
     stream.read()
+    
+    
+    
     return output_file
                     

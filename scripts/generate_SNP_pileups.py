@@ -24,7 +24,7 @@ def get_nbr(dct):
             n=pcol.get_num_aligned()
             r=rlist[pcol.pos+1-start]
 
-            if r!='N' and n>=dct['mincov']:
+            if r in 'AGTC' and n>=dct['mincov']:
                 seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
                 alt_freq=max([x[1] for x in Counter(seq).items() if (x[0]!=r and x[0] in 'AGTC')]+[0])/n
 
@@ -81,7 +81,6 @@ def get_testing_candidates(dct):
     pos_list=output.keys()
 
     output_pos,output_ref,output_mat,output_dp,output_freq=[],[],[],[],[]
-    
     if pos_list:
 
         for v_pos in pos_list:
@@ -162,26 +161,24 @@ def get_testing_candidates(dct):
             output_dp.append(output[v_pos][0])
             output_freq.append(output[v_pos][1])
             
-    output_mat=np.array(output_mat).astype(np.float32)    
-    output_pos=np.array(output_pos)
-    
-    output_ref=np.eye(max(4,np.max(output_ref)+1))[np.array(output_ref)].astype(np.int8)
-    output_ref=output_ref[:,:4]
+        output_mat=np.array(output_mat).astype(np.float32)    
+        output_pos=np.array(output_pos)
 
-    output_dp=np.array(output_dp)
-    output_freq=np.array(output_freq)
+        output_ref=np.eye(max(4,np.max(output_ref)+1))[np.array(output_ref)].astype(np.int8)
+        output_ref=output_ref[:,:4]
+
+        output_dp=np.array(output_dp)
+        output_freq=np.array(output_freq)
     
     return (output_pos,output_ref,output_mat,output_dp,output_freq)
     
-def generate(params):
-    cores=params['cpu']
+def generate(params, pool):
     chrom=params['chrom']
     threshold=params['threshold']
     start,end=params['start'],params['end']    
-
     
-    print('starting pileup generation for %s:%d-%d' %(chrom,start,end) ,flush=True)
-    pool = mp.Pool(processes=cores)
+    print('generating SNP pileups for %s:%d-%d' %(chrom,start,end) ,flush=True)
+    
     
     in_dict_list=[]
     for k in range(max(1,start-50000),end+50000,100000):
@@ -200,8 +197,7 @@ def generate(params):
     cnd_df.set_index('pos',inplace=True,drop=False)
     cnd_df[['ref']]=cnd_df[['ref']].applymap(lambda x:base_to_num_map[x])
     params['cnd_df']=cnd_df
-                                    
-    print('neighbor candidates generated',flush =True)
+        
     in_dict_list=[]
     for k in range(start,end,100000):
         d = copy.deepcopy(params)
@@ -210,6 +206,7 @@ def generate(params):
         in_dict_list.append(d)
     results = pool.map(get_testing_candidates, in_dict_list)
 
+    
     pos=np.vstack([res[0][:,np.newaxis] for res in results if len(res[0])>0])
     mat=np.vstack([res[2] for res in results if len(res[0])>0])
     

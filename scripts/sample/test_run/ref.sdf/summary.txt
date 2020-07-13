@@ -1,0 +1,18 @@
+
+Input Data
+Files              : chr22.fa
+Format             : FASTA
+Type               : DNA
+Number of sequences: 1
+Total residues     : 50818468
+Minimum length     : 50818468
+Mean length        : 50818468
+Maximum length     : 50818468
+
+Output Data
+SDF-ID             : 13d4eb30-7e18-499d-815c-6e627da07e65
+Number of sequences: 1
+Total residues     : 50818468
+Minimum length     : 50818468
+Mean length        : 50818468
+Maximum length     : 50818468

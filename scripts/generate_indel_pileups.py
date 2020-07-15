@@ -1,9 +1,7 @@
-import sys,pysam, time,os,re,copy,argparse,gzip,itertools,subprocess,gzip
-from collections import Counter
+import sys,pysam, time,os,copy,argparse,subprocess, random
 import numpy as np
 import multiprocessing as mp
 from pysam import VariantFile
-from tempfile import mkstemp
 from subprocess import Popen, PIPE, STDOUT
 
 
@@ -34,11 +32,18 @@ def v_type(ref,allele1,allele2):
         
     return allele_map[(allele1_type,allele2_type)]
 
-def msa(seq_list, ref, v_pos, mincov):
+def msa(seq_list, ref, v_pos, mincov, maxcov):
+    sample=list(seq_list.keys())
+            
+    if len(sample) > maxcov:
+        sample=random.sample(sample,min(len(sample),maxcov))
+
+    sample=set(sample)
     fa_tmp_file=''
-    for seq_count,b in seq_list.items():
-        fa_tmp_file+='>%s_SEQ\n'%seq_count
-        fa_tmp_file+= '%s\n' %b
+    
+    for read_name in sample:
+        fa_tmp_file+='>%s_SEQ\n'%read_name
+        fa_tmp_file+= '%s\n' %seq_list[read_name]
 
 
     fa_tmp_file+='>ref_SEQ\n'
@@ -78,7 +83,7 @@ def msa(seq_list, ref, v_pos, mincov):
     return (1,1,np.dstack([h0_mat, ref_real_0_mat]))
     
 
-def get_testing_candidates_indels(dct):
+def get_indel_testing_candidates(dct):
     
     chrom=dct['chrom']
     start=dct['start']
@@ -150,14 +155,14 @@ def get_testing_candidates_indels(dct):
                                 d['hap1'][pread.alignment.qname]=dt
                         
                         seq_list=d['hap0']
-                        flag0, indel_flag0, data_0=msa(seq_list,ref,v_pos,2)
+                        flag0, indel_flag0, data_0=msa(seq_list,ref,v_pos,2,dct['maxcov'])
 
                         
                         seq_list=d['hap1']
-                        flag1,indel_flag1,data_1=msa(seq_list,ref,v_pos,2)
+                        flag1,indel_flag1,data_1=msa(seq_list,ref,v_pos,2,dct['maxcov'])
                         
                         seq_list = d_tot
-                        flag_total,indel_flag_total,data_total=msa(seq_list,ref,v_pos,dct['mincov'])
+                        flag_total,indel_flag_total,data_total=msa(seq_list,ref,v_pos,dct['mincov'],dct['maxcov'])
 
                         if flag0 and flag1 and flag_total:
                             prev=v_pos
@@ -192,7 +197,7 @@ def generate(params,pool):
         d['end']=min(end,k+100000)
         in_dict_list.append(d)
     
-    results = pool.map(get_testing_candidates, in_dict_list)
+    results = pool.map(get_indel_testing_candidates, in_dict_list)
     
     if sum([len(res[0]) for res in results])==0:
         return [],[],[],[]

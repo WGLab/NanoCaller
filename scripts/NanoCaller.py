@@ -113,7 +113,7 @@ if __name__ == '__main__':
                 'del_t':args.del_threshold,'ins_t':args.ins_threshold}
         ind_time=time.time()
         indel_vcf=indelCaller.test_model(in_dict, pool)
-        print('Indel calling done. Time taken= %.4f' %(time.time()-ind_time)',flush=True)
+        print('Indel calling done. Time taken= %.4f' %(time.time()-ind_time),flush=True)
         
         if args.mode=='both':
             print('Post processing',flush=True)

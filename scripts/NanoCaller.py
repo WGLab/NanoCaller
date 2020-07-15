@@ -9,7 +9,7 @@ if __name__ == '__main__':
     parser.add_argument("-mode",  "--mode",  help="Testing mode, options are 'snps', 'indels' and 'both'", type=str, default='both')
     parser.add_argument("-seq",  "--sequencing",  help="Sequencing type, options are 'ont' and 'pacbio'", type=str, default='ont')
     parser.add_argument("-model",  "--model",  help="NanoCaller SNP model to be used, options are 'NanoCaller1' (trained on HG001 Nanopore reads), 'NanoCaller2' (trained on HG002 Nanopore reads) and 'NanoCaller3' (trained on HG003 PacBio reads) ", default='NanoCaller1')
-    parser.add_argument("-vcf",  "--vcf",  help="VCF output path", type=str, default='')
+    parser.add_argument("-vcf",  "--vcf",  help="VCF output path", type=str, default=os.getcwd())
     
     requiredNamed.add_argument("-chrom",  "--chrom",  help="Chromosome", required=True)
     parser.add_argument("-cpu",  "--cpu",  help="CPUs", type=int, default=1)
@@ -33,6 +33,7 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
 
+    
     pool = mp.Pool(processes=args.cpu)
     
     try:  
@@ -50,6 +51,7 @@ if __name__ == '__main__':
             with open(args.ref+'.fai','r') as file:
                 for line in file:
                     if line.split('\t')[0]==args.chrom:
+                        
                         end=int(line.split('\t')[1])
 
         except FileNotFoundError:
@@ -73,9 +75,9 @@ if __name__ == '__main__':
         
     snp_vcf=''
     if args.mode in ['snps','both']:
-        
+        snp_time=time.time()
         snp_vcf=snpCaller.test_model(in_dict, pool)
-        print('SNP calling done',flush=True)
+        print('SNP calling done. Time taken= %.4f' %(time.time()-snp_time),flush=True)
 
         if snp_vcf:
             stream=os.popen("whatshap phase %s.vcf.gz %s -o %s.phased.preclean.vcf -r %s --ignore-read-groups --chromosome %s --distrust-genotypes --include-homozygous" %(snp_vcf,in_dict['sam_path'], snp_vcf, in_dict['fasta_path'], in_dict['chrom'] ))
@@ -109,25 +111,26 @@ if __name__ == '__main__':
              'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
              'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, \
                 'del_t':args.del_threshold,'ins_t':args.ins_threshold}
-        
+        ind_time=time.time()
         indel_vcf=indelCaller.test_model(in_dict, pool)
-        print('indel calling done',flush=True)
+        print('Indel calling done. Time taken= %.4f' %(time.time()-ind_time)',flush=True)
         
         if args.mode=='both':
+            print('Post processing',flush=True)
             stream=os.popen('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.vcf,args.chrom))
             stream.read()
 
-            
+
             stream=os.popen('echo "something";rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.vcf,args.chrom,args.vcf))
             stream.read()
-                        
+
             stream=os.popen('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps --break-indels -o %s.decomposed.vcf.gz -t %s/ref.sdf' %(indel_vcf,indel_vcf,args.vcf))
             stream.read()
-            
+
             final_path=os.path.join(args.vcf,'%s.final.vcf.gz' %args.prefix)
             stream=os.popen('bcftools concat %s.vcf.gz %s.decomposed.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
             stream.read()
-            
+
     pool.close()
     pool.join()
     

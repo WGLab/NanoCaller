@@ -1,14 +1,11 @@
 import sys,pysam, time,os,re,copy,argparse,gzip,itertools,subprocess,gzip
 from collections import Counter
-import pandas as pd
 import numpy as np
 import multiprocessing as mp
 from pysam import VariantFile
-from intervaltree import Interval, IntervalTree
 from tempfile import mkstemp
 from subprocess import Popen, PIPE, STDOUT
 
-os.environ["PATH"] += os.pathsep + '/home/ahsanm/lib/tcoffee/t_coffee/src'
 
 window_before,window_after=0,160
 
@@ -48,7 +45,7 @@ def msa(seq_list, ref, v_pos, mincov):
     fa_tmp_file+= '%s' %ref
     
     gap_penalty=1.0
-    msa_process =Popen(['muscle', '-quiet','-gapopen','%.1f' %gap_penalty,'-maxiters', '1' ,'-diags1'], stdout=PIPE, stdin=PIPE, stderr=PIPE)
+    msa_process =Popen(['/home/ahsanm1/anaconda3/envs/new_tf/bin/muscle', '-quiet','-gapopen','%.1f' %gap_penalty,'-maxiters', '1' ,'-diags1'], stdout=PIPE, stdin=PIPE, stderr=PIPE)
     hap_file=msa_process.communicate(input=fa_tmp_file.encode('utf-8'))
 
     if len(hap_file)==0:
@@ -81,7 +78,7 @@ def msa(seq_list, ref, v_pos, mincov):
     return (1,1,np.dstack([h0_mat, ref_real_0_mat]))
     
 
-def get_testing_candidates(dct):
+def get_testing_candidates_indels(dct):
     
     chrom=dct['chrom']
     start=dct['start']
@@ -92,10 +89,7 @@ def get_testing_candidates(dct):
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
 
-    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-40),end+40+1),fastafile.fetch(chrom,max(1,start-40)-1,end+40)) }
-    
-    ref_df=pd.DataFrame(list(ref_dict.items()), columns=['pos', 'ref'])
-    ref_df.set_index('pos',drop=False,inplace=True)
+    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-200),end+200+1),fastafile.fetch(chrom,max(1,start-200)-1,end+200)) }
     
     hap_dict={1:[],2:[]}
     
@@ -115,27 +109,20 @@ def get_testing_candidates(dct):
             
             if pcol.pos+1>prev+1:                
                 read_names=pcol.get_query_names()
-                read_names_0=[x for x in read_names if x in hap_reads_0]
-                read_names_1=[x for x in read_names if x in hap_reads_1]
-
-                if len(read_names)>=dct['mincov']:
+                read_names_0=set(read_names) & hap_reads_0
+                read_names_1=set(read_names) & hap_reads_1#set([x for x in read_names if x in hap_reads_1])
+                len_seq_0=len(read_names_0)
+                len_seq_1=len(read_names_1)
+                if len_seq_0>=dct['mincov']  and len_seq_1>=dct['mincov']:
                     v_pos=pcol.pos+1
                     seq=[x[:2].upper() for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)]
                     
-                    len_seq=len(seq)
-                    tmp_seq=''.join(seq)
                     
-                    tmp_0=[s for n,s in zip(read_names,seq) if n in read_names_0]
-                    len_seq_0=len(tmp_0)
-                    tmp_seq_0=''.join(tmp_0)
+                    tmp_seq_0=''.join([s for n,s in zip(read_names,seq) if n in read_names_0])
+                    tmp_seq_1=''.join([s for n,s in zip(read_names,seq) if n in read_names_1])
                     
-                    tmp_1=[s for n,s in zip(read_names,seq) if n in read_names_1]
-                    len_seq_1=len(tmp_1)
-                    tmp_seq_1=''.join(tmp_1)
+                    
                                         
-                    del_freq=(tmp_seq.count('-')+tmp_seq.count('*'))/len_seq if len_seq>0 else 0
-                    ins_freq=tmp_seq.count('+')/len_seq if len_seq>0 else 0
-                    
 
                     del_freq_0=(tmp_seq_0.count('-')+tmp_seq_0.count('*'))/len_seq_0 if len_seq_0>0 else 0
                     ins_freq_0=tmp_seq_0.count('+')/len_seq_0 if len_seq_0>0 else 0
@@ -143,22 +130,24 @@ def get_testing_candidates(dct):
                     del_freq_1=(tmp_seq_1.count('-')+tmp_seq_1.count('*'))/len_seq_1 if len_seq_1>0 else 0
                     ins_freq_1=tmp_seq_1.count('+')/len_seq_1 if len_seq_1>0 else 0
                     
-                    ref=''.join(ref_df.reindex(range(v_pos-window_before,v_pos+window_after+1)).fillna('').ref.to_list())
-                    
-                    if len(ref)<128:
-                        continue
-                    if len_seq_0>=dct['mincov']  and len_seq_1>=dct['mincov']  and (dct['del_t']<=del_freq_0 or dct['del_t']<=del_freq_1 or dct['ins_t']<=ins_freq_0 or dct['ins_t']<=ins_freq_1):
-                                            
+               
+                    if (dct['del_t']<=del_freq_0 or dct['del_t']<=del_freq_1 or dct['ins_t']<=ins_freq_0 or dct['ins_t']<=ins_freq_1):
+                                                    
+                        ref=''.join([ref_dict[p] for p in range(v_pos-window_before,v_pos+window_after+1)])
                         
+                        if len(ref)<128:
+                            continue
+                            
                         d={'hap0':{},'hap1':{}}
                         d_tot={}
                         for pread in pcol.pileups:
-                            d_tot[pread.alignment.qname]=pread.alignment.query_sequence[max(0,pread.query_position_or_next-window_before):pread.query_position_or_next+window_after]
+                            dt=pread.alignment.query_sequence[max(0,pread.query_position_or_next-window_before):pread.query_position_or_next+window_after]
+                            d_tot[pread.alignment.qname]=dt
                             if pread.alignment.qname in read_names_0:
-                                d['hap0'][pread.alignment.qname]=pread.alignment.query_sequence[max(0,pread.query_position_or_next-window_before):pread.query_position_or_next+window_after]
+                                d['hap0'][pread.alignment.qname]=dt
 
                             elif pread.alignment.qname in read_names_1:
-                                d['hap1'][pread.alignment.qname]=pread.alignment.query_sequence[max(0,pread.query_position_or_next-window_before):pread.query_position_or_next+window_after]
+                                d['hap1'][pread.alignment.qname]=dt
                         
                         seq_list=d['hap0']
                         flag0, indel_flag0, data_0=msa(seq_list,ref,v_pos,2)
@@ -171,7 +160,7 @@ def get_testing_candidates(dct):
                         flag_total,indel_flag_total,data_total=msa(seq_list,ref,v_pos,dct['mincov'])
 
                         if flag0 and flag1 and flag_total:
-                            prev=pcol.pos+1
+                            prev=v_pos
                             output_pos.append(v_pos)
                             output_data_0.append(data_0)
                             output_data_1.append(data_1)

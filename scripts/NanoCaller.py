@@ -91,15 +91,11 @@ if __name__ == '__main__':
             whatshap_version=float(whatshap_version[9:13])
             
             
-            if whatshap_version>=0.19:
-                stream=os.popen("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --ignore-read-groups --ignore-linked-read" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end))
-                stream.read()
             
-            else: 
-                stream=os.popen('samtools view -b %s %s:%d-%d -o %s.bam --output-fmt BAM; samtools index %s.bam' %(in_dict['sam_path'], args.chrom, start, end, snp_vcf,snp_vcf))
-                stream=os.popen("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s.bam --ignore-read-groups --ignore-linked-read" %(snp_vcf,in_dict['fasta_path'], snp_vcf, snp_vcf))
-                stream.read()
-                
+            stream=os.popen("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --ignore-read-groups --ignore-linked-read" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end))
+            stream.read()
+            
+                        
             stream=os.popen('samtools index %s.phased.bam' %snp_vcf )
             stream.read()
     

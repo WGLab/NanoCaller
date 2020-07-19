@@ -85,19 +85,15 @@ if __name__ == '__main__':
             
             stream=os.popen("bcftools view -e  'GT=\"0\\0\"' %s.phased.preclean.vcf|bgziptabix %s.phased.vcf.gz" %(snp_vcf,snp_vcf))
             stream.read()
-            
-            stream=os.popen('whatshap --version')
-            whatshap_version=stream.read()
-            whatshap_version=float(whatshap_version[9:13])
-            
-            
-            
-            stream=os.popen("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --ignore-read-groups --ignore-linked-read" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end))
-            stream.read()
-            
-                        
-            stream=os.popen('samtools index %s.phased.bam' %snp_vcf )
-            stream.read()
+
+
+            if args.mode=='both':
+                stream=os.popen("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --ignore-read-groups --ignore-linked-read" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end))
+                stream.read()
+
+
+                stream=os.popen('samtools index %s.phased.bam' %snp_vcf )
+                stream.read()
     
     if args.mode in ['indels','both']:
         

@@ -42,7 +42,7 @@ def test_model(params,pool):
         train_coverage=62
         
     elif model== 'NanoCaller3':
-        model_path=os.path.join(dirname, 'release_data/NanoCaller3/model-30')
+        model_path=os.path.join(dirname, 'release_data/NanoCaller3/model-rt-100')
         train_coverage=28
         
     init = tf.global_variables_initializer()

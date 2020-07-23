@@ -1,0 +1,14 @@
+Coverage=49.63x
+
+WARNING: The TensorFlow contrib module will not be included in TensorFlow 2.0.
+For more information, please see:
+  * https://github.com/tensorflow/community/blob/master/rfcs/20180907-contrib-sunset.md
+  * https://github.com/tensorflow/addons
+If you depend on functionality not listed there, please file an issue.
+
+generating SNP pileups for chr22:20000000-21000000
+SNP calling done. Time taken= 61.5477
+generating indel pileups for chr22:20000000-21000000
+Indel calling done. Time taken= 309.0523
+Post processing
+Total Time Elapsed: 411.75 seconds

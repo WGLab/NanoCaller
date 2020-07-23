@@ -186,6 +186,11 @@ def test_model(params,pool):
                 batch_x0,batch_x1,batch_x2,batch_x=None,None,None,None
             pos, x0_test, x1_test, x2_test=None,None,None,None
             
+            f.flush()
+            os.fsync(f.fileno())
+            neg_file.flush()
+            os.fsync(neg_file.fileno())
+            
     neg_file.close()
     outfile=os.path.join(vcf_path,'%s.indels' %prefix)
     stream=os.popen("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(outfile, outfile))

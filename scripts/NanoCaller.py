@@ -16,12 +16,12 @@ if __name__ == '__main__':
     parser.add_argument("-min_allele_freq",  "--min_allele_freq",  help="minimum alternative allele frequency", type=float,  default=0.15)
     parser.add_argument("-min_nbr_sites",  "--min_nbr_sites",  help="minimum number of nbr sites", type=int,  default =1)
     
-    requiredNamed.add_argument("-bam",  "--bam",  help="Bam file", required=True)
+    requiredNamed.add_argument("-bam",  "--bam",  help="Bam file, should be phased if 'indel' mode is selected", required=True)
     requiredNamed.add_argument("-ref",  "--ref",  help="reference genome file with .fai index", required=True)
     
     requiredNamed.add_argument("-prefix",  "--prefix",  help="VCF file prefix", type=str, required=True)
     parser.add_argument("-sample",  "--sample",  help="VCF file sample name", type=str, default='SAMPLE')
-    
+    parser.add_argument("-sup",  "--supplementary",  help="Use supplementary reads", type=bool, default=False)
     parser.add_argument("-mincov",  "--mincov",  help="min coverage", type=int, default=8)
     parser.add_argument("-maxcov",  "--maxcov",  help="max coverage", type=int, default=160)
     
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':args.bam, 'fasta_path':args.ref, \
              'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
              'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, \
-            'seq':args.sequencing}
+            'seq':args.sequencing, 'supplementary':args.supplementary}
         
     snp_vcf=''
     if args.mode in ['snps','both']:
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
 
             if args.mode=='both':
-                stream=os.popen("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --ignore-read-groups --ignore-linked-read" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end))
+                stream=os.popen("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --ignore-read-groups --ignore-linked-read --tag-supplementary" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end))
                 stream.read()
 
 
@@ -102,7 +102,7 @@ if __name__ == '__main__':
         in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':sam_path, 'fasta_path':args.ref, \
              'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
              'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, \
-                'del_t':args.del_threshold,'ins_t':args.ins_threshold}
+                'del_t':args.del_threshold,'ins_t':args.ins_threshold,'supplementary':args.supplementary}
         ind_time=time.time()
         indel_vcf=indelCaller.test_model(in_dict, pool)
         print('Indel calling done. Time taken= %.4f' %(time.time()-ind_time),flush=True)
@@ -113,7 +113,7 @@ if __name__ == '__main__':
             stream.read()
 
 
-            stream=os.popen('echo "something";rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.vcf,args.chrom,args.vcf))
+            stream=os.popen('rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.vcf,args.chrom,args.vcf))
             stream.read()
 
             stream=os.popen('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps --break-indels -o %s.decomposed.vcf.gz -t %s/ref.sdf' %(indel_vcf,indel_vcf,args.vcf))

@@ -16,10 +16,18 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 def test_model(params,pool):
     model,vcf_path,prefix= params['model'],params['vcf_path'], params['prefix']
     chrom,start,end=params['chrom'], params['start'],params['end']
+    
+    if params['supplementary']:
+        flag=0x4|0x100|0x200|0x400
+    else:
+        flag=0x4|0x100|0x200|0x400|0x800
         
-    stream = os.popen("samtools view %s %s:%d-%d -F 3844|cut -f 10|awk '{sum+=length($0)}END{print sum}'" %(params['sam_path'], chrom,start,end))
-    coverage = int(stream.read().rstrip('\n'))/(end-start+1)
-    print('coverage=%dx' %coverage,flush=True)
+    stream = os.popen("samtools depth %s -r %s:%d-%d -G %d|awk '{if ($3>=%d){sum+=$3; cnt+=1}}END{if(cnt>0){print sum/cnt}else{print 0}}'" %(params['sam_path'], chrom,start,end,flag, params['mincov']))
+    coverage=float(stream.read())
+    print('Coverage=%.2fx' %coverage, flush=True)
+    if coverage==0:
+        print('No coverage found', flush=True)
+        sys.exit(0)
     
     
     n_input=[5,41,5]
@@ -131,6 +139,10 @@ def test_model(params,pool):
 
 
                     neg_file.write('%d,%s,%.4f,%.4f,%.4f,%.4f,%.4f,%d,%.4f\n' %(batch_pos[j],num_to_base_map[batch_ref[j]], batch_prob_GT[j,0], batch_probs[j,0], batch_probs[j,1], batch_probs[j,2], batch_probs[j,3], batch_dp[j], batch_freq[j]))
+            f.flush()
+            os.fsync(f.fileno())
+            neg_file.flush()
+            os.fsync(neg_file.fileno())
     
     output_file=os.path.join(vcf_path,'%s.snps' %prefix)
     stream=os.popen("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(output_file, output_file))

@@ -105,12 +105,16 @@ def get_indel_testing_candidates(dct):
     hap_reads_0=set(hap_dict[1])
     hap_reads_1=set(hap_dict[2])
     
-    
+    if dct['supplementary']:
+        flag=0x4|0x100|0x200|0x400
+    else:
+        flag=0x4|0x100|0x200|0x400|0x800
+        
     pileup_list=[]
     output_pos,output_data_0,output_data_1,output_data_total=[],[],[],[]
     prev=0
     for pcol in samfile.pileup(chrom,max(0,start-1),end,min_base_quality=0,\
-                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
+                                           flag_filter=flag,truncate=True):
             
             if pcol.pos+1>prev+1:                
                 read_names=pcol.get_query_names()

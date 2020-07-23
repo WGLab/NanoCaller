@@ -58,9 +58,13 @@ def get_snp_testing_candidates(dct):
     
     output={}
     
-    
+    if dct['supplementary']:
+        flag=0x4|0x100|0x200|0x400
+    else:
+        flag=0x4|0x100|0x200|0x400|0x800
+        
     for pcol in samfile.pileup(chrom,max(0,start-1-30),end+30,min_base_quality=0,\
-                                           flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
+                                           flag_filter=flag,truncate=True):
             r=ref_dict[pcol.pos+1]
             if r in 'AGTC':
                 seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()

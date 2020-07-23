@@ -1,79 +1,79 @@
-2020-07-13 13:00:25 serial = 27182818284
-2020-07-13 13:00:25 email = anon
-2020-07-13 13:00:25 RTG version = RTG Tools 3.11 / Core 6e08b60e18 (2020-02-26)
-2020-07-13 13:00:25 awt.toolkit = sun.awt.X11.XToolkit
-2020-07-13 13:00:25 file.encoding = UTF-8
-2020-07-13 13:00:25 file.separator = /
-2020-07-13 13:00:25 host.name = c-2-02
-2020-07-13 13:00:25 java.awt.graphicsenv = sun.awt.X11GraphicsEnvironment
-2020-07-13 13:00:25 java.awt.printerjob = sun.print.PSPrinterJob
-2020-07-13 13:00:25 java.class.path = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0/RTG.jar
-2020-07-13 13:00:25 java.class.version = 55.0
-2020-07-13 13:00:25 java.home = /home/ahsanm1/anaconda3/envs/new_tf
-2020-07-13 13:00:25 java.io.tmpdir = /tmp
-2020-07-13 13:00:25 java.library.path = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0
-2020-07-13 13:00:25 java.runtime.name = OpenJDK Runtime Environment
-2020-07-13 13:00:25 java.runtime.version = 11.0.1+13-LTS
-2020-07-13 13:00:25 java.specification.name = Java Platform API Specification
-2020-07-13 13:00:25 java.specification.vendor = Oracle Corporation
-2020-07-13 13:00:25 java.specification.version = 11
-2020-07-13 13:00:25 java.vendor = Azul Systems, Inc.
-2020-07-13 13:00:25 java.vendor.url = http://www.azulsystems.com/
-2020-07-13 13:00:25 java.vendor.url.bug = http://www.azulsystems.com/support/
-2020-07-13 13:00:25 java.vendor.version = Zulu11.2+3
-2020-07-13 13:00:25 java.version = 11.0.1
-2020-07-13 13:00:25 java.version.date = 2018-10-16
-2020-07-13 13:00:25 java.vm.compressedOopsMode = Zero based
-2020-07-13 13:00:25 java.vm.info = mixed mode
-2020-07-13 13:00:25 java.vm.name = OpenJDK 64-Bit Server VM
-2020-07-13 13:00:25 java.vm.specification.name = Java Virtual Machine Specification
-2020-07-13 13:00:25 java.vm.specification.vendor = Oracle Corporation
-2020-07-13 13:00:25 java.vm.specification.version = 11
-2020-07-13 13:00:25 java.vm.vendor = Azul Systems, Inc.
-2020-07-13 13:00:25 java.vm.version = 11.0.1+13-LTS
-2020-07-13 13:00:25 jdk.debug = release
-2020-07-13 13:00:25 lang.version = 11.0.1
-2020-07-13 13:00:25 line.separator = 
+2020-07-23 18:19:07 serial = 27182818284
+2020-07-23 18:19:07 email = anon
+2020-07-23 18:19:07 RTG version = RTG Tools 3.11 / Core 6e08b60e18 (2020-02-26)
+2020-07-23 18:19:07 awt.toolkit = sun.awt.X11.XToolkit
+2020-07-23 18:19:07 file.encoding = UTF-8
+2020-07-23 18:19:07 file.separator = /
+2020-07-23 18:19:07 host.name = c-2-01
+2020-07-23 18:19:07 java.awt.graphicsenv = sun.awt.X11GraphicsEnvironment
+2020-07-23 18:19:07 java.awt.printerjob = sun.print.PSPrinterJob
+2020-07-23 18:19:07 java.class.path = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0/RTG.jar
+2020-07-23 18:19:07 java.class.version = 55.0
+2020-07-23 18:19:07 java.home = /home/ahsanm1/anaconda3/envs/new_tf
+2020-07-23 18:19:07 java.io.tmpdir = /tmp
+2020-07-23 18:19:07 java.library.path = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0
+2020-07-23 18:19:07 java.runtime.name = OpenJDK Runtime Environment
+2020-07-23 18:19:07 java.runtime.version = 11.0.1+13-LTS
+2020-07-23 18:19:07 java.specification.name = Java Platform API Specification
+2020-07-23 18:19:07 java.specification.vendor = Oracle Corporation
+2020-07-23 18:19:07 java.specification.version = 11
+2020-07-23 18:19:07 java.vendor = Azul Systems, Inc.
+2020-07-23 18:19:07 java.vendor.url = http://www.azulsystems.com/
+2020-07-23 18:19:07 java.vendor.url.bug = http://www.azulsystems.com/support/
+2020-07-23 18:19:07 java.vendor.version = Zulu11.2+3
+2020-07-23 18:19:07 java.version = 11.0.1
+2020-07-23 18:19:07 java.version.date = 2018-10-16
+2020-07-23 18:19:07 java.vm.compressedOopsMode = Zero based
+2020-07-23 18:19:07 java.vm.info = mixed mode
+2020-07-23 18:19:07 java.vm.name = OpenJDK 64-Bit Server VM
+2020-07-23 18:19:07 java.vm.specification.name = Java Virtual Machine Specification
+2020-07-23 18:19:07 java.vm.specification.vendor = Oracle Corporation
+2020-07-23 18:19:07 java.vm.specification.version = 11
+2020-07-23 18:19:07 java.vm.vendor = Azul Systems, Inc.
+2020-07-23 18:19:07 java.vm.version = 11.0.1+13-LTS
+2020-07-23 18:19:07 jdk.debug = release
+2020-07-23 18:19:07 lang.version = 11.0.1
+2020-07-23 18:19:07 line.separator = 
 
-2020-07-13 13:00:25 models.dir = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0/models
-2020-07-13 13:00:25 nashorn.option.no.deprecation.warning = true
-2020-07-13 13:00:25 os.arch = amd64
-2020-07-13 13:00:25 os.freememory = 57989427200
-2020-07-13 13:00:25 os.name = Linux
-2020-07-13 13:00:25 os.totalmemory = 134953226240
-2020-07-13 13:00:25 os.version = 3.10.0-514.2.2.el7.x86_64
-2020-07-13 13:00:25 path.separator = :
-2020-07-13 13:00:25 processor.arch = amd64
-2020-07-13 13:00:25 processor.count = 24
-2020-07-13 13:00:25 references.dir = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0/references
-2020-07-13 13:00:25 runtime.freememory = 2098722816
-2020-07-13 13:00:25 runtime.maxmemory = 4294967296
-2020-07-13 13:00:25 runtime.totalMemory = 2109734912
-2020-07-13 13:00:25 sun.arch.data.model = 64
-2020-07-13 13:00:25 sun.boot.library.path = /home/ahsanm1/anaconda3/envs/new_tf/lib
-2020-07-13 13:00:25 sun.cpu.endian = little
-2020-07-13 13:00:25 sun.cpu.isalist = 
-2020-07-13 13:00:25 sun.io.unicode.encoding = UnicodeLittle
-2020-07-13 13:00:25 sun.java.command = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0/RTG.jar format -f fasta test_run/chr22.fa -o test_run/ref.sdf
-2020-07-13 13:00:25 sun.java.launcher = SUN_STANDARD
-2020-07-13 13:00:25 sun.jnu.encoding = UTF-8
-2020-07-13 13:00:25 sun.management.compiler = HotSpot 64-Bit Tiered Compilers
-2020-07-13 13:00:25 sun.os.patch.level = unknown
-2020-07-13 13:00:25 talkback = true
-2020-07-13 13:00:25 usage = false
-2020-07-13 13:00:25 user.country = US
-2020-07-13 13:00:25 user.dir = /home/ahsanm1/repos/NanoCaller/sample
-2020-07-13 13:00:25 user.home = /home/ahsanm1
-2020-07-13 13:00:25 user.language = en
-2020-07-13 13:00:25 user.name = ahsanm1
-2020-07-13 13:00:25 user.timezone = US/Eastern
-2020-07-13 13:00:25 vendor = Azul Systems, Inc.
-2020-07-13 13:00:25 gzipfix.enabled = true
-2020-07-13 13:00:25 Command line arguments: rtg format -f fasta test_run/chr22.fa -o test_run/ref.sdf
-2020-07-13 13:00:25 Run Id: de061c3c-fe37-4f0e-aead-e5dcccdfe276
-2020-07-13 13:00:25 Formatting FASTA data
-2020-07-13 13:00:25 Performing trimming with no trimming
-2020-07-13 13:00:25 Processing "test_run/chr22.fa"
-2020-07-13 13:00:26 Writing SDF-Id: ff8d4928-dd45-4470-b69f-b0b3316047e4
-2020-07-13 13:00:26 Referenced SDF-ID: ff8d4928-dd45-4470-b69f-b0b3316047e4 Type: DNA Sequences: 1 Max-Length: 50818468 Min-Length: 50818468 Arm: UNKNOWN
-2020-07-13 13:00:26 Finished successfully in 1 s.
+2020-07-23 18:19:07 models.dir = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0/models
+2020-07-23 18:19:07 nashorn.option.no.deprecation.warning = true
+2020-07-23 18:19:07 os.arch = amd64
+2020-07-23 18:19:07 os.freememory = 47594573824
+2020-07-23 18:19:07 os.name = Linux
+2020-07-23 18:19:07 os.totalmemory = 134953226240
+2020-07-23 18:19:07 os.version = 3.10.0-514.2.2.el7.x86_64
+2020-07-23 18:19:07 path.separator = :
+2020-07-23 18:19:07 processor.arch = amd64
+2020-07-23 18:19:07 processor.count = 24
+2020-07-23 18:19:07 references.dir = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0/references
+2020-07-23 18:19:07 runtime.freememory = 2099249152
+2020-07-23 18:19:07 runtime.maxmemory = 4294967296
+2020-07-23 18:19:07 runtime.totalMemory = 2109734912
+2020-07-23 18:19:07 sun.arch.data.model = 64
+2020-07-23 18:19:07 sun.boot.library.path = /home/ahsanm1/anaconda3/envs/new_tf/lib
+2020-07-23 18:19:07 sun.cpu.endian = little
+2020-07-23 18:19:07 sun.cpu.isalist = 
+2020-07-23 18:19:07 sun.io.unicode.encoding = UnicodeLittle
+2020-07-23 18:19:07 sun.java.command = /home/ahsanm1/anaconda3/envs/new_tf/share/rtg-tools-3.11-0/RTG.jar format -f fasta test_run/chr22.fa -o test_run/ref.sdf
+2020-07-23 18:19:07 sun.java.launcher = SUN_STANDARD
+2020-07-23 18:19:07 sun.jnu.encoding = UTF-8
+2020-07-23 18:19:07 sun.management.compiler = HotSpot 64-Bit Tiered Compilers
+2020-07-23 18:19:07 sun.os.patch.level = unknown
+2020-07-23 18:19:07 talkback = true
+2020-07-23 18:19:07 usage = false
+2020-07-23 18:19:07 user.country = US
+2020-07-23 18:19:07 user.dir = /home/ahsanm1/repos/NanoCaller/sample
+2020-07-23 18:19:07 user.home = /home/ahsanm1
+2020-07-23 18:19:07 user.language = en
+2020-07-23 18:19:07 user.name = ahsanm1
+2020-07-23 18:19:07 user.timezone = America/New_York
+2020-07-23 18:19:07 vendor = Azul Systems, Inc.
+2020-07-23 18:19:07 gzipfix.enabled = true
+2020-07-23 18:19:07 Command line arguments: rtg format -f fasta test_run/chr22.fa -o test_run/ref.sdf
+2020-07-23 18:19:07 Run Id: 554c3a51-96c3-499b-acd1-9fdd10abe564
+2020-07-23 18:19:07 Formatting FASTA data
+2020-07-23 18:19:07 Performing trimming with no trimming
+2020-07-23 18:19:07 Processing "test_run/chr22.fa"
+2020-07-23 18:19:08 Writing SDF-Id: fa0441ce-6207-4400-8473-354be2fe059d
+2020-07-23 18:19:09 Referenced SDF-ID: fa0441ce-6207-4400-8473-354be2fe059d Type: DNA Sequences: 1 Max-Length: 50818468 Min-Length: 50818468 Arm: UNKNOWN
+2020-07-23 18:19:09 Finished successfully in 1 s.

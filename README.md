@@ -86,8 +86,6 @@ Required arguments:
                         VCF file prefix (default: None)
 ```
 ## Example
-An example of NanoCaller usage is provided in [sample](sample). The results are stored in [test output](sample/test_run) and were created using the following command:
+Example files for testing NanoCaller usage are provided in [sample](sample). The results are stored in [test_run](sample/test_run).  This test can be recreated using the following command (also in [sample_call](sample/sample_call)):
 
-`python ../scripts/NanoCaller.py -bam HG002.nanopore.chr22.sample.bam -mode both -seq ont -model NanoCaller1 -vcf test_run -chrom chr22 -start 20000000 -end 21000000 -ref chr22_ref.fa -prefix HG002.chr22.sample -cpu 1 > log`
-
-which is also in the file [sample_call](sample/sample_call).
+`python scripts/NanoCaller.py -bam sample/HG002.nanopore.chr22.sample.bam -mode both -seq ont -model NanoCaller1 -vcf sample/test_run -chrom chr22 -start 20000000 -end 21000000 -ref sample/chr22_ref.fa -prefix HG002.chr22.sample -cpu 1 > log`

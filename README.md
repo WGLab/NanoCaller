@@ -28,7 +28,8 @@ conda activate nanocaller_env
 
 ## Usage
 ```
-python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py [-h] [-mode MODE] [-seq SEQUENCING] [-model MODEL]
+python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py [-h] [-mode MODE] 
+		     [-seq SEQUENCING] [-model MODEL]
                      [-vcf VCF] -chrom CHROM [-cpu CPU]
                      [-min_allele_freq MIN_ALLELE_FREQ]
                      [-min_nbr_sites MIN_NBR_SITES] -bam BAM -ref REF -prefix

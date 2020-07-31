@@ -14,7 +14,7 @@ dependencies:
   - pysam=0.15.3
   - python=3.6.8
   - rtg-tools=3.10.1
-  - samtools=1.9
+  - samtools=1.10
   - scipy=1.3.1
   - tensorflow=1.13.1
   - whatshap=1.0

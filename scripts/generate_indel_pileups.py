@@ -1,8 +1,9 @@
-import sys,pysam, time,os,copy,argparse,subprocess, random
+import sys,pysam, time,os,copy,argparse,subprocess, random, re
 import numpy as np
 import multiprocessing as mp
 from pysam import VariantFile
 from subprocess import Popen, PIPE, STDOUT
+from Bio import pairwise2
 
 
 window_before,window_after=0,160
@@ -10,10 +11,15 @@ window_before,window_after=0,160
 gt_map={(0,0):0, (1,1):1, (0,1):2, (1,0):2,(1,2):3, (2,1):3}
 
 mapping={'A':0,'G':1,'T':2,'C':3,'-':4}
-revmapping={0:'A',1:'G',2:'T',3:'C',4:'-'}
+rev_base_map={0:'A',1:'G',2:'T',3:'C',4:'-'}
 
 allele_map={('I','I'):0, ('D','D'):1, ('N','I'):2, ('I','N'):3, ('N','D'):4, ('D','N'):5, \
            ('I','D'):6, ('D','I'):7, ('N','N'):8}
+
+def pairwise(x,y):
+    alignments = pairwise2.align.localms(x, y, 2, -1.0, -1, -0.1)
+
+    return alignments
 
 def v_type(ref,allele1,allele2):
     allele1_type,allele2_type='N','N'
@@ -82,6 +88,62 @@ def msa(seq_list, ref, v_pos, mincov, maxcov):
 
     return (1,1,np.dstack([h0_mat, ref_real_0_mat]))
     
+def norm(batch_x0):
+    batch_x0=batch_x0.astype(np.float32)
+    batch_x0[:,:,:,0]=batch_x0[:,:,:,0]/(np.sum(batch_x0[:,:,:,0],axis=1)[:,np.newaxis,:])-batch_x0[:,:,:,1]
+    return batch_x0
+
+def allele_prediction(mat):
+    tmp_mat=mat[:,:,0]+mat[:,:,1]
+    tmp_mat[4,:]=tmp_mat[4,:]
+    ref_seq=''.join([rev_base_map[x] for x in np.argmax(mat[:,:,1],axis=0)])
+    
+    alt=''.join([rev_base_map[x] for x in np.argmax(tmp_mat,axis=0)])
+    
+    res=pairwise(alt.replace('-',''),ref_seq.replace('-',''))
+    try:
+        flag=False
+        best=None
+        score=1e6
+        for pair in res:
+            current=sum([m.start() for m in re.finditer('-', pair[0])])+sum([m.start() for m in re.finditer('-', pair[1])])
+            if current <score:
+                best=pair
+                score=current
+
+        if best==None:
+            return (None,None)
+        
+        alt_new=best[0]
+        ref_new=best[1]
+        for i in range(60):
+            if i>=10 and flag==False:
+                break
+            if ref_new[i]=='-' or alt_new[i]=='-':
+                flag=True
+            if ref_new[i:i+4]==alt_new[i:i+4] and flag:
+                break
+
+        i+=1
+        s2=alt_new[:i].replace('-','')
+        s1=ref_new[:i].replace('-','')
+    
+    
+        s1=s1[0]+'.'+s1[1:]+'|'
+        s2=s2[0]+'.'+s2[1:]+'|'
+    except IndexError:
+        return (None,None)
+    if s1==s2:
+        return (None,None)
+    i=-1
+        
+    while s1[i]==s2[i] and s1[i]!='.' and s2[i]!='.':
+        i-=1
+
+    ref_out=s1[:i+1].replace('.','')
+    allele_out=s2[:i+1].replace('.','')
+    
+    return (ref_out,allele_out)
 
 def get_indel_testing_candidates(dct):
     
@@ -90,7 +152,6 @@ def get_indel_testing_candidates(dct):
     end=dct['end']
     sam_path=dct['sam_path']
     fasta_path=dct['fasta_path']
-            
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
 
@@ -149,6 +210,7 @@ def get_indel_testing_candidates(dct):
                             
                         d={'hap0':{},'hap1':{}}
                         d_tot={}
+                        
                         for pread in pcol.pileups:
                             dt=pread.alignment.query_sequence[max(0,pread.query_position_or_next-window_before):pread.query_position_or_next+window_after]
                             d_tot[pread.alignment.qname]=dt
@@ -177,12 +239,18 @@ def get_indel_testing_candidates(dct):
                             
     if len(output_pos)==0:
         return (output_pos,output_data_0,output_data_1,output_data_total)
-    output_pos=np.array(output_pos)
-    output_data_0=np.array(output_data_0)
-    output_data_1=np.array(output_data_1)
-    output_data_total=np.array(output_data_total)
     
-    return (output_pos,output_data_0,output_data_1,output_data_total)
+    output_pos=np.array(output_pos)
+    output_data_0=norm(np.array(output_data_0))
+    output_data_1=norm(np.array(output_data_1))
+    output_data_total=norm(np.array(output_data_total))
+    
+    alleles=[]
+    
+    for i in range(len(output_pos)):
+        alleles.append([allele_prediction(output_data_0[i]),allele_prediction(output_data_1[i]),allele_prediction(output_data_total[i])])
+        
+    return (output_pos,output_data_0,output_data_1,output_data_total,alleles)
     
 def generate(params,pool):
     cores=params['cpu']
@@ -204,10 +272,11 @@ def generate(params,pool):
     results = pool.map(get_indel_testing_candidates, in_dict_list)
     
     if sum([len(res[0]) for res in results])==0:
-        return [],[],[],[]
+        return [],[],[],[],[]
     pos=np.vstack([res[0][:,np.newaxis] for res in results if len(res[0])>0])
     mat_0=np.vstack([res[1] for res in results if len(res[0])>0])
     mat_1=np.vstack([res[2] for res in results if len(res[0])>0])
     mat_2=np.vstack([res[3] for res in results if len(res[0])>0])
+    alleles_seq=np.vstack([res[4] for res in results if len(res[0])>0])
     
-    return pos, mat_0, mat_1, mat_2
+    return pos, mat_0, mat_1, mat_2, alleles_seq

@@ -5,7 +5,6 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 Please cite: Ahsan, Umair and Liu, Qian and Wang, Kai. NanoCaller for accurate detection of SNPs and small indels from long-read sequencing by deep neural networks. bioRxiv 2019.12.29.890418; doi: https://doi.org/10.1101/2019.12.29.890418
 
 ## Installation
-### Method 1
 First, install Miniconda, a minimal installation of Anaconda, which is much smaller and has a faster installation.
 Note that this version is meant for Linux below, macOS and Windows have a different script:
 
@@ -18,17 +17,11 @@ Go through all the prompts (installation in `$HOME` is recommended).
 After Anaconda is installed successfully, simply run:
 
 ```
-git clone https://github.com/WGLab/NanoCaller.git
-cd NanoCaller
-conda env create -f environment.yml
-conda activate NanoCaller
-```
-### Method 2
-If you do not wish to use Anaconda, simply install the packages in the file `environment.yml` using `pip`.
+conda create -n nanocaller_env -c bioconda bcftools=1.10.2 biopython=1.76 htslib=1.10.2  muscle=3.8.1551 numpy=1.18.5 pysam=0.15.3 python=3.6.8 rtg-tools=3.11 samtools=1.10 tensorflow=1.13.1 whatshap=1.0
 
-```
 git clone https://github.com/WGLab/NanoCaller.git
 cd NanoCaller
+conda activate nanocaller_env
 ```
 
 ## Usage

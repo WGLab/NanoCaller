@@ -56,7 +56,7 @@ def msa(seq_list, ref, v_pos, mincov, maxcov):
     fa_tmp_file+= '%s' %ref
     
     gap_penalty=1.0
-    msa_process =Popen(['/home/ahsanm1/anaconda3/envs/new_tf/bin/muscle', '-quiet','-gapopen','%.1f' %gap_penalty,'-maxiters', '1' ,'-diags1'], stdout=PIPE, stdin=PIPE, stderr=PIPE)
+    msa_process =Popen(['muscle', '-quiet','-gapopen','%.1f' %gap_penalty,'-maxiters', '1' ,'-diags1'], stdout=PIPE, stdin=PIPE, stderr=PIPE)
     hap_file=msa_process.communicate(input=fa_tmp_file.encode('utf-8'))
 
     if len(hap_file)==0:

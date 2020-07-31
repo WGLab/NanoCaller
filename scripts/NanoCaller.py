@@ -1,4 +1,4 @@
-import time, argparse, os
+import time, argparse, os, shutil
 import multiprocessing as mp
 
 if __name__ == '__main__':
@@ -115,10 +115,22 @@ if __name__ == '__main__':
             stream=os.popen('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.vcf,args.chrom))
             stream.read()
 
+            if os.path.exists('%s/ref.sdf' %args.vcf):
+                if os.path.isdir('%s/ref.sdf' %args.vcf):
+                    shutil.rmtree('%s/ref.sdf' %args.vcf)
+                else:
+                    os.remove('%s/ref.sdf' %args.vcf)
 
             stream=os.popen('rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.vcf,args.chrom,args.vcf))
             stream.read()
 
+            if os.path.exists('%s.decomposed.vcf.gz' %indel_vcf):
+                if os.path.isdir('%s.decomposed.vcf.gz' %indel_vcf):
+                    shutil.rmtree('%s.decomposed.vcf.gz' %indel_vcf)
+                else:
+                    os.remove('%s.decomposed.vcf.gz' %indel_vcf)
+                
+                
             stream=os.popen('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps --break-indels -o %s.decomposed.vcf.gz -t %s/ref.sdf' %(indel_vcf,indel_vcf,args.vcf))
             stream.read()
 

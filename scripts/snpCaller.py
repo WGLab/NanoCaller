@@ -1,5 +1,4 @@
 import time,os,copy,argparse,subprocess, sys
-import pandas as pd
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf

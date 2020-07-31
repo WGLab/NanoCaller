@@ -9,7 +9,7 @@ if __name__ == '__main__':
     parser.add_argument("-mode",  "--mode",  help="Testing mode, options are 'snps', 'indels' and 'both'", type=str, default='both')
     parser.add_argument("-seq",  "--sequencing",  help="Sequencing type, options are 'ont' and 'pacbio'", type=str, default='ont')
     parser.add_argument("-model",  "--model",  help="NanoCaller SNP model to be used, options are 'NanoCaller1' (trained on HG001 Nanopore reads), 'NanoCaller2' (trained on HG002 Nanopore reads) and 'NanoCaller3' (trained on HG003 PacBio reads) ", default='NanoCaller1')
-    parser.add_argument("-vcf",  "--vcf",  help="VCF output path", type=str, default=os.getcwd())
+    parser.add_argument("-vcf",  "--vcf",  help="VCF output path, default is current working directory", type=str)
     
     requiredNamed.add_argument("-chrom",  "--chrom",  help="Chromosome", required=True)
     parser.add_argument("-cpu",  "--cpu",  help="CPUs", type=int, default=1)
@@ -35,6 +35,9 @@ if __name__ == '__main__':
 
     
     pool = mp.Pool(processes=args.cpu)
+    
+    if not args.vcf:
+        args.vcf=os.getcwd()
     
     try:  
         os.mkdir(args.vcf)  

@@ -17,7 +17,9 @@ Go through all the prompts (installation in `$HOME` is recommended).
 After Anaconda is installed successfully, simply run:
 
 ```
-conda create -n nanocaller_env -c bioconda bcftools=1.10.2 biopython=1.76 htslib=1.10.2  muscle=3.8.1551 numpy=1.18.5 pysam=0.15.3 python=3.6.8 rtg-tools=3.11 samtools=1.10 tensorflow=1.13.1 whatshap=1.0
+conda create -n nanocaller_env -c bioconda bcftools=1.10.2 biopython=1.76 \
+htslib=1.10.2  muscle=3.8.1551 numpy=1.18.5 pysam=0.15.3 python=3.6.8 \
+rtg-tools=3.11 samtools=1.10 tensorflow=1.13.1 whatshap=1.0
 
 git clone https://github.com/WGLab/NanoCaller.git
 cd NanoCaller
@@ -26,14 +28,65 @@ conda activate nanocaller_env
 
 ## Usage
 ```
-python NanoCaller.py -mode both       # what type of variants to call, option 'snps', 'indels and 'both 
--chrom chr1 \                         # contig name
--ref ref.fa \                         # FASTA reference file with .fai index
--bam alignments.bam \                 # BAM file with index (must be phased if 'indels' mode is chosen
--model NanoCaller1 \                  # model used for SNP calling
--bed regions.bed \                    # BED files 
--vcf sample_calls/ \                  # output directory
--cpu 4 \                              # number of CPUs to use
+python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py [-h] [-mode MODE] [-seq SEQUENCING] [-model MODEL]
+                     [-vcf VCF] -chrom CHROM [-cpu CPU]
+                     [-min_allele_freq MIN_ALLELE_FREQ]
+                     [-min_nbr_sites MIN_NBR_SITES] -bam BAM -ref REF -prefix
+                     PREFIX [-sample SAMPLE] [-sup SUPPLEMENTARY]
+                     [-mincov MINCOV] [-maxcov MAXCOV] [-start START]
+                     [-end END] [-nbr_t NEIGHBOR_THRESHOLD]
+                     [-ins_t INS_THRESHOLD] [-del_t DEL_THRESHOLD]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -mode MODE, --mode MODE
+                        Testing mode, options are 'snps', 'indels' and 'both'
+                        (default: both)
+  -seq SEQUENCING, --sequencing SEQUENCING
+                        Sequencing type, options are 'ont' and 'pacbio'
+                        (default: ont)
+  -model MODEL, --model MODEL
+                        NanoCaller SNP model to be used, options are
+                        'NanoCaller1' (trained on HG001 Nanopore reads),
+                        'NanoCaller2' (trained on HG002 Nanopore reads) and
+                        'NanoCaller3' (trained on HG003 PacBio reads)
+                        (default: NanoCaller1)
+  -vcf VCF, --vcf VCF   VCF output path, default is current working directory
+                        (default: None)
+  -cpu CPU, --cpu CPU   CPUs (default: 1)
+  -min_allele_freq MIN_ALLELE_FREQ, --min_allele_freq MIN_ALLELE_FREQ
+                        minimum alternative allele frequency (default: 0.15)
+  -min_nbr_sites MIN_NBR_SITES, --min_nbr_sites MIN_NBR_SITES
+                        minimum number of nbr sites (default: 1)
+  -sample SAMPLE, --sample SAMPLE
+                        VCF file sample name (default: SAMPLE)
+  -sup SUPPLEMENTARY, --supplementary SUPPLEMENTARY
+                        Use supplementary reads (default: False)
+  -mincov MINCOV, --mincov MINCOV
+                        min coverage (default: 8)
+  -maxcov MAXCOV, --maxcov MAXCOV
+                        max coverage (default: 160)
+  -start START, --start START
+                        start, default is 1 (default: None)
+  -end END, --end END   end, default is the end of contig (default: None)
+  -nbr_t NEIGHBOR_THRESHOLD, --neighbor_threshold NEIGHBOR_THRESHOLD
+                        SNP neighboring site thresholds with lower and upper
+                        bounds seperated by comma, for Nanopore reads
+                        '0.4,0.6' is recommended and for PacBio reads
+                        '0.3,0.7' is recommended (default: 0.4,0.6)
+  -ins_t INS_THRESHOLD, --ins_threshold INS_THRESHOLD
+                        Insertion Threshold (default: 0.4)
+  -del_t DEL_THRESHOLD, --del_threshold DEL_THRESHOLD
+                        Deletion Threshold (default: 0.6)
+
+Required arguments:
+  -chrom CHROM, --chrom CHROM
+                        Chromosome (default: None)
+  -bam BAM, --bam BAM   Bam file, should be phased if 'indel' mode is selected
+                        (default: None)
+  -ref REF, --ref REF   reference genome file with .fai index (default: None)
+  -prefix PREFIX, --prefix PREFIX
+                        VCF file prefix (default: None)
 ```
 ## Example
 An example of NanoCaller usage is provided in [sample](sample). The results are stored in [test output](sample/test_run) and were created using the following command:

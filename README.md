@@ -24,7 +24,9 @@ conda config --add channels conda-forge
 After adding these channels, simply run the following commands to install all NanoCaller dependencies into a conda environment 'nanocaller_env':
 
 ```
-conda create -n nanocaller_env -c bioconda bcftools biopython  muscle numpy pysam python=3.6.8 rtg-tools samtools=1.10 tensorflow=1.13.* whatshap=1.0 vcflib
+conda create -n nanocaller_env -c bioconda bcftools biopython \
+muscle numpy pysam python=3.6.8 rtg-tools samtools=1.10 \
+tensorflow=1.13.* whatshap=1.0 vcflib
 
 conda activate nanocaller_env
 ```

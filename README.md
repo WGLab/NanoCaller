@@ -14,16 +14,24 @@ bash Miniconda3-latest-Linux-x86_64.sh
 ```
 
 Go through all the prompts (installation in `$HOME` is recommended).
-After Anaconda is installed successfully, simply run:
+After Anaconda is installed successfully, add the following channels using the commands:
+```
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+```
+
+After adding these channels, simply run the following commands to install all NanoCaller dependencies into a conda environment 'nanocaller_env':
 
 ```
-conda create -n nanocaller_env -c bioconda bcftools=1.10.2 biopython=1.76 \
-htslib=1.10.2  muscle=3.8.1551 numpy=1.18.5 pysam=0.15.3 python=3.6.8 \
-rtg-tools=3.11 samtools=1.10 tensorflow=1.13.1 whatshap=1.0
+conda create -n nanocaller_env -c bioconda bcftools biopython  muscle numpy pysam python=3.6.8 rtg-tools samtools=1.10 tensorflow=1.13.* whatshap=1.0 vcflib
 
+conda activate nanocaller_env
+```
+Clone the NanoCaller github repository
+```
 git clone https://github.com/WGLab/NanoCaller.git
 cd NanoCaller
-conda activate nanocaller_env
 ```
 
 ## Usage

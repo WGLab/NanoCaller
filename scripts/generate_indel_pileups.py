@@ -6,8 +6,6 @@ from subprocess import Popen, PIPE, STDOUT
 from Bio import pairwise2
 
 
-window_before,window_after=0,160
-
 gt_map={(0,0):0, (1,1):1, (0,1):2, (1,0):2,(1,2):3, (2,1):3}
 
 mapping={'A':0,'G':1,'T':2,'C':3,'-':4}
@@ -17,7 +15,7 @@ allele_map={('I','I'):0, ('D','D'):1, ('N','I'):2, ('I','N'):3, ('N','D'):4, ('D
            ('I','D'):6, ('D','I'):7, ('N','N'):8}
 
 def pairwise(x,y):
-    alignments = pairwise2.align.localms(x, y, 2, -1.0, -1, -0.1)
+    alignments = pairwise2.align.globalms(x, y, 2, -1.0, -0.9, -0.1)
 
     return alignments
 
@@ -39,12 +37,13 @@ def v_type(ref,allele1,allele2):
     return allele_map[(allele1_type,allele2_type)]
 
 def msa(seq_list, ref, v_pos, mincov, maxcov):
+    np.random.seed(812)
     sample=list(seq_list.keys())
             
     if len(sample) > maxcov:
         sample=random.sample(sample,min(len(sample),maxcov))
 
-    sample=set(sample)
+    sample=sorted(sample)
     fa_tmp_file=''
     
     for read_name in sample:
@@ -93,9 +92,14 @@ def norm(batch_x0):
     batch_x0[:,:,:,0]=batch_x0[:,:,:,0]/(np.sum(batch_x0[:,:,:,0],axis=1)[:,np.newaxis,:])-batch_x0[:,:,:,1]
     return batch_x0
 
-def allele_prediction(mat):
+def allele_prediction(mat, seq):
+    if seq=='ont':
+        max_range=(60,10)
+    else:
+        max_range=(128,4)
+        
     tmp_mat=mat[:,:,0]+mat[:,:,1]
-    tmp_mat[4,:]=tmp_mat[4,:]
+    tmp_mat[4,:]=tmp_mat[4,:]-0.001
     ref_seq=''.join([rev_base_map[x] for x in np.argmax(mat[:,:,1],axis=0)])
     
     alt=''.join([rev_base_map[x] for x in np.argmax(tmp_mat,axis=0)])
@@ -116,8 +120,8 @@ def allele_prediction(mat):
         
         alt_new=best[0]
         ref_new=best[1]
-        for i in range(60):
-            if i>=10 and flag==False:
+        for i in range(max_range[0]):
+            if i>=max_range[1] and flag==False:
                 break
             if ref_new[i]=='-' or alt_new[i]=='-':
                 flag=True
@@ -146,6 +150,10 @@ def allele_prediction(mat):
     return (ref_out,allele_out)
 
 def get_indel_testing_candidates(dct):
+    window_before,window_after=0,160
+    
+    if dct['seq']=='pacbio':
+        window_after=260
     
     chrom=dct['chrom']
     start=dct['start']
@@ -155,7 +163,7 @@ def get_indel_testing_candidates(dct):
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
 
-    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-200),end+200+1),fastafile.fetch(chrom,max(1,start-200)-1,end+200)) }
+    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-200),end+400+1),fastafile.fetch(chrom,max(1,start-200)-1,end+400)) }
     
     hap_dict={1:[],2:[]}
     
@@ -176,15 +184,19 @@ def get_indel_testing_candidates(dct):
     prev=0
     for pcol in samfile.pileup(chrom,max(0,start-1),end,min_base_quality=0,\
                                            flag_filter=flag,truncate=True):
+            v_pos=pcol.pos+1
+            make=False
             
-            if pcol.pos+1>prev+1:                
+            if v_pos > prev+1:                
                 read_names=pcol.get_query_names()
                 read_names_0=set(read_names) & hap_reads_0
                 read_names_1=set(read_names) & hap_reads_1#set([x for x in read_names if x in hap_reads_1])
                 len_seq_0=len(read_names_0)
                 len_seq_1=len(read_names_1)
+                len_seq_tot=len(read_names)
+                
                 if len_seq_0>=dct['mincov']  and len_seq_1>=dct['mincov']:
-                    v_pos=pcol.pos+1
+                    
                     seq=[x[:2].upper() for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)]
                     
                     
@@ -202,7 +214,39 @@ def get_indel_testing_candidates(dct):
                     
                
                     if (dct['del_t']<=del_freq_0 or dct['del_t']<=del_freq_1 or dct['ins_t']<=ins_freq_0 or dct['ins_t']<=ins_freq_1):
-                                                    
+                              
+                        make=True
+                
+                elif dct['seq']=='pacbio' and len_seq_tot >=2*dct['mincov']:
+                    seq_v2=[x.upper() for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)]
+                    seq=[x[:2] for x in seq_v2]
+                    seq_tot=''.join(seq)
+                    
+                    
+                    del_freq_tot=(seq_tot.count('-')+seq_tot.count('*'))/len_seq_tot if len_seq_tot>0 else 0
+                    ins_freq_tot=seq_tot.count('+')/len_seq_tot if len_seq_tot>0 else 0
+                    
+                    if (dct['del_t']<=del_freq_tot or dct['ins_t']<=ins_freq_tot):
+                        groups={}
+                        for s,n in zip(seq_v2,read_names):
+                            if s not in groups:
+                                groups[s]=[]
+                            groups[s].append(n)
+
+                        counts=sorted([(x,len(groups[x])) for x in groups],key=lambda x:x[1],reverse=True)
+                        if counts[0][1]<=0.8*len_seq_tot:
+                            read_names_0=groups[counts[0][0]]
+                            read_names_1=groups[counts[1][0]]
+                        else:
+                            read_names_0=groups[counts[0][0]][:counts[0][1]//2]
+                            read_names_1=groups[counts[0][0]][counts[0][1]//2:]
+                        
+                        if len(read_names_0)>=dct['mincov'] and len(read_names_1)>=dct['mincov']:
+                            make=True
+                        
+                        
+
+                if make:
                         ref=''.join([ref_dict[p] for p in range(v_pos-window_before,v_pos+window_after+1)])
                         
                         if len(ref)<128:
@@ -248,7 +292,7 @@ def get_indel_testing_candidates(dct):
     alleles=[]
     
     for i in range(len(output_pos)):
-        alleles.append([allele_prediction(output_data_0[i]),allele_prediction(output_data_1[i]),allele_prediction(output_data_total[i])])
+        alleles.append([allele_prediction(output_data_0[i], dct['seq']), allele_prediction(output_data_1[i], dct['seq']), allele_prediction(output_data_total[i], dct['seq'])])
         
     return (output_pos,output_data_0,output_data_1,output_data_total,alleles)
     

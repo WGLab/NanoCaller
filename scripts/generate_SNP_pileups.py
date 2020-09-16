@@ -86,7 +86,7 @@ def get_snp_testing_candidates(dct):
     if pos_list:
 
         for v_pos in pos_list:
-            
+            np.random.seed(812)
             if dct['seq']=='ont':
                 ls=cnd_pos[abs(cnd_pos-v_pos)<50000] 
                 

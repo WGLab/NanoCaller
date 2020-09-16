@@ -13,11 +13,6 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 rev_gt_map={0:'hom-ref', 1:'hom-alt', 2:'het-ref', 3:'het-alt'}
 rev_base_map={0:'A',1:'G',2:'T',3:'C',4:'-'}
 
-def pairwise(x,y):
-    alignments = pairwise2.align.localms(x, y, 2, -1.0, -1, -0.1)
-
-    return alignments
-
 def test_model(params,pool):
     
     rev_allele_map={0:'N',1:'D',2:'I'}
@@ -36,8 +31,7 @@ def test_model(params,pool):
     sess.run(tf.local_variables_initializer())
     saver = tf.train.Saver()
     dirname = os.path.dirname(__file__)
-    saver.restore(sess, os.path.join(dirname, 'release_data/NanoCaller_indels/model-30'))
-    
+    saver.restore(sess, os.path.join(dirname, 'release_data/NanoCaller_indels/ont/model-30' if params['seq']=='ont' else  'release_data/NanoCaller_indels/pacbio/model-25'))
     batch_size=100
 
     neg_file=open(os.path.join(vcf_path,'%s.indel_stats' %prefix),'w')
@@ -92,19 +86,22 @@ def test_model(params,pool):
                         
                         if batch_prob_all[j,0]<=0.95:
                             
-                            q=-10*np.log10(1e-6+batch_prob_all[j,0])
+                            q=-100*np.log10(1e-6+batch_prob_all[j,0])
                             allele0_data, allele1_data,allele_total_data= batch_alleles_seq[j]
                             
                             if batch_pred_all[j]==1:
                                     if allele_total_data[0]:
-                                        s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP\t1/1:%s\n' %(chrom, batch_pos[j], allele_total_data[0], allele_total_data[1], q, rev_gt_map[batch_pred_all[j]])
+                                        gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
+                                        s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP:GQ\t1/1:%s:%.2f\n' %(chrom, batch_pos[j], allele_total_data[0], allele_total_data[1], q, rev_gt_map[batch_pred_all[j]], gq)
                                         f.write(s)
                                         prev=batch_pos[j]+max(len(allele_total_data[0]), len(allele_total_data[1]))
                             
                             else:
                                 if allele0_data[0] and allele1_data[0]:
+                                    
                                     if allele0_data[0]==allele1_data[0] and allele0_data[1]==allele1_data[1]:
-                                        s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP\t1/1:%s\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1],q,rev_gt_map[batch_pred_all[j]])
+                                        gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
+                                        s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP:GQ\t1/1:%s:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1],q,rev_gt_map[batch_pred_all[j]], gq)
                                         f.write(s)
                                         prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
 
@@ -121,17 +118,20 @@ def test_model(params,pool):
                                         else:
                                             ref=ref2
                                             alt1=alt1+ref2[l:]
-                                        s='%s\t%d\t.\t%s\t%s,%s\t%.2f\tPASS\t.\tGT:TP\t1|2:%s\n' %(chrom, batch_pos[j], ref, alt1, alt2, q, rev_gt_map[batch_pred_all[j]])
+                                        gq=-100*np.log10(1+1e-6-batch_prob_all[j,3])
+                                        s='%s\t%d\t.\t%s\t%s,%s\t%.2f\tPASS\t.\tGT:TP:GQ\t1|2:%s:%.2f\n' %(chrom, batch_pos[j], ref, alt1, alt2, q, rev_gt_map[batch_pred_all[j]], gq)
                                         f.write(s)
                                         prev=batch_pos[j]+max(len(ref), len(alt1),len(alt2))
 
                                 elif allele0_data[0]:
-                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP\t0|1:%s\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, rev_gt_map[batch_pred_all[j]])
+                                    gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
+                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP:GQ\t0|1:%s:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, rev_gt_map[batch_pred_all[j]], gq)
                                     f.write(s)
                                     prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
 
                                 elif allele1_data[0]:
-                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP\t1|0:%s\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, rev_gt_map[batch_pred_all[j]])
+                                    gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
+                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP:GQ\t1|0:%s:%.2f\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, rev_gt_map[batch_pred_all[j]], gq)
                                     f.write(s)
                                     prev=batch_pos[j]+max(len(allele1_data[0]), len(allele1_data[1]))
 

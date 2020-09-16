@@ -7,8 +7,8 @@ For more information, please see:
 If you depend on functionality not listed there, please file an issue.
 
 generating SNP pileups for chr22:20000000-21000000
-SNP calling done. Time taken= 61.5477
+SNP calling done. Time taken= 68.2590
 generating indel pileups for chr22:20000000-21000000
-Indel calling done. Time taken= 309.0523
+Indel calling done. Time taken= 510.1237
 Post processing
-Total Time Elapsed: 411.75 seconds
+Total Time Elapsed: 621.94 seconds

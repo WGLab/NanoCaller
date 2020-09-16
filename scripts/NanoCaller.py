@@ -1,4 +1,4 @@
-import time, argparse, os, shutil
+import time, argparse, os, shutil, sys
 import multiprocessing as mp
 
 if __name__ == '__main__':
@@ -31,6 +31,8 @@ if __name__ == '__main__':
     parser.add_argument("-ins_t", "--ins_threshold", help="Insertion Threshold",type=float,default=0.4)
     parser.add_argument("-del_t", "--del_threshold", help="Deletion Threshold",type=float,default=0.6)
     
+    parser.add_argument("-allow_whatshap",  "--allow_whatshap",  help="Allow WhatsHap to change SNP genotypes when phasing", type=bool,  default=True)
+    
     args = parser.parse_args()
 
     
@@ -49,6 +51,8 @@ if __name__ == '__main__':
         file.write(str(args))
         
     import snpCaller, indelCaller
+    
+    end=None
     if not args.end:
         try:
             with open(args.ref+'.fai','r') as file:
@@ -56,7 +60,11 @@ if __name__ == '__main__':
                     if line.split('\t')[0]==args.chrom:
                         
                         end=int(line.split('\t')[1])
-
+            
+            if end==None:
+                print('contig %s not found in reference' %args.chrom, flush=True)
+                sys.exit()
+                
         except FileNotFoundError:
             print('index file .fai required for reference genome file', flush=True)
             sys.exit()
@@ -83,7 +91,8 @@ if __name__ == '__main__':
         print('SNP calling done. Time taken= %.4f' %(time.time()-snp_time),flush=True)
 
         if snp_vcf:
-            stream=os.popen("whatshap phase %s.vcf.gz %s -o %s.phased.preclean.vcf -r %s --ignore-read-groups --chromosome %s" %(snp_vcf,in_dict['sam_path'], snp_vcf, in_dict['fasta_path'], in_dict['chrom'] ))
+            allow_whatshap = ' --distrust-genotypes --include-homozygous' if args.allow_whatshap else ''
+            stream=os.popen("whatshap phase %s.vcf.gz %s -o %s.phased.preclean.vcf -r %s --ignore-read-groups --chromosome %s %s" %(snp_vcf,in_dict['sam_path'], snp_vcf, in_dict['fasta_path'], in_dict['chrom'] , allow_whatshap))
             stream.read()
             
             stream=os.popen("bcftools view -e  'GT=\"0\\0\"' %s.phased.preclean.vcf|bgziptabix %s.phased.vcf.gz" %(snp_vcf,snp_vcf))
@@ -104,7 +113,7 @@ if __name__ == '__main__':
         
         in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':sam_path, 'fasta_path':args.ref, \
              'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
-             'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, \
+             'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, 'seq':args.sequencing, \
                 'del_t':args.del_threshold,'ins_t':args.ins_threshold,'supplementary':args.supplementary}
         ind_time=time.time()
         indel_vcf=indelCaller.test_model(in_dict, pool)
@@ -135,7 +144,7 @@ if __name__ == '__main__':
             stream.read()
 
             final_path=os.path.join(args.vcf,'%s.final.vcf.gz' %args.prefix)
-            stream=os.popen('bcftools concat %s.vcf.gz %s.decomposed.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
+            stream=os.popen('bcftools concat %s.phased.vcf.gz %s.decomposed.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
             stream.read()
 
     pool.close()

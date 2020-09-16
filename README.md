@@ -24,15 +24,16 @@ conda activate NanoCaller
 
 ## Usage
 ```
-python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py [-h] [-mode MODE] 
-		     [-seq SEQUENCING] [-model MODEL]
-                     [-vcf VCF] -chrom CHROM [-cpu CPU]
+python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py [-h] 
+		     -bam BAM -ref REF -prefix PREFIX -chrom CHROM
+		     [-mode MODE] [-seq SEQUENCING] 
+		     [-model MODEL] [-vcf VCF]  [-cpu CPU]
                      [-min_allele_freq MIN_ALLELE_FREQ]
-                     [-min_nbr_sites MIN_NBR_SITES] -bam BAM -ref REF -prefix
-                     PREFIX [-sample SAMPLE] [-sup SUPPLEMENTARY]
+                     [-min_nbr_sites MIN_NBR_SITES]  [-sample SAMPLE] [-sup SUPPLEMENTARY]
                      [-mincov MINCOV] [-maxcov MAXCOV] [-start START]
                      [-end END] [-nbr_t NEIGHBOR_THRESHOLD]
                      [-ins_t INS_THRESHOLD] [-del_t DEL_THRESHOLD]
+		     [-allow_whatshap ALLOW_WHATSHAP]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -75,6 +76,9 @@ optional arguments:
                         Insertion Threshold (default: 0.4)
   -del_t DEL_THRESHOLD, --del_threshold DEL_THRESHOLD
                         Deletion Threshold (default: 0.6)
+  -allow_whatshap ALLOW_WHATSHAP, --allow_whatshap ALLOW_WHATSHAP
+                        Allow WhatsHap to change SNP genotypes when phasing
+                        (default: True)
 
 Required arguments:
   -chrom CHROM, --chrom CHROM

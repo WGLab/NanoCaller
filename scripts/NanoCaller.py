@@ -153,7 +153,15 @@ if __name__ == '__main__':
     
     parser.add_argument('-wgs_print_commands','--wgs_print_commands', help='If set, print the commands to run NanoCaller on all contigs in a file named "wg_commands". By default, run the NanoCaller on each contig in a sequence.', default=False, action='store_true')
     
-    parser.add_argument('-wgs_contigs_type','--wgs_contigs_type', help='Options are "with_chr", "without_chr" and "all", or a space/whitespace separated list of contigs in quotation marks e.g. "chr3 chr6 chr22" . "with_chr" option will assume human genome and run NanoCaller on chr1-22, "without_chr" will run on chromosomes 1-22 if the BAM and reference genome files use chromosome names without "chr". "all" option will run NanoCaller on each contig present in reference genome FASTA file.', type=str, default='with_chr')
+    parser.add_argument('-wgs_contigs_type','--wgs_contigs_type', \
+                        help='Options are "with_chr", "without_chr" and "all",\ 
+                        or a space/whitespace separated list of contigs in quotation\
+                        marks e.g. "chr3 chr6 chr22" . "with_chr" option will assume \
+                        human genome and run NanoCaller on chr1-22, "without_chr" will \
+                        run on chromosomes 1-22 if the BAM and reference genome files \
+                        use chromosome names without "chr". "all" option will run \
+                        NanoCaller on each contig present in reference genome FASTA file.', \
+                        type=str, default='with_chr')
     
     import snpCaller, indelCaller
     

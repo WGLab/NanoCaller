@@ -25,8 +25,8 @@ def test_model(params,pool):
     coverage=float(stream.read())
     print('Coverage=%.2fx' %coverage, flush=True)
     if coverage==0:
-        print('No coverage found', flush=True)
-        sys.exit(0)
+        print('No coverage found for the contig %s' %chrom, flush=True)
+        return False
     
     
     n_input=[5,41,5]

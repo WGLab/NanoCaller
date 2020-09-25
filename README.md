@@ -5,6 +5,8 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 Please cite: Ahsan, Umair and Liu, Qian and Wang, Kai. NanoCaller for accurate detection of SNPs and small indels from long-read sequencing by deep neural networks. bioRxiv 2019.12.29.890418; doi: https://doi.org/10.1101/2019.12.29.890418
 
 ## Installation
+NanoCaller has been developed and tested to work with Linux OS; we do not recommend using Windows or Mac OS. NanoCaller does not require a GPU or any other special hardware to run.
+
 First, install Miniconda, a minimal installation of Anaconda, which is much smaller and has a faster installation.
 Note that this version is meant for Linux below, macOS and Windows have a different script:
 
@@ -21,6 +23,7 @@ cd NanoCaller
 conda env create -f environment.yml
 conda activate NanoCaller
 ```
+The installation should take about 10 minutes, including the installation of Miniconda.
 
 ## Usage
 ```
@@ -115,4 +118,4 @@ An example of NanoCaller usage is provided in [sample](sample). The results are 
 
 `python ../scripts/NanoCaller.py -bam HG002.nanopore.chr22.sample.bam -mode both -seq ont -model NanoCaller1 -vcf test_run -chrom chr22 -start 20000000 -end 21000000 -ref chr22_ref.fa -prefix HG002.chr22.sample -cpu 1 > log`
 
-which is also in the file [sample_call](sample/sample_call).
+which is also in the file [sample_call](sample/sample_call). This example should take about 10-15 minutes to run.

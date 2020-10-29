@@ -1,10 +1,10 @@
-import sys,pysam, time,os,copy,argparse,subprocess, random, re
+import sys,pysam, time,os,copy,argparse,subprocess, random, re, datetime
 import numpy as np
 import multiprocessing as mp
 from pysam import VariantFile
 from subprocess import Popen, PIPE, STDOUT
 from Bio import pairwise2
-
+from intervaltree import Interval, IntervalTree
 
 gt_map={(0,0):0, (1,1):1, (0,1):2, (1,0):2,(1,2):3, (2,1):3}
 
@@ -150,6 +150,9 @@ def allele_prediction(mat, seq):
     return (ref_out,allele_out)
 
 def get_indel_testing_candidates(dct):
+    init_time=time.time()
+    start_time=str(datetime.datetime.now())
+    
     window_before,window_after=0,160
     
     if dct['seq']=='pacbio':
@@ -163,6 +166,44 @@ def get_indel_testing_candidates(dct):
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
 
+    
+    
+    include_intervals, exclude_intervals=None, None
+    
+    
+    if dct['include_bed']:
+        tbx = pysam.TabixFile(dct['include_bed'])
+        include_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
+        
+        def in_bed(tree,pos):            
+            return tree.overlaps(pos)
+        
+        if not include_intervals.overlap(start,end):
+            return [],[],[],[],[]
+    
+        else:
+            start, end=min(x[0] for x in include_intervals.overlap(start,end)),max(x[1] for x in include_intervals.overlap(start,end))
+        
+    else:
+        def in_bed(tree, pos):
+            return True
+    
+    if dct['exclude_bed']:
+        tbx = pysam.TabixFile(dct['exclude_bed'])
+        try:
+            exclude_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
+        
+            def ex_bed(tree, pos):
+                return tree.overlaps(pos)
+        
+        except ValueError:
+            def ex_bed(tree, pos):
+                return False 
+    else:
+        def ex_bed(tree, pos):
+            return False 
+    
+        
     ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-200),end+400+1),fastafile.fetch(chrom,max(1,start-200)-1,end+400)) }
     
     hap_dict={1:[],2:[]}
@@ -187,7 +228,7 @@ def get_indel_testing_candidates(dct):
             v_pos=pcol.pos+1
             make=False
             
-            if v_pos > prev+1:                
+            if v_pos > prev+1 and in_bed(include_intervals, pcol.pos+1) and not ex_bed(exclude_intervals, pcol.pos+1):                
                 read_names=pcol.get_query_names()
                 read_names_0=set(read_names) & hap_reads_0
                 read_names_1=set(read_names) & hap_reads_1#set([x for x in read_names if x in hap_reads_1])
@@ -282,7 +323,7 @@ def get_indel_testing_candidates(dct):
                             output_data_total.append(data_total)
                             
     if len(output_pos)==0:
-        return (output_pos,output_data_0,output_data_1,output_data_total)
+        return (output_pos,output_data_0,output_data_1,output_data_total,[])
     
     output_pos=np.array(output_pos)
     output_data_0=norm(np.array(output_data_0))
@@ -303,14 +344,14 @@ def generate(params,pool):
     
     start,end=params['start'],params['end']
 
-    print('generating indel pileups for %s:%d-%d' %(chrom,start,end),flush=True)
+    
     
     in_dict_list=[]
     
-    for k in range(start,end,100000):
+    for k in range(start,end,50000):
         d = copy.deepcopy(params)
         d['start']=k
-        d['end']=min(end,k+100000)
+        d['end']=min(end,k+50000)
         in_dict_list.append(d)
     
     results = pool.map(get_indel_testing_candidates, in_dict_list)

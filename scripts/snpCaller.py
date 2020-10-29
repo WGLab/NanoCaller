@@ -1,9 +1,10 @@
-import time,os,copy,argparse,subprocess, sys
+import time,os,copy,argparse,subprocess, sys, pysam
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
 from model_architect import *
 from generate_SNP_pileups import generate
+from intervaltree import Interval, IntervalTree
 
 
 config = tf.ConfigProto()
@@ -14,16 +15,20 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 def test_model(params,pool):
     model,vcf_path,prefix= params['model'],params['vcf_path'], params['prefix']
-    chrom,start,end=params['chrom'], params['start'],params['end']
-    
+    chrom,start,end=params['chrom'], params['start'],params['end']          
+            
     if params['supplementary']:
         flag=0x4|0x100|0x200|0x400
     else:
         flag=0x4|0x100|0x200|0x400|0x800
-        
-    stream = os.popen("samtools depth %s -r %s:%d-%d -G %d|awk '{if ($3>=%d){sum+=$3; cnt+=1}}END{if(cnt>0){print sum/cnt}else{print 0}}'" %(params['sam_path'], chrom,start,end,flag, params['mincov']))
+    
+    regions='-b %s' %params['include_bed'] if params['include_bed'] else ''
+    
+    stream = os.popen("samtools depth %s -r %s:%d-%d -G %d %s|awk '{if ($3>=%d){sum+=$3; cnt+=1}}END{if(cnt>0){print sum/cnt}else{print 0}}'" %(params['sam_path'], chrom, start, end, flag, regions, params['mincov']))
     coverage=float(stream.read())
+    
     print('Coverage=%.2fx' %coverage, flush=True)
+    
     if coverage==0:
         print('No coverage found for the contig %s' %chrom, flush=True)
         return False
@@ -75,10 +80,10 @@ def test_model(params,pool):
         f.write('##FORMAT=<ID=FQ,Number=1,Type=Float,Description="Alternative Allele Frequency">\n')
         f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	%s\n' %params['sample'])
         
-        for mbase in range(start,end,int(1e7)):
+        for mbase in range(start,end,int(5e6)):
             d = copy.deepcopy(params)
             d['start']=mbase
-            d['end']=min(end,mbase+int(1e7))
+            d['end']=min(end,mbase+int(5e6))
             pos,x_test,test_ref,dp,freq=generate(d,pool)
             
             if len(pos)==0:

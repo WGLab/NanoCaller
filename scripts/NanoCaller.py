@@ -1,8 +1,12 @@
-import time, argparse, os, shutil, sys
+import time, argparse, os, shutil, sys, pysam, datetime
 import multiprocessing as mp
+from intervaltree import Interval, IntervalTree
 
 def run(args):
-    import snpCaller, indelCaller
+    import snpCaller
+    import indelCaller_imap as indelCaller
+    
+    gap_bed={}
     
     pool = mp.Pool(processes=args.cpu)
 
@@ -47,10 +51,26 @@ def run(args):
     
     threshold=[float(args.neighbor_threshold.split(',')[0]), float(args.neighbor_threshold.split(',')[1])]
     
+    dirname = os.path.dirname(__file__)
+    
+    if args.exclude_bed in ['hg38', 'hg19', 'mm10', 'mm39']:
+        args.exclude_bed=os.path.join(dirname, 'release_data/bed_files/%s_centro_telo.bed.gz' %args.exclude_bed)
+    
+    if args.include_bed:
+        tbx = pysam.TabixFile(args.include_bed)
+        include_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(args.chrom, parser=pysam.asBed()))
+        
+        if include_intervals.overlap(start,end):
+            start, end=min(x[0] for x in include_intervals.overlap(start,end)),max(x[1] for x in include_intervals.overlap(start,end))
+            
+        else:
+            print('No overlap between include_bed file and start/end coordinates',flush=True)
+            return
+        
     in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':args.bam, 'fasta_path':args.ref, \
              'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
              'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, \
-            'seq':args.sequencing, 'supplementary':args.supplementary}
+            'seq':args.sequencing, 'supplementary':args.supplementary, 'include_bed':args.include_bed, 'exclude_bed':args.exclude_bed}
         
     snp_vcf=''
     if args.mode in ['snps','both']:
@@ -85,7 +105,8 @@ def run(args):
         in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':sam_path, 'fasta_path':args.ref, \
              'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
              'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, 'seq':args.sequencing, \
-                'del_t':args.del_threshold,'ins_t':args.ins_threshold,'supplementary':args.supplementary}
+                'del_t':args.del_threshold,'ins_t':args.ins_threshold,'supplementary':args.supplementary, 'include_bed':args.include_bed\
+                , 'exclude_bed':args.exclude_bed}
         ind_time=time.time()
         indel_vcf=indelCaller.test_model(in_dict, pool)
         print('Indel calling completed for contig %s. Time taken= %.4f' %(in_dict['chrom'], time.time()-ind_time),flush=True)
@@ -140,6 +161,11 @@ if __name__ == '__main__':
     requiredNamed.add_argument("-ref",  "--ref",  help="reference genome file with .fai index", required=True)
     
     requiredNamed.add_argument("-prefix",  "--prefix",  help="VCF file prefix", type=str, required=True)
+    
+    parser.add_argument("-include_bed",  "--include_bed",  help="Only call variants inside the intervals specified in the bgzipped and tabix indexed BED file. If any other flags are used to specify a region, intersect the region with intervals in the BED file, e.g. if -chom chr1 -start 10000000 -end 20000000 flags are set, call variants inside the intervals specified by the BED file that overlap with chr1:10000000-20000000. Same goes for the case when whole genome variant calling flag is set.", type=str, default=None)
+    
+    parser.add_argument("-exclude_bed",  "--exclude_bed",  help="Path to bgzipped and tabix indexed BED file containing intervals to ignore  for variant calling. BED files of centromere and telomere regions for the following genomes are included in NanoCaller: hg38, hg19, mm10 and mm39. To use these BED files use one of the following options: ['hg38', 'hg19', 'mm10', 'mm39'].", type=str, default=None)
+    
     parser.add_argument("-sample",  "--sample",  help="VCF file sample name", type=str, default='SAMPLE')
     parser.add_argument("-sup",  "--supplementary",  help="Use supplementary reads", default=False, action='store_true')
     parser.add_argument("-mincov",  "--mincov",  help="min coverage", type=int, default=8)
@@ -202,6 +228,12 @@ if __name__ == '__main__':
         else:
             chrom_list= args.wgs_contigs_type.split()
         
+        if args.include_bed:
+            stream=os.popen('zcat %s|cut -f 1|uniq' %args.include_bed )
+            bed_chroms=stream.read().split()
+            
+            chrom_list=[chrom for chrom in chrom_list if chrom in bed_chroms]
+            
         if args.wgs_print_commands:
             args_dict=vars(args)
             

@@ -1,4 +1,4 @@
-import time,os,copy,argparse,subprocess
+import time,os,copy,argparse,subprocess, datetime
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
@@ -52,13 +52,18 @@ def test_model(params,pool):
         prev=0
         prev_len=0
         
-        for mbase in range(start,end,int(1e7)):
+        in_dict_list=[]
+        
+        for mbase in range(start, end, 50000):
             d = copy.deepcopy(params)
             d['start']=mbase
-            d['end']=min(end,mbase+int(1e7))
-            
-            pos, x0_test, x1_test, x2_test, alleles_seq=generate_indel_pileups.generate(d,pool)
-            
+            d['end']=min(end,mbase+50000)
+            in_dict_list.append(d)
+        
+        result=pool.imap_unordered(generate_indel_pileups.get_indel_testing_candidates, in_dict_list)
+        
+        for res in result:            
+            pos, x0_test, x1_test, x2_test, alleles_seq=res
             if len(pos)==0:
                 continue
 
@@ -142,6 +147,7 @@ def test_model(params,pool):
             os.fsync(f.fileno())
             neg_file.flush()
             os.fsync(neg_file.fileno())
+            
             
     neg_file.close()
     outfile=os.path.join(vcf_path,'%s.indels' %prefix)

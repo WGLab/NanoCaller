@@ -3,6 +3,7 @@ from collections import Counter
 import numpy as np
 import multiprocessing as mp
 from pysam import VariantFile
+from intervaltree import Interval, IntervalTree
 
 base_to_num_map={'*':4,'A':0,'G':1,'T':2,'C':3,'N':4}
 
@@ -37,6 +38,40 @@ def get_snp_testing_candidates(dct):
     chrom=dct['chrom']
     start=dct['start']
     end=dct['end']
+    
+    include_intervals, exclude_intervals=None, None
+    
+    
+    if dct['include_bed']:
+        tbx = pysam.TabixFile(dct['include_bed'])
+        include_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
+        
+        def in_bed(tree,pos):            
+            return tree.overlaps(pos)
+        
+        if not include_intervals.overlap(start,end):
+            return [],[],[],[],[]
+    
+        else:
+            start, end=min(x[0] for x in include_intervals.overlap(start,end)),max(x[1] for x in include_intervals.overlap(start,end))
+        
+    else:
+        def in_bed(tree, pos):
+            return True
+    
+    if dct['exclude_bed']:
+        tbx = pysam.TabixFile(dct['exclude_bed'])
+        try:
+            exclude_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
+            def ex_bed(tree, pos):
+                return tree.overlaps(pos)
+        
+        except ValueError:
+            def ex_bed(tree, pos):
+                return False 
+    else:
+        def ex_bed(tree, pos):
+            return False 
         
     sam_path=dct['sam_path']
     fasta_path=dct['fasta_path']
@@ -63,10 +98,11 @@ def get_snp_testing_candidates(dct):
     else:
         flag=0x4|0x100|0x200|0x400|0x800
         
-    for pcol in samfile.pileup(chrom,max(0,start-1-30),end+30,min_base_quality=0,\
+    for pcol in samfile.pileup(chrom,max(0,start-1),end,min_base_quality=0,\
                                            flag_filter=flag,truncate=True):
+            
             r=ref_dict[pcol.pos+1]
-            if r in 'AGTC':
+            if in_bed(include_intervals, pcol.pos+1) and not ex_bed(exclude_intervals, pcol.pos+1) and r in 'AGTC':
                 seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
                 name=pcol.get_query_names()
                 n=pcol.get_num_aligned()
@@ -184,6 +220,17 @@ def generate(params, pool):
     
     print('generating SNP pileups for %s:%d-%d' %(chrom,start,end) ,flush=True)
     
+    if params['include_bed']:
+        tbx = pysam.TabixFile(params['include_bed'])
+        bed_intervals=IntervalTree(Interval(max(start,int(row[1])), min(end,int(row[2])), "%s" % (row[1])) for row in tbx.fetch(chrom, start-1, end, parser=pysam.asBed()))
+        
+        if not bed_intervals.overlap(start,end):
+            return [],[],[],[],[]
+    
+        else:
+            start, end=min(x[0] for x in bed_intervals.overlap(start,end)),max(x[1] for x in bed_intervals.overlap(start,end))
+            
+            
     
     in_dict_list=[]
     for k in range(max(1,start-50000),end+50000,100000):

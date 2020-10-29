@@ -41,7 +41,6 @@ def get_snp_testing_candidates(dct):
     
     include_intervals, exclude_intervals=None, None
     
-    
     if dct['include_bed']:
         tbx = pysam.TabixFile(dct['include_bed'])
         include_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
@@ -49,11 +48,14 @@ def get_snp_testing_candidates(dct):
         def in_bed(tree,pos):            
             return tree.overlaps(pos)
         
-        if not include_intervals.overlap(start,end):
+        include_intervals=IntervalTree(include_intervals.overlap(start,end))
+        
+        if not include_intervals:
             return [],[],[],[],[]
     
         else:
-            start, end=min(x[0] for x in include_intervals.overlap(start,end)),max(x[1] for x in include_intervals.overlap(start,end))
+            start=max(start, min(x[0] for x in include_intervals))
+            end=min(end, max(x[1] for x in include_intervals))
         
     else:
         def in_bed(tree, pos):
@@ -63,6 +65,7 @@ def get_snp_testing_candidates(dct):
         tbx = pysam.TabixFile(dct['exclude_bed'])
         try:
             exclude_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
+                    
             def ex_bed(tree, pos):
                 return tree.overlaps(pos)
         
@@ -163,7 +166,6 @@ def get_snp_testing_candidates(dct):
             
             for i,name in enumerate(sample):
                 for j,nb_pos in enumerate(ls_total_1):
-                    #if name in cnd_seq[nb_pos].keys():
                     try:    
                         tmp_mat[i][j]=cnd_seq[nb_pos][name]
                     except KeyError:
@@ -173,7 +175,6 @@ def get_snp_testing_candidates(dct):
                 
                 for j,nb_pos in enumerate(ls_total_2):
                     
-                    #if name in cnd_seq[nb_pos].keys():
                     try:
                         tmp_mat[i][j +len(ls_total_1)+1]=cnd_seq[nb_pos][name]
                     except KeyError:
@@ -222,13 +223,15 @@ def generate(params, pool):
     
     if params['include_bed']:
         tbx = pysam.TabixFile(params['include_bed'])
-        bed_intervals=IntervalTree(Interval(max(start,int(row[1])), min(end,int(row[2])), "%s" % (row[1])) for row in tbx.fetch(chrom, start-1, end, parser=pysam.asBed()))
+        bed_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
+        bed_intervals=IntervalTree(bed_intervals.overlap(start,end))
         
-        if not bed_intervals.overlap(start,end):
+        if not bed_intervals:
             return [],[],[],[],[]
     
         else:
-            start, end=min(x[0] for x in bed_intervals.overlap(start,end)),max(x[1] for x in bed_intervals.overlap(start,end))
+            start=max(start, min(x[0] for x in bed_intervals))
+            end=min(end, max(x[1] for x in bed_intervals))
             
             
     

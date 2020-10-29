@@ -178,11 +178,14 @@ def get_indel_testing_candidates(dct):
         def in_bed(tree,pos):            
             return tree.overlaps(pos)
         
-        if not include_intervals.overlap(start,end):
+        include_intervals=IntervalTree(include_intervals.overlap(start,end))
+        
+        if not include_intervals:
             return [],[],[],[],[]
     
         else:
-            start, end=min(x[0] for x in include_intervals.overlap(start,end)),max(x[1] for x in include_intervals.overlap(start,end))
+            start=max(start, min(x[0] for x in include_intervals))
+            end=min(end, max(x[1] for x in include_intervals))
         
     else:
         def in_bed(tree, pos):

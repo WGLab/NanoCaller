@@ -3,11 +3,8 @@ import multiprocessing as mp
 from intervaltree import Interval, IntervalTree
 
 def run(args):
-    import snpCaller
-    import indelCaller_imap as indelCaller
-    
-    gap_bed={}
-    
+    import snpCaller, indelCaller
+        
     pool = mp.Pool(processes=args.cpu)
 
     if not args.vcf:
@@ -21,8 +18,6 @@ def run(args):
     
     with open(os.path.join(args.vcf,'args'),'w') as file:
         file.write(str(args))
-        
-    
     
     end=None
     if not args.end:
@@ -60,9 +55,12 @@ def run(args):
         tbx = pysam.TabixFile(args.include_bed)
         include_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(args.chrom, parser=pysam.asBed()))
         
-        if include_intervals.overlap(start,end):
-            start, end=min(x[0] for x in include_intervals.overlap(start,end)),max(x[1] for x in include_intervals.overlap(start,end))
-            
+        include_intervals=IntervalTree(include_intervals.overlap(start,end))
+        
+        if include_intervals:
+            start=max(start, min(x[0] for x in include_intervals))
+            end=min(end, max(x[1] for x in include_intervals))
+        
         else:
             print('No overlap between include_bed file and start/end coordinates',flush=True)
             return

@@ -3,7 +3,7 @@ import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
 from model_architect import *
-from generate_SNP_pileups import generate
+from generate_SNP_pileups import get_snp_testing_candidates
 from intervaltree import Interval, IntervalTree
 
 
@@ -80,17 +80,25 @@ def test_model(params,pool):
         f.write('##FORMAT=<ID=FQ,Number=1,Type=Float,Description="Alternative Allele Frequency">\n')
         f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	%s\n' %params['sample'])
         
-        for mbase in range(start,end,int(5e6)):
+        in_dict_list=[]
+        
+        for mbase in range(start,end,200000):
             d = copy.deepcopy(params)
             d['start']=mbase
-            d['end']=min(end,mbase+int(5e6))
-            pos,x_test,test_ref,dp,freq=generate(d,pool)
+            d['end']=min(end,mbase+200000)
+            in_dict_list.append(d)
+        
+        result=pool.imap_unordered(get_snp_testing_candidates, in_dict_list)
+        
+        for res in result:
+            
+            pos,test_ref,x_test,dp,freq=res
             
             if len(pos)==0:
                 continue
        
             x_test=x_test.astype(np.float32)
-
+            
             x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(train_coverage/coverage)
 
             for batch in range(int(np.ceil(len(x_test)/batch_size))):

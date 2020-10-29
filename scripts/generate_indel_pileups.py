@@ -339,32 +339,3 @@ def get_indel_testing_candidates(dct):
         alleles.append([allele_prediction(output_data_0[i], dct['seq']), allele_prediction(output_data_1[i], dct['seq']), allele_prediction(output_data_total[i], dct['seq'])])
         
     return (output_pos,output_data_0,output_data_1,output_data_total,alleles)
-    
-def generate(params,pool):
-    cores=params['cpu']
-    chrom=params['chrom']
-    start,end=params['start'],params['end']
-    
-    start,end=params['start'],params['end']
-
-    
-    
-    in_dict_list=[]
-    
-    for k in range(start,end,50000):
-        d = copy.deepcopy(params)
-        d['start']=k
-        d['end']=min(end,k+50000)
-        in_dict_list.append(d)
-    
-    results = pool.map(get_indel_testing_candidates, in_dict_list)
-    
-    if sum([len(res[0]) for res in results])==0:
-        return [],[],[],[],[]
-    pos=np.vstack([res[0][:,np.newaxis] for res in results if len(res[0])>0])
-    mat_0=np.vstack([res[1] for res in results if len(res[0])>0])
-    mat_1=np.vstack([res[2] for res in results if len(res[0])>0])
-    mat_2=np.vstack([res[3] for res in results if len(res[0])>0])
-    alleles_seq=np.vstack([res[4] for res in results if len(res[0])>0])
-    
-    return pos, mat_0, mat_1, mat_2, alleles_seq

@@ -4,7 +4,7 @@ import multiprocessing as mp
 import tensorflow as tf
 from model_architect_indel import *
 from Bio import pairwise2
-import generate_indel_pileups
+from generate_indel_pileups import get_indel_testing_candidates
 
 config =  tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -60,7 +60,7 @@ def test_model(params,pool):
             d['end']=min(end,mbase+50000)
             in_dict_list.append(d)
         
-        result=pool.imap_unordered(generate_indel_pileups.get_indel_testing_candidates, in_dict_list)
+        result=pool.imap_unordered(get_indel_testing_candidates, in_dict_list)
         
         for res in result:            
             pos, x0_test, x1_test, x2_test, alleles_seq=res

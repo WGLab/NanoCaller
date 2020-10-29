@@ -9,8 +9,8 @@ base_to_num_map={'*':4,'A':0,'G':1,'T':2,'C':3,'N':4}
 
 def get_nbr(dct):
     chrom=dct['chrom']
-    start=dct['start']
-    end=dct['end']
+    start=max(dct['start']-50000,1)
+    end=dct['end']+50000
 
     sam_path=dct['sam_path']
     fasta_path=dct['fasta_path']
@@ -18,7 +18,7 @@ def get_nbr(dct):
     fastafile=pysam.FastaFile(fasta_path)
 
     rlist=[s for s in fastafile.fetch(chrom,start-1,end-1)]
-    output_ref, output_seq={},{}
+    output_seq={}
     for pcol in samfile.pileup(chrom,start-1,end-1,min_base_quality=0, flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
             n=pcol.get_num_aligned()
             r=rlist[pcol.pos+1-start]
@@ -29,16 +29,15 @@ def get_nbr(dct):
 
                 if dct['threshold'][0]<=alt_freq and alt_freq<dct['threshold'][1]:
                     name=pcol.get_query_names()
-                    output_ref[pcol.pos+1]=base_to_num_map[r]
                     output_seq[pcol.pos+1]={n:base_to_num_map[s] for (n,s) in zip(name,seq)}
-    return output_ref, output_seq
+                    output_seq[pcol.pos+1]['ref']=base_to_num_map[r]
+    return output_seq
 
 def get_snp_testing_candidates(dct):
     
     chrom=dct['chrom']
     start=dct['start']
     end=dct['end']
-    
     include_intervals, exclude_intervals=None, None
     
     if dct['include_bed']:
@@ -82,10 +81,9 @@ def get_snp_testing_candidates(dct):
     
     nbr_size=20
     
-    cnd_ref=dct['cnd_ref']
-    cnd_seq=dct['cnd_seq']
+    cnd_seq=get_nbr(dct)
     
-    cnd_pos=np.array(list(cnd_ref.keys()))
+    cnd_pos=np.array(list(cnd_seq.keys()))
     
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
@@ -180,7 +178,7 @@ def get_snp_testing_candidates(dct):
                     except KeyError:
                         pass
             for nb_pos in ls_total_1+ls_total_2:
-                        rlist.append((nb_pos, cnd_ref[nb_pos]))
+                        rlist.append((nb_pos, cnd_seq[nb_pos]['ref']))
             
             rlist=sorted(rlist, key=lambda x:x[0])
             total_rlist=np.array([x[1] for x in rlist])
@@ -213,62 +211,3 @@ def get_snp_testing_candidates(dct):
         output_freq=np.array(output_freq)
     
     return (output_pos,output_ref,output_mat,output_dp,output_freq)
-
-def generate(params, pool):
-    chrom=params['chrom']
-    threshold=params['threshold']
-    start,end=params['start'],params['end']    
-    
-    print('generating SNP pileups for %s:%d-%d' %(chrom,start,end) ,flush=True)
-    
-    if params['include_bed']:
-        tbx = pysam.TabixFile(params['include_bed'])
-        bed_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
-        bed_intervals=IntervalTree(bed_intervals.overlap(start,end))
-        
-        if not bed_intervals:
-            return [],[],[],[],[]
-    
-        else:
-            start=max(start, min(x[0] for x in bed_intervals))
-            end=min(end, max(x[1] for x in bed_intervals))
-            
-            
-    
-    in_dict_list=[]
-    for k in range(max(1,start-50000),end+50000,100000):
-        d = copy.deepcopy(params)
-        d['start']=k
-        d['end']=min(end+50000,k+100000)
-        in_dict_list.append(d)
-        
-    nbr_results = pool.map(get_nbr, in_dict_list)
-    
-    total_nbr_ref, total_nbr_seq={}, {}
-    for pair in nbr_results:
-        total_nbr_ref.update(pair[0])
-        total_nbr_seq.update(pair[1])
-    
-    params['cnd_ref']=total_nbr_ref
-    params['cnd_seq']=total_nbr_seq
-        
-    in_dict_list=[]
-    for k in range(start,end,100000):
-        d = copy.deepcopy(params)
-        d['start']=k
-        d['end']=min(end,k+100000)
-        in_dict_list.append(d)
-    results = pool.map(get_snp_testing_candidates, in_dict_list)
-
-    if sum([len(res[0]) for res in results])==0:
-        return [],[],[],[],[]
-    
-    pos=np.vstack([res[0][:,np.newaxis] for res in results if len(res[0])>0])
-    mat=np.vstack([res[2] for res in results if len(res[0])>0])
-    
-    ref=np.vstack([res[1] for res in results if len(res[0])>0 ])
-    dp=np.vstack([res[3][:,np.newaxis] for res in results if len(res[0])>0])
-
-    freq=np.vstack([res[4][:,np.newaxis] for res in results if len(res[0])>0])
-    
-    return pos,mat,ref,dp,freq

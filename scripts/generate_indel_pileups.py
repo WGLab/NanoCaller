@@ -125,7 +125,7 @@ def allele_prediction(mat, seq):
                 break
             if ref_new[i]=='-' or alt_new[i]=='-':
                 flag=True
-            if ref_new[i:i+4]==alt_new[i:i+4] and flag:
+            if ref_new[i:i+8]==alt_new[i:i+8] and flag:
                 break
 
         i+=1
@@ -226,12 +226,14 @@ def get_indel_testing_candidates(dct):
     pileup_list=[]
     output_pos,output_data_0,output_data_1,output_data_total=[],[],[],[]
     prev=0
+    count=0
+    
     for pcol in samfile.pileup(chrom,max(0,start-1),end,min_base_quality=0,\
                                            flag_filter=flag,truncate=True):
             v_pos=pcol.pos+1
             make=False
             
-            if v_pos > prev+1 and in_bed(include_intervals, pcol.pos+1) and not ex_bed(exclude_intervals, pcol.pos+1):                
+            if v_pos > prev+8 and in_bed(include_intervals, pcol.pos+1) and not ex_bed(exclude_intervals, pcol.pos+1):                
                 read_names=pcol.get_query_names()
                 read_names_0=set(read_names) & hap_reads_0
                 read_names_1=set(read_names) & hap_reads_1#set([x for x in read_names if x in hap_reads_1])
@@ -291,6 +293,11 @@ def get_indel_testing_candidates(dct):
                         
 
                 if make:
+                        count+=1
+                        if count>=1000:
+                            print('%s: Skipping region %s:%d-%d due to poor alignment.' %(str(datetime.datetime.now()), chrom, v_pos, end), flush =True)
+                            break
+                            
                         ref=''.join([ref_dict[p] for p in range(v_pos-window_before,v_pos+window_after+1)])
                         
                         if len(ref)<128:

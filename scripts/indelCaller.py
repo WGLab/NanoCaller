@@ -1,4 +1,8 @@
 import time,os,copy,argparse,subprocess, datetime
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+
+
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
@@ -6,6 +10,7 @@ from model_architect_indel import *
 from Bio import pairwise2
 from generate_indel_pileups import get_indel_testing_candidates
 
+if type(tf.contrib) != type(tf): tf.contrib._warning = None
 config =  tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -14,6 +19,7 @@ rev_gt_map={0:'hom-ref', 1:'hom-alt', 2:'het-ref', 3:'het-alt'}
 rev_base_map={0:'A',1:'G',2:'T',3:'C',4:'-'}
 
 def test_model(params,pool):
+    print('%s: Indel calling started.' %(str(datetime.datetime.now())), flush=True)
     
     rev_allele_map={0:'N',1:'D',2:'I'}
     
@@ -46,11 +52,7 @@ def test_model(params,pool):
         
         f.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         f.write('##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype Probability">\n')
-        f.write('##FORMAT=<ID=TP,Number=1,Type=String,Description="Indel type">\n')
         f.write('#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	%s\n' %params['sample'])
-        
-        prev=0
-        prev_len=0
         
         in_dict_list=[]
         
@@ -62,8 +64,15 @@ def test_model(params,pool):
         
         result=pool.imap_unordered(get_indel_testing_candidates, in_dict_list)
         
+        total_regions=len(in_dict_list)
+        completed=0
         for res in result:            
             pos, x0_test, x1_test, x2_test, alleles_seq=res
+            completed+=1
+            
+            prev=0
+            prev_len=0
+            
             if len(pos)==0:
                 continue
 
@@ -97,7 +106,7 @@ def test_model(params,pool):
                             if batch_pred_all[j]==1:
                                     if allele_total_data[0]:
                                         gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
-                                        s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP:GQ\t1/1:%s:%.2f\n' %(chrom, batch_pos[j], allele_total_data[0], allele_total_data[1], q, rev_gt_map[batch_pred_all[j]], gq)
+                                        s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele_total_data[0], allele_total_data[1], q, gq)
                                         f.write(s)
                                         prev=batch_pos[j]+max(len(allele_total_data[0]), len(allele_total_data[1]))
                             
@@ -106,7 +115,7 @@ def test_model(params,pool):
                                     
                                     if allele0_data[0]==allele1_data[0] and allele0_data[1]==allele1_data[1]:
                                         gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
-                                        s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP:GQ\t1/1:%s:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1],q,rev_gt_map[batch_pred_all[j]], gq)
+                                        s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq)
                                         f.write(s)
                                         prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
 
@@ -124,25 +133,26 @@ def test_model(params,pool):
                                             ref=ref2
                                             alt1=alt1+ref2[l:]
                                         gq=-100*np.log10(1+1e-6-batch_prob_all[j,3])
-                                        s='%s\t%d\t.\t%s\t%s,%s\t%.2f\tPASS\t.\tGT:TP:GQ\t1|2:%s:%.2f\n' %(chrom, batch_pos[j], ref, alt1, alt2, q, rev_gt_map[batch_pred_all[j]], gq)
+                                        s='%s\t%d\t.\t%s\t%s,%s\t%.2f\tPASS\t.\tGT:GQ\t1|2:%.2f\n' %(chrom, batch_pos[j], ref, alt1, alt2, q, gq)
                                         f.write(s)
                                         prev=batch_pos[j]+max(len(ref), len(alt1),len(alt2))
 
                                 elif allele0_data[0]:
                                     gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
-                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP:GQ\t0|1:%s:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, rev_gt_map[batch_pred_all[j]], gq)
+                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t0|1:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq)
                                     f.write(s)
                                     prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
 
                                 elif allele1_data[0]:
                                     gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
-                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:TP:GQ\t1|0:%s:%.2f\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, rev_gt_map[batch_pred_all[j]], gq)
+                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1|0:%.2f\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, gq)
                                     f.write(s)
                                     prev=batch_pos[j]+max(len(allele1_data[0]), len(allele1_data[1]))
 
                 batch_x0,batch_x1,batch_x2,batch_x=None,None,None,None
             pos, x0_test, x1_test, x2_test=None,None,None,None
             
+            print('%s: (%d/%d) regions completed.' %(str(datetime.datetime.now()), completed, total_regions),flush=True)
             f.flush()
             os.fsync(f.fileno())
             neg_file.flush()

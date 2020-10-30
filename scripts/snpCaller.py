@@ -1,4 +1,7 @@
-import time,os,copy,argparse,subprocess, sys, pysam
+import time,os,copy,argparse,subprocess, sys, pysam, datetime
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
@@ -6,7 +9,7 @@ from model_architect import *
 from generate_SNP_pileups import get_snp_testing_candidates
 from intervaltree import Interval, IntervalTree
 
-
+if type(tf.contrib) != type(tf): tf.contrib._warning = None
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
@@ -14,6 +17,8 @@ num_to_base_map={0:'A',1:'G',2:'T',3:'C'}
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 def test_model(params,pool):
+    print('%s: SNP calling started.' %(str(datetime.datetime.now())), flush=True)
+    
     model,vcf_path,prefix= params['model'],params['vcf_path'], params['prefix']
     chrom,start,end=params['chrom'], params['start'],params['end']          
             
@@ -27,10 +32,10 @@ def test_model(params,pool):
     stream = os.popen("samtools depth %s -r %s:%d-%d -G %d %s|awk '{if ($3>=%d){sum+=$3; cnt+=1}}END{if(cnt>0){print sum/cnt}else{print 0}}'" %(params['sam_path'], chrom, start, end, flag, regions, params['mincov']))
     coverage=float(stream.read())
     
-    print('Coverage=%.2fx' %coverage, flush=True)
+    print('%s: Coverage=%.2fx.' %(str(datetime.datetime.now()), coverage), flush=True)
     
     if coverage==0:
-        print('No coverage found for the contig %s' %chrom, flush=True)
+        print('%s: No coverage found for the contig %s.' %(str(datetime.datetime.now()), chrom), flush=True)
         return False
     
     
@@ -89,10 +94,14 @@ def test_model(params,pool):
             in_dict_list.append(d)
         
         result=pool.imap_unordered(get_snp_testing_candidates, in_dict_list)
+
+        total_regions=len(in_dict_list)
+        completed=0
         
         for res in result:
             
             pos,test_ref,x_test,dp,freq=res
+            completed+=1
             
             if len(pos)==0:
                 continue
@@ -151,6 +160,9 @@ def test_model(params,pool):
 
 
                     neg_file.write('%d,%s,%.4f,%.4f,%.4f,%.4f,%.4f,%d,%.4f\n' %(batch_pos[j],num_to_base_map[batch_ref[j]], batch_prob_GT[j,0], batch_probs[j,0], batch_probs[j,1], batch_probs[j,2], batch_probs[j,3], batch_dp[j], batch_freq[j]))
+                    
+                    
+            print('%s: (%d/%d) regions completed.' %(str(datetime.datetime.now()), completed, total_regions),flush=True)
             f.flush()
             os.fsync(f.fileno())
             neg_file.flush()

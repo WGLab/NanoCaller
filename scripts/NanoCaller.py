@@ -1,3 +1,6 @@
+from warnings import simplefilter 
+simplefilter(action='ignore', category=FutureWarning)
+
 import time, argparse, os, shutil, sys, pysam, datetime
 import multiprocessing as mp
 from intervaltree import Interval, IntervalTree
@@ -29,11 +32,11 @@ def run(args):
                         end=int(line.split('\t')[1])
             
             if end==None:
-                print('contig %s not found in reference' %args.chrom, flush=True)
+                print('%s: contig %s not found in reference.' %(str(datetime.datetime.now()), args.chrom), flush=True)
                 return 
                 
         except FileNotFoundError:
-            print('index file .fai required for reference genome file', flush=True)
+            print('%s: Index file .fai required for reference genome file' %(str(datetime.datetime.now())), flush=True)
             return
             
     else:
@@ -62,7 +65,7 @@ def run(args):
             end=min(end, max(x[1] for x in include_intervals))
         
         else:
-            print('No overlap between include_bed file and start/end coordinates',flush=True)
+            print('%s: No overlap between include_bed file and start/end coordinates' %(str(datetime.datetime.now())),flush=True)
             return
         
     in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':args.bam, 'fasta_path':args.ref, \
@@ -74,24 +77,32 @@ def run(args):
     if args.mode in ['snps','both']:
         snp_time=time.time()
         snp_vcf=snpCaller.test_model(in_dict, pool)
-        print('SNP calling completed for contig %s. Time taken= %.4f' %(in_dict['chrom'], time.time()-snp_time),flush=True)
+        print('\n%s: SNP calling completed for contig %s. Time taken= %.4f\n' %(str(datetime.datetime.now()), in_dict['chrom'], time.time()-snp_time),flush=True)
 
         if snp_vcf:
             disable_whatshap = ' --distrust-genotypes --include-homozygous' if args.disable_whatshap else ''
+            
+            print('\n%s: ------WhatsHap SNP phasing log------\n' %(str(datetime.datetime.now())),flush=True)
+            
             stream=os.popen("whatshap phase %s.vcf.gz %s -o %s.phased.preclean.vcf -r %s --ignore-read-groups --chromosome %s %s" %(snp_vcf,in_dict['sam_path'], snp_vcf, in_dict['fasta_path'], in_dict['chrom'] , disable_whatshap))
             stream.read()
             
             stream=os.popen("bcftools view -e  'GT=\"0\\0\"' %s.phased.preclean.vcf|bgziptabix %s.phased.vcf.gz" %(snp_vcf,snp_vcf))
             stream.read()
+            
+            print('\n%s: ------SNP phasing completed------\n' %(str(datetime.datetime.now())),flush=True)
 
 
             if args.mode=='both':
+                print('\n%s: ------WhatsHap BAM phasing log------\n' %(str(datetime.datetime.now())),flush=True)
                 stream=os.popen("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --tag-supplementary" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end))
                 stream.read()
 
 
                 stream=os.popen('samtools index %s.phased.bam' %snp_vcf )
                 stream.read()
+                
+                print('\n%s: ------BAM phasing completed-----\n' %(str(datetime.datetime.now())),flush=True)
             
         else:
             return
@@ -107,10 +118,10 @@ def run(args):
                 , 'exclude_bed':args.exclude_bed}
         ind_time=time.time()
         indel_vcf=indelCaller.test_model(in_dict, pool)
-        print('Indel calling completed for contig %s. Time taken= %.4f' %(in_dict['chrom'], time.time()-ind_time),flush=True)
+        print('%s: Indel calling completed for contig %s. Time taken= %.4f' %(str(datetime.datetime.now()), in_dict['chrom'], time.time()-ind_time),flush=True)
         
         if args.mode=='both':
-            print('Post processing',flush=True)
+            print('%s: Post processing' %(str(datetime.datetime.now())),flush=True)
             stream=os.popen('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.vcf,args.chrom))
             stream.read()
 
@@ -141,6 +152,7 @@ def run(args):
     pool.join()
     
 if __name__ == '__main__':
+    
     t=time.time()
     
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -201,6 +213,11 @@ if __name__ == '__main__':
     except OSError as error:  
         pass
     
+    with open(os.path.join(args.vcf,'args'),'w') as file:
+        file.write(str(args))
+        
+    print('\n%s: Starting NanoCaller.\n\nRunning arguments are saved in the following file: %s\n' %(str(datetime.datetime.now()), os.path.join(args.vcf,'args')), flush=True)
+    
     if args.chrom:
         run(args)
     
@@ -220,7 +237,7 @@ if __name__ == '__main__':
                         chrom_list.append(line.split('\t')[0])
                 
             except FileNotFoundError:
-                print('index file .fai required for reference genome file', flush=True)
+                print('%s: index file .fai required for reference genome file' %str(datetime.datetime.now()), flush=True)
                 sys.exit()
             
         else:
@@ -245,7 +262,7 @@ if __name__ == '__main__':
                             
                     dirname = os.path.dirname(__file__)
                     wg_commands.write('python %s/NanoCaller.py -chrom %s %s -vcf %s \n' %(dirname, chrom, cmd, vcf))
-            print('Commands for running NanoCaller on contigs in whole genome are saved in the file %s' %os.path.join(args.vcf,'wg_commands'))
+            print('%s: Commands for running NanoCaller on contigs in whole genome are saved in the file %s' %(str(datetime.datetime.now()), os.path.join(args.vcf,'wg_commands')))
         
         else:
             vcf_path=args.vcf
@@ -254,7 +271,7 @@ if __name__ == '__main__':
                 args.chrom=chrom
                 args.vcf=os.path.join(vcf_path, args.chrom)
                 run(args)
-                print('Variant calling on %s completed. Time taken=%.4fs.' %(chrom,time.time()-ctime))
+                print('%s: Variant calling on %s completed. Time taken=%.4fs.' %(str(datetime.datetime.now()), chrom, time.time()-ctime))
         
     elapsed=time.time()-t
-    print ('Total Time Elapsed: %.2f seconds' %elapsed)
+    print ('\n%s: Total Time Elapsed: %.2f seconds' %(str(datetime.datetime.now()), elapsed))

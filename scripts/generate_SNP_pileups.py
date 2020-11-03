@@ -19,7 +19,13 @@ def get_nbr(dct):
 
     rlist=[s for s in fastafile.fetch(chrom,start-1,end-1)]
     output_seq={}
-    for pcol in samfile.pileup(chrom,start-1,end-1,min_base_quality=0, flag_filter=0x4|0x100|0x200|0x400|0x800,truncate=True):
+    
+    if dct['supplementary']:
+        flag=0x4|0x100|0x200|0x400
+    else:
+        flag=0x4|0x100|0x200|0x400|0x800
+        
+    for pcol in samfile.pileup(chrom,start-1,end-1,min_base_quality=0, flag_filter=flag,truncate=True):
             n=pcol.get_num_aligned()
             r=rlist[pcol.pos+1-start]
 

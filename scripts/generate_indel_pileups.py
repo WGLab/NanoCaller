@@ -166,10 +166,7 @@ def get_indel_testing_candidates(dct):
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
 
-    
-    
     include_intervals, exclude_intervals=None, None
-    
     
     if dct['include_bed']:
         tbx = pysam.TabixFile(dct['include_bed'])
@@ -205,7 +202,6 @@ def get_indel_testing_candidates(dct):
     else:
         def ex_bed(tree, pos):
             return False 
-    
         
     ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-200),end+400+1),fastafile.fetch(chrom,max(1,start-200)-1,end+400)) }
     
@@ -245,19 +241,14 @@ def get_indel_testing_candidates(dct):
                     
                     seq=[x[:2].upper() for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)]
                     
-                    
                     tmp_seq_0=''.join([s for n,s in zip(read_names,seq) if n in read_names_0])
                     tmp_seq_1=''.join([s for n,s in zip(read_names,seq) if n in read_names_1])
-                    
-                    
-                                        
 
                     del_freq_0=(tmp_seq_0.count('-')+tmp_seq_0.count('*'))/len_seq_0 if len_seq_0>0 else 0
                     ins_freq_0=tmp_seq_0.count('+')/len_seq_0 if len_seq_0>0 else 0
 
                     del_freq_1=(tmp_seq_1.count('-')+tmp_seq_1.count('*'))/len_seq_1 if len_seq_1>0 else 0
                     ins_freq_1=tmp_seq_1.count('+')/len_seq_1 if len_seq_1>0 else 0
-                    
                
                     if (dct['del_t']<=del_freq_0 or dct['del_t']<=del_freq_1 or dct['ins_t']<=ins_freq_0 or dct['ins_t']<=ins_freq_1):
                               
@@ -289,8 +280,6 @@ def get_indel_testing_candidates(dct):
                         
                         if len(read_names_0)>=dct['mincov'] and len(read_names_1)>=dct['mincov']:
                             make=True
-                        
-                        
 
                 if make:
                         count+=1

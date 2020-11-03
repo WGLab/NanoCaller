@@ -8,6 +8,7 @@ import tensorflow as tf
 from model_architect import *
 from generate_SNP_pileups import get_snp_testing_candidates
 from intervaltree import Interval, IntervalTree
+from utils import *
 
 if type(tf.contrib) != type(tf): tf.contrib._warning = None
 config = tf.ConfigProto()
@@ -29,8 +30,9 @@ def test_model(params,pool):
     
     regions='-b %s' %params['include_bed'] if params['include_bed'] else ''
     
-    stream = os.popen("samtools depth %s -r %s:%d-%d -G %d %s|awk '{if ($3>=%d){sum+=$3; cnt+=1}}END{if(cnt>0){print sum/cnt}else{print 0}}'" %(params['sam_path'], chrom, start, end, flag, regions, params['mincov']))
-    coverage=float(stream.read())
+    stream = run_cmd("samtools depth %s -r %s:%d-%d -G %d %s|awk '{if ($3>=%d){sum+=$3; cnt+=1}}END{if(cnt>0){print sum/cnt}else{print 0}}'" %(params['sam_path'], chrom, start, end, flag, regions, params['mincov']), output= True)
+    
+    coverage=float(stream)
     
     print('%s: Coverage=%.2fx.' %(str(datetime.datetime.now()), coverage), flush=True)
     
@@ -46,9 +48,6 @@ def test_model(params,pool):
     weights,biases,tensors=get_tensors(n_input,0.0)
     (x,GT_label,A_label, G_label, T_label, C_label,GT_score, A_score, G_score, T_score, C_score, accuracy_GT, accuracy_A,  accuracy_G,  accuracy_T,  accuracy_C, prediction_accuracy_GT, prediction_accuracy_A,  prediction_accuracy_G,  prediction_accuracy_T,  prediction_accuracy_C, prediction_GT, prediction_A,  prediction_G,  prediction_T,  prediction_C, accuracy, cost, optimizer,  cost_GT, cost_A, cost_G, cost_T, cost_C,A_ref,G_ref,T_ref,C_ref,prob_GT,prob_A,prob_G,prob_T,prob_C,keep)=tensors
 
-    
-
-    
     dirname = os.path.dirname(__file__)
     if model== 'NanoCaller1':
         model_path=os.path.join(dirname, 'release_data/NanoCaller1/model-rt-1')
@@ -169,8 +168,7 @@ def test_model(params,pool):
             os.fsync(neg_file.fileno())
     
     output_file=os.path.join(vcf_path,'%s.snps' %prefix)
-    stream=os.popen("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(output_file, output_file))
-    stream.read()
+    run_cmd("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(output_file, output_file))
     
     
     

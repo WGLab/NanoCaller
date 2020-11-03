@@ -2,13 +2,13 @@ import time,os,copy,argparse,subprocess, datetime
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
-
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
 from model_architect_indel import *
 from Bio import pairwise2
 from generate_indel_pileups import get_indel_testing_candidates
+from utils import *
 
 if type(tf.contrib) != type(tf): tf.contrib._warning = None
 config =  tf.compat.v1.ConfigProto()
@@ -161,6 +161,6 @@ def test_model(params,pool):
             
     neg_file.close()
     outfile=os.path.join(vcf_path,'%s.indels' %prefix)
-    stream=os.popen("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(outfile, outfile))
-    stream.read()
+    run_cmd("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(outfile, outfile))
+
     return outfile

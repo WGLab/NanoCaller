@@ -4,6 +4,8 @@ simplefilter(action='ignore', category=FutureWarning)
 import time, argparse, os, shutil, sys, pysam, datetime
 import multiprocessing as mp
 from intervaltree import Interval, IntervalTree
+from subprocess import PIPE, Popen
+from utils import *
 
 def run(args):
     import snpCaller, indelCaller
@@ -74,33 +76,30 @@ def run(args):
             'seq':args.sequencing, 'supplementary':args.supplementary, 'include_bed':args.include_bed, 'exclude_bed':args.exclude_bed}
         
     snp_vcf=''
-    if args.mode in ['snps','both']:
+    if args.mode in ['snps', 'snps_unphased', 'both']:
         snp_time=time.time()
         snp_vcf=snpCaller.test_model(in_dict, pool)
         print('\n%s: SNP calling completed for contig %s. Time taken= %.4f\n' %(str(datetime.datetime.now()), in_dict['chrom'], time.time()-snp_time),flush=True)
 
-        if snp_vcf:
-            disable_whatshap = ' --distrust-genotypes --include-homozygous' if args.disable_whatshap else ''
+        if snp_vcf and args.mode in ['snps', 'both']:
+            enable_whatshap = '--distrust-genotypes --include-homozygous' if args.enable_whatshap else ''
             
             print('\n%s: ------WhatsHap SNP phasing log------\n' %(str(datetime.datetime.now())),flush=True)
             
-            stream=os.popen("whatshap phase %s.vcf.gz %s -o %s.phased.preclean.vcf -r %s --ignore-read-groups --chromosome %s %s" %(snp_vcf,in_dict['sam_path'], snp_vcf, in_dict['fasta_path'], in_dict['chrom'] , disable_whatshap))
-            stream.read()
+            run_cmd("whatshap phase %s.vcf.gz %s -o %s.phased.preclean.vcf -r %s --ignore-read-groups --chromosome %s %s" %(snp_vcf,in_dict['sam_path'], snp_vcf, in_dict['fasta_path'], in_dict['chrom'] , enable_whatshap), verbose=True)
             
-            stream=os.popen("bcftools view -e  'GT=\"0\\0\"' %s.phased.preclean.vcf|bgziptabix %s.phased.vcf.gz" %(snp_vcf,snp_vcf))
-            stream.read()
+            
+            run_cmd("bcftools view -e  'GT=\"0\\0\"' %s.phased.preclean.vcf|bgziptabix %s.phased.vcf.gz" %(snp_vcf,snp_vcf))
             
             print('\n%s: ------SNP phasing completed------\n' %(str(datetime.datetime.now())),flush=True)
 
 
             if args.mode=='both':
                 print('\n%s: ------WhatsHap BAM phasing log------\n' %(str(datetime.datetime.now())),flush=True)
-                stream=os.popen("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --tag-supplementary" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end))
-                stream.read()
+                
+                run_cmd("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --tag-supplementary" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end), verbose=True)
 
-
-                stream=os.popen('samtools index %s.phased.bam' %snp_vcf )
-                stream.read()
+                run_cmd('samtools index %s.phased.bam' %snp_vcf )
                 
                 print('\n%s: ------BAM phasing completed-----\n' %(str(datetime.datetime.now())),flush=True)
             
@@ -118,12 +117,12 @@ def run(args):
                 , 'exclude_bed':args.exclude_bed}
         ind_time=time.time()
         indel_vcf=indelCaller.test_model(in_dict, pool)
+        
         print('%s: Indel calling completed for contig %s. Time taken= %.4f' %(str(datetime.datetime.now()), in_dict['chrom'], time.time()-ind_time),flush=True)
         
         if args.mode=='both':
             print('%s: Post processing' %(str(datetime.datetime.now())),flush=True)
-            stream=os.popen('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.vcf,args.chrom))
-            stream.read()
+            run_cmd('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.vcf,args.chrom))
 
             if os.path.exists('%s/ref.sdf' %args.vcf):
                 if os.path.isdir('%s/ref.sdf' %args.vcf):
@@ -131,8 +130,7 @@ def run(args):
                 else:
                     os.remove('%s/ref.sdf' %args.vcf)
 
-            stream=os.popen('rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.vcf,args.chrom,args.vcf))
-            stream.read()
+            run_cmd('rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.vcf,args.chrom,args.vcf))
 
             if os.path.exists('%s.decomposed.vcf.gz' %indel_vcf):
                 if os.path.isdir('%s.decomposed.vcf.gz' %indel_vcf):
@@ -141,12 +139,10 @@ def run(args):
                     os.remove('%s.decomposed.vcf.gz' %indel_vcf)
                 
                 
-            stream=os.popen('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps --break-indels -o %s.decomposed.vcf.gz -t %s/ref.sdf' %(indel_vcf,indel_vcf,args.vcf))
-            stream.read()
+            run_cmd('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps -o - -t %s/ref.sdf|rtg vcffilter -i - --non-snps-only -o  %s.decomposed.vcf.gz' %(indel_vcf,args.vcf,indel_vcf))
 
             final_path=os.path.join(args.vcf,'%s.final.vcf.gz' %args.prefix)
-            stream=os.popen('bcftools concat %s.phased.vcf.gz %s.decomposed.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
-            stream.read()
+            run_cmd('bcftools concat %s.phased.vcf.gz %s.decomposed.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
 
     pool.close()
     pool.join()
@@ -157,7 +153,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     requiredNamed = parser.add_argument_group('Required arguments')
-    parser.add_argument("-mode",  "--mode",  help="Testing mode, options are 'snps', 'indels' and 'both'", type=str, default='both')
+    parser.add_argument("-mode",  "--mode",  help="Testing mode, options are 'snps', 'snps_unphased', 'indels' and 'both'. 'snps_unphased' mode quits NanoCaller without using WhatsHap for phasing.", type=str, default='both')
     parser.add_argument("-seq",  "--sequencing",  help="Sequencing type, options are 'ont' and 'pacbio'", type=str, default='ont')
     parser.add_argument("-model",  "--model",  help="NanoCaller SNP model to be used, options are 'NanoCaller1' (trained on HG001 Nanopore reads), 'NanoCaller2' (trained on HG002 Nanopore reads) and 'NanoCaller3' (trained on HG003 PacBio reads) ", default='NanoCaller1')
     parser.add_argument("-vcf",  "--vcf",  help="VCF output path, default is current working directory", type=str)
@@ -186,8 +182,8 @@ if __name__ == '__main__':
     parser.add_argument("-nbr_t",  "--neighbor_threshold",  help="SNP neighboring site thresholds with lower and upper bounds seperated by comma, for Nanopore reads '0.4,0.6' is recommended and for PacBio reads '0.3,0.7' is recommended", type=str, default='0.4,0.6')
     parser.add_argument("-ins_t", "--ins_threshold", help="Insertion Threshold",type=float,default=0.4)
     parser.add_argument("-del_t", "--del_threshold", help="Deletion Threshold",type=float,default=0.6)
-    
-    parser.add_argument("-disable_whatshap",  "--disable_whatshap",  help="Allow WhatsHap to change SNP genotypes when phasing",  default=False, action='store_true')
+        
+    parser.add_argument("-enable_whatshap",  "--enable_whatshap",  help="Allow WhatsHap to change SNP genotypes when phasing using --distrust-genotypes and --include-homozygous flags (this is not the same as regenotyping), considerably increasing the time needed for phasing. It has a negligible effect on SNP calling accuracy for Nanopore reads, but may make a small improvement for PacBio reads. By default WhatsHap will only phase SNP calls produced by NanoCaller, but not change their genotypes.",  default=False, action='store_true')
     
     parser.add_argument('-wgs_print_commands','--wgs_print_commands', help='If set, print the commands to run NanoCaller on all contigs in a file named "wg_commands". By default, run the NanoCaller on each contig in a sequence.', default=False, action='store_true')
     
@@ -244,8 +240,8 @@ if __name__ == '__main__':
             chrom_list= args.wgs_contigs_type.split()
         
         if args.include_bed:
-            stream=os.popen('zcat %s|cut -f 1|uniq' %args.include_bed )
-            bed_chroms=stream.read().split()
+            stream=run_cmd('zcat %s|cut -f 1|uniq' %args.include_bed, output=True)
+            bed_chroms=stream.split()
             
             chrom_list=[chrom for chrom in chrom_list if chrom in bed_chroms]
             

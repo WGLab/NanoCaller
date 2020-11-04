@@ -1,14 +1,99 @@
-Coverage=49.63x
 
-WARNING: The TensorFlow contrib module will not be included in TensorFlow 2.0.
-For more information, please see:
-  * https://github.com/tensorflow/community/blob/master/rfcs/20180907-contrib-sunset.md
-  * https://github.com/tensorflow/addons
-If you depend on functionality not listed there, please file an issue.
+2020-11-03 12:54:37.546552: Starting NanoCaller.
 
-generating SNP pileups for chr22:20000000-21000000
-SNP calling done. Time taken= 68.2590
-generating indel pileups for chr22:20000000-21000000
-Indel calling done. Time taken= 510.1237
-Post processing
-Total Time Elapsed: 621.94 seconds
+Running arguments are saved in the following file: test_run/args
+
+2020-11-03 12:54:44.877308: SNP calling started.
+2020-11-03 12:54:46.708984: Coverage=49.63x.
+2020-11-03 12:55:07.620834: (1/5) regions completed.
+2020-11-03 12:55:21.178505: (2/5) regions completed.
+2020-11-03 12:55:32.449525: (3/5) regions completed.
+2020-11-03 12:55:44.149472: (4/5) regions completed.
+2020-11-03 12:55:55.296145: (5/5) regions completed.
+
+2020-11-03 12:55:55.611312: SNP calling completed for contig chr22. Time taken= 70.7340
+
+
+2020-11-03 12:55:55.611387: ------WhatsHap SNP phasing log------
+
+
+This is WhatsHap 1.0 running under Python 3.6.8
+Working on 1 samples from 1 family
+======== Working on chromosome 'chr22'
+---- Processing individual SAMPLE
+Using maximum coverage per sample of 15X
+Number of variants skipped due to missing genotypes: 0
+Number of remaining heterozygous variants: 1348
+Reading alignments and detecting alleles ...
+Found 2481 reads covering 1348 variants
+Kept 2153 reads that cover at least two variants each
+Reducing coverage to at most 15X by selecting most informative reads ...
+Selected 466 reads covering 1348 variants
+Best-case phasing would result in 1 non-singleton phased blocks (1 in total)
+... after read selection: 1 non-singleton phased blocks (1 in total)
+Variants covered by at least one phase-informative read in at least one individual after read selection: 1348
+Phasing 1 sample by solving the MEC problem ...
+MEC cost: 55050
+No. of phased blocks: 1
+Largest component contains 1348 variants (100.0% of accessible variants) between position 20000722 and 20999039
+======== Writing VCF
+Done writing VCF
+
+== SUMMARY ==
+Maximum memory usage: 0.699 GB
+Time spent reading BAM/CRAM:                    6.2 s
+Time spent parsing VCF:                         0.0 s
+Time spent selecting reads:                     0.3 s
+Time spent phasing:                             5.8 s
+Time spent writing VCF:                         0.0 s
+Time spent finding components:                  0.0 s
+Time spent on rest:                             0.3 s
+Total elapsed time:                            12.7 s
+
+
+2020-11-03 12:56:11.768244: ------SNP phasing completed------
+
+
+2020-11-03 12:56:11.768306: ------WhatsHap BAM phasing log------
+
+
+Found 1 samples in input VCF
+Keeping 1 samples for haplo-tagging
+Found 0 samples in BAM file
+Reading alignments and detecting alleles ...
+Found 2474 reads covering 1323 variants
+
+== SUMMARY ==
+Total alignments processed:                      3967
+Alignments that could be tagged:                 2612
+Alignments spanning multiple phase sets:            0
+haplotag - total processing time: 8.877756118774414
+
+
+2020-11-03 12:56:23.551385: ------BAM phasing completed-----
+
+2020-11-03 12:56:23.551511: Indel calling started.
+2020-11-03 12:56:37.223048: (1/20) regions completed.
+2020-11-03 12:56:49.573645: (2/20) regions completed.
+2020-11-03 12:57:08.137466: (3/20) regions completed.
+2020-11-03 12:57:30.306719: (4/20) regions completed.
+2020-11-03 12:57:46.430516: (5/20) regions completed.
+2020-11-03 12:58:01.844967: (6/20) regions completed.
+2020-11-03 12:58:11.831042: (7/20) regions completed.
+2020-11-03 12:58:33.912745: (8/20) regions completed.
+2020-11-03 12:58:52.015400: (9/20) regions completed.
+2020-11-03 12:59:06.197186: (10/20) regions completed.
+2020-11-03 12:59:24.105673: (11/20) regions completed.
+2020-11-03 13:01:08.098350: (12/20) regions completed.
+2020-11-03 13:01:19.541288: (13/20) regions completed.
+2020-11-03 13:01:33.742843: (14/20) regions completed.
+2020-11-03 13:01:46.493032: (15/20) regions completed.
+2020-11-03 13:02:00.343629: (16/20) regions completed.
+2020-11-03 13:02:15.169278: (17/20) regions completed.
+2020-11-03 13:02:29.679240: (18/20) regions completed.
+2020-11-03 13:02:47.559419: (19/20) regions completed.
+2020-11-03 13:03:06.198732: (20/20) regions completed.
+2020-11-03 13:03:06.488109: Indel calling completed for contig chr22. Time taken= 402.9366
+2020-11-03 13:03:06.488197: Post processing
+
+2020-11-03 13:03:11.648681: Total Time Elapsed: 514.12 seconds

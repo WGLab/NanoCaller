@@ -15,10 +15,7 @@ def run(args):
     if not args.vcf:
         args.vcf=os.getcwd()
     
-    try:  
-        os.mkdir(args.vcf)  
-    except OSError as error:  
-        pass 
+    os.makedirs(args.vcf, exist_ok=True)
     
     
     with open(os.path.join(args.vcf,'args'),'w') as file:
@@ -204,10 +201,7 @@ if __name__ == '__main__':
     if not args.vcf:
         args.vcf=os.getcwd()
     
-    try:  
-        os.mkdir(args.vcf)  
-    except OSError as error:  
-        pass
+    os.makedirs(args.vcf, exist_ok=True)  
     
     with open(os.path.join(args.vcf,'args'),'w') as file:
         file.write(str(args))
@@ -253,7 +247,14 @@ if __name__ == '__main__':
                     cmd=''
                     vcf=os.path.join(args.vcf, chrom)
                     for x in args_dict:
-                        if x not in ['chrom','wgs_print_commands','wgs_contigs_type','start','end','vcf']:
+                        if x in ['chrom','wgs_contigs_type','start','end','vcf'] or args_dict[x] is None:
+                            pass
+                        
+                        elif x in ['supplementary', 'enable_whatshap', 'wgs_print_commands']:
+                            if args_dict[x]==True:
+                                cmd+=' --%s ' %x
+                        
+                        else:
                             cmd+= '--%s %s ' %(x, args_dict[x])
                             
                     dirname = os.path.dirname(__file__)

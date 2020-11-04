@@ -27,17 +27,17 @@ The installation should take about 10 minutes, including the installation of Min
 
 ## Usage
 ```
-python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py [-h]
-		     -bam BAM -ref REF -prefix PREFIX
+python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py [-h] 
+		     -bam BAM -ref REF -prefix PREFIX 
 		     [-mode MODE] [-seq SEQUENCING] [-model MODEL]
                      [-vcf VCF] [-chrom CHROM] [-cpu CPU]
                      [-min_allele_freq MIN_ALLELE_FREQ]
-                     [-min_nbr_sites MIN_NBR_SITES]  [-sample SAMPLE] 
-		     [-sup] [-mincov MINCOV] [-maxcov MAXCOV] 
-		     [-start START] [-end END]
-                     [-nbr_t NEIGHBOR_THRESHOLD] [-ins_t INS_THRESHOLD]
-                     [-del_t DEL_THRESHOLD] [-disable_whatshap]
-                     [-wgs_print_commands]
+                     [-min_nbr_sites MIN_NBR_SITES] [-include_bed INCLUDE_BED]
+                     [-exclude_bed EXCLUDE_BED] [-sample SAMPLE] [-sup]
+                     [-mincov MINCOV] [-maxcov MAXCOV] [-start START]
+                     [-end END] [-nbr_t NEIGHBOR_THRESHOLD]
+                     [-ins_t INS_THRESHOLD] [-del_t DEL_THRESHOLD]
+                     [-enable_whatshap] [-wgs_print_commands]
                      [-wgs_contigs_type WGS_CONTIGS_TYPE]
 
 Required arguments:
@@ -50,7 +50,9 @@ Required arguments:
 optional arguments:
   -h, --help            show this help message and exit
   -mode MODE, --mode MODE
-                        Testing mode, options are 'snps', 'indels' and 'both'
+                        Testing mode, options are 'snps', 'snps_unphased',
+                        'indels' and 'both'. 'snps_unphased' mode quits
+                        NanoCaller without using WhatsHap for phasing.
                         (default: both)
   -seq SEQUENCING, --sequencing SEQUENCING
                         Sequencing type, options are 'ont' and 'pacbio'
@@ -70,6 +72,24 @@ optional arguments:
                         minimum alternative allele frequency (default: 0.15)
   -min_nbr_sites MIN_NBR_SITES, --min_nbr_sites MIN_NBR_SITES
                         minimum number of nbr sites (default: 1)
+  -include_bed INCLUDE_BED, --include_bed INCLUDE_BED
+                        Only call variants inside the intervals specified in
+                        the bgzipped and tabix indexed BED file. If any other
+                        flags are used to specify a region, intersect the
+                        region with intervals in the BED file, e.g. if -chom
+                        chr1 -start 10000000 -end 20000000 flags are set, call
+                        variants inside the intervals specified by the BED
+                        file that overlap with chr1:10000000-20000000. Same
+                        goes for the case when whole genome variant calling
+                        flag is set. (default: None)
+  -exclude_bed EXCLUDE_BED, --exclude_bed EXCLUDE_BED
+                        Path to bgzipped and tabix indexed BED file containing
+                        intervals to ignore for variant calling. BED files of
+                        centromere and telomere regions for the following
+                        genomes are included in NanoCaller: hg38, hg19, mm10
+                        and mm39. To use these BED files use one of the
+                        following options: ['hg38', 'hg19', 'mm10', 'mm39'].
+                        (default: None)
   -sample SAMPLE, --sample SAMPLE
                         VCF file sample name (default: SAMPLE)
   -sup, --supplementary
@@ -90,9 +110,16 @@ optional arguments:
                         Insertion Threshold (default: 0.4)
   -del_t DEL_THRESHOLD, --del_threshold DEL_THRESHOLD
                         Deletion Threshold (default: 0.6)
-  -disable_whatshap, --disable_whatshap
+  -enable_whatshap, --enable_whatshap
                         Allow WhatsHap to change SNP genotypes when phasing
-                        (default: False)
+                        using --distrust-genotypes and --include-homozygous
+                        flags (this is not the same as regenotyping),
+                        considerably increasing the time needed for phasing.
+                        It has a negligible effect on SNP calling accuracy for
+                        Nanopore reads, but may make a small improvement for
+                        PacBio reads. By default WhatsHap will only phase SNP
+                        calls produced by NanoCaller, but not change their
+                        genotypes. (default: False)
   -wgs_print_commands, --wgs_print_commands
                         If set, print the commands to run NanoCaller on all
                         contigs in a file named "wg_commands". By default, run
@@ -108,10 +135,6 @@ optional arguments:
                         names without "chr". "all" option will run NanoCaller
                         on each contig present in reference genome FASTA file.
                         (default: with_chr)
-
-
-		     
-
 ```
 ## Example
 An example of NanoCaller usage is provided in [sample](sample). The results are stored in [test output](sample/test_run) and were created using the following command:

@@ -136,7 +136,7 @@ def run(args):
                     os.remove('%s.decomposed.vcf.gz' %indel_vcf)
                 
                 
-            run_cmd('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps -o - -t %s/ref.sdf|rtg vcffilter -i - --non-snps-only -o  %s.decomposed.vcf.gz' %(indel_vcf,args.vcf,indel_vcf))
+            run_cmd('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps -o - -t %s/ref.sdf|rtg RTG_MEM=4G vcffilter -i - --non-snps-only -o  %s.decomposed.vcf.gz' %(indel_vcf,args.vcf,indel_vcf))
 
             final_path=os.path.join(args.vcf,'%s.final.vcf.gz' %args.prefix)
             run_cmd('bcftools concat %s.phased.vcf.gz %s.decomposed.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))

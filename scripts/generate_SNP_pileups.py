@@ -207,13 +207,14 @@ def get_snp_testing_candidates(dct):
             output_dp.append(output[v_pos][0])
             output_freq.append(output[v_pos][1])
             
-        output_mat=np.array(output_mat).astype(np.float32)    
-        output_pos=np.array(output_pos)
+        if len(output_pos)>0:
+            output_mat=np.array(output_mat).astype(np.float32)    
+            output_pos=np.array(output_pos)
 
-        output_ref=np.eye(max(4,np.max(output_ref)+1))[np.array(output_ref)].astype(np.int8)
-        output_ref=output_ref[:,:4]
+            output_ref=np.eye(max(4,np.max(output_ref)+1))[np.array(output_ref)].astype(np.int8)
+            output_ref=output_ref[:,:4]
 
-        output_dp=np.array(output_dp)
-        output_freq=np.array(output_freq)
+            output_dp=np.array(output_dp)
+            output_freq=np.array(output_freq)
     
     return (output_pos,output_ref,output_mat,output_dp,output_freq)

@@ -8,9 +8,11 @@ def run_cmd(cmd, verbose=False, output=False):
     stdout=stdout.decode('utf-8')
     stderr=stderr.decode('utf-8')
     
+    print(stderr, flush=True)
+    
     if verbose:
         print(stdout, flush=True)
-        print(stderr, flush=True)
+        
         
     if output:
         return stdout

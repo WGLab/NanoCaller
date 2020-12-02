@@ -12,13 +12,13 @@ def run(args):
         
     pool = mp.Pool(processes=args.cpu)
 
-    if not args.vcf:
-        args.vcf=os.getcwd()
+    if not args.output:
+        args.output=os.getcwd()
     
-    os.makedirs(args.vcf, exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
     
     
-    with open(os.path.join(args.vcf,'args'),'w') as file:
+    with open(os.path.join(args.output,'args'),'w') as file:
         file.write(str(args))
     
     end=None
@@ -69,7 +69,7 @@ def run(args):
         
     in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':args.bam, 'fasta_path':args.ref, \
              'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
-             'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, \
+             'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.output,'prefix':args.prefix,'sample':args.sample, \
             'seq':args.sequencing, 'supplementary':args.supplementary, 'include_bed':args.include_bed, 'exclude_bed':args.exclude_bed}
         
     snp_vcf=''
@@ -109,7 +109,7 @@ def run(args):
         
         in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':sam_path, 'fasta_path':args.ref, \
              'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
-             'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.vcf,'prefix':args.prefix,'sample':args.sample, 'seq':args.sequencing, \
+             'threshold':threshold, 'model':args.model, 'cpu':args.cpu,  'vcf_path':args.output,'prefix':args.prefix,'sample':args.sample, 'seq':args.sequencing, \
                 'del_t':args.del_threshold,'ins_t':args.ins_threshold,'supplementary':args.supplementary, 'include_bed':args.include_bed\
                 , 'exclude_bed':args.exclude_bed}
         ind_time=time.time()
@@ -118,16 +118,20 @@ def run(args):
         print('%s: Indel calling completed for contig %s. Time taken= %.4f' %(str(datetime.datetime.now()), in_dict['chrom'], time.time()-ind_time),flush=True)
         
         if args.mode=='both':
+            
+            if not args.keep_bam:
+                os.remove('%s.phased.bam' %snp_vcf)
+            
             print('%s: Post processing' %(str(datetime.datetime.now())),flush=True)
-            run_cmd('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.vcf,args.chrom))
+            run_cmd('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.output,args.chrom))
 
-            if os.path.exists('%s/ref.sdf' %args.vcf):
-                if os.path.isdir('%s/ref.sdf' %args.vcf):
-                    shutil.rmtree('%s/ref.sdf' %args.vcf)
+            if os.path.exists('%s/ref.sdf' %args.output):
+                if os.path.isdir('%s/ref.sdf' %args.output):
+                    shutil.rmtree('%s/ref.sdf' %args.output)
                 else:
-                    os.remove('%s/ref.sdf' %args.vcf)
+                    os.remove('%s/ref.sdf' %args.output)
 
-            run_cmd('rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.vcf,args.chrom,args.vcf))
+            run_cmd('rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.output,args.chrom,args.output))
 
             if os.path.exists('%s.decomposed.vcf.gz' %indel_vcf):
                 if os.path.isdir('%s.decomposed.vcf.gz' %indel_vcf):
@@ -136,9 +140,9 @@ def run(args):
                     os.remove('%s.decomposed.vcf.gz' %indel_vcf)
                 
                 
-            run_cmd('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps -o - -t %s/ref.sdf|rtg RTG_MEM=4G vcffilter -i - --non-snps-only -o  %s.decomposed.vcf.gz' %(indel_vcf,args.vcf,indel_vcf))
+            run_cmd('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps -o - -t %s/ref.sdf|rtg RTG_MEM=4G vcffilter -i - --non-snps-only -o  %s.decomposed.vcf.gz' %(indel_vcf,args.output,indel_vcf))
 
-            final_path=os.path.join(args.vcf,'%s.final.vcf.gz' %args.prefix)
+            final_path=os.path.join(args.output,'%s.final.vcf.gz' %args.prefix)
             run_cmd('bcftools concat %s.phased.vcf.gz %s.decomposed.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
 
     pool.close()
@@ -153,10 +157,10 @@ if __name__ == '__main__':
     parser.add_argument("-mode",  "--mode",  help="Testing mode, options are 'snps', 'snps_unphased', 'indels' and 'both'. 'snps_unphased' mode quits NanoCaller without using WhatsHap for phasing.", type=str, default='both')
     parser.add_argument("-seq",  "--sequencing",  help="Sequencing type, options are 'ont' and 'pacbio'", type=str, default='ont')
     parser.add_argument("-model",  "--model",  help="NanoCaller SNP model to be used, options are 'NanoCaller1' (trained on HG001 Nanopore reads), 'NanoCaller2' (trained on HG002 Nanopore reads) and 'NanoCaller3' (trained on HG003 PacBio reads) ", default='NanoCaller1')
-    parser.add_argument("-vcf",  "--vcf",  help="VCF output path, default is current working directory", type=str)
+    parser.add_argument("-o",  "--output",  help="VCF output path, default is current working directory", type=str)
     
-    parser.add_argument("-chrom",  "--chrom",  help="Chromosome")
-    parser.add_argument("-cpu",  "--cpu",  help="CPUs", type=int, default=1)
+    requiredNamed.add_argument("-chrom",  "--chrom",  help="Chromosome",required=True)
+    parser.add_argument("-cpu",  "--cpu",  help="Number of processors to use", type=int, default=1)
     parser.add_argument("-min_allele_freq",  "--min_allele_freq",  help="minimum alternative allele frequency", type=float,  default=0.15)
     parser.add_argument("-min_nbr_sites",  "--min_nbr_sites",  help="minimum number of nbr sites", type=int,  default =1)
     
@@ -182,93 +186,24 @@ if __name__ == '__main__':
         
     parser.add_argument("-enable_whatshap",  "--enable_whatshap",  help="Allow WhatsHap to change SNP genotypes when phasing using --distrust-genotypes and --include-homozygous flags (this is not the same as regenotyping), considerably increasing the time needed for phasing. It has a negligible effect on SNP calling accuracy for Nanopore reads, but may make a small improvement for PacBio reads. By default WhatsHap will only phase SNP calls produced by NanoCaller, but not change their genotypes.",  default=False, action='store_true')
     
-    parser.add_argument('-wgs_print_commands','--wgs_print_commands', help='If set, print the commands to run NanoCaller on all contigs in a file named "wg_commands". By default, run the NanoCaller on each contig in a sequence.', default=False, action='store_true')
+    parser.add_argument('-keep_bam','--keep_bam', help='Keep phased bam files.', default=False, action='store_true')
     
-    parser.add_argument('-wgs_contigs_type','--wgs_contigs_type', \
-                        help="""Options are "with_chr", "without_chr" and "all",\
-                        or a space/whitespace separated list of contigs in quotation\
-                        marks e.g. "chr3 chr6 chr22" . "with_chr" option will assume \
-                        human genome and run NanoCaller on chr1-22, "without_chr" will \
-                        run on chromosomes 1-22 if the BAM and reference genome files \
-                        use chromosome names without "chr". "all" option will run \
-                        NanoCaller on each contig present in reference genome FASTA file.""", \
-                        type=str, default='with_chr')
     
     
     
     args = parser.parse_args()
     
-    if not args.vcf:
-        args.vcf=os.getcwd()
+    if not args.output:
+        args.output=os.getcwd()
     
-    os.makedirs(args.vcf, exist_ok=True)  
+    os.makedirs(args.output, exist_ok=True)  
     
-    with open(os.path.join(args.vcf,'args'),'w') as file:
+    with open(os.path.join(args.output,'args'),'w') as file:
         file.write(str(args))
         
-    print('\n%s: Starting NanoCaller.\n\nRunning arguments are saved in the following file: %s\n' %(str(datetime.datetime.now()), os.path.join(args.vcf,'args')), flush=True)
+    print('\n%s: Starting NanoCaller.\n\nRunning arguments are saved in the following file: %s\n' %(str(datetime.datetime.now()), os.path.join(args.output,'args')), flush=True)
     
-    if args.chrom:
-        run(args)
+    run(args)
     
-    else:
-        if args.wgs_contigs_type=='with_chr':
-            chrom_list=['chr%d' %d for d in range(1,23)]
-        
-        elif args.wgs_contigs_type == 'without_chr':
-            chrom_list=['%d' %d for d in range(1,23)]
-        
-        elif args.wgs_contigs_type == 'all':
-            chrom_list=[]
-            
-            try:
-                with open(args.ref+'.fai','r') as file:
-                    for line in file:
-                        chrom_list.append(line.split('\t')[0])
-                
-            except FileNotFoundError:
-                print('%s: index file .fai required for reference genome file' %str(datetime.datetime.now()), flush=True)
-                sys.exit()
-            
-        else:
-            chrom_list= args.wgs_contigs_type.split()
-        
-        if args.include_bed:
-            stream=run_cmd('zcat %s|cut -f 1|uniq' %args.include_bed, output=True)
-            bed_chroms=stream.split()
-            
-            chrom_list=[chrom for chrom in chrom_list if chrom in bed_chroms]
-            
-        if args.wgs_print_commands:
-            args_dict=vars(args)
-            
-            with open(os.path.join(args.vcf,'wg_commands'),'w') as wg_commands:
-                for chrom in chrom_list:
-                    cmd=''
-                    vcf=os.path.join(args.vcf, chrom)
-                    for x in args_dict:
-                        if x in ['chrom','wgs_contigs_type','start','end','vcf'] or args_dict[x] is None:
-                            pass
-                        
-                        elif x in ['supplementary', 'enable_whatshap', 'wgs_print_commands']:
-                            if args_dict[x]==True:
-                                cmd+=' --%s ' %x
-                        
-                        else:
-                            cmd+= '--%s %s ' %(x, args_dict[x])
-                            
-                    dirname = os.path.dirname(__file__)
-                    wg_commands.write('python %s/NanoCaller.py -chrom %s %s -vcf %s \n' %(dirname, chrom, cmd, vcf))
-            print('%s: Commands for running NanoCaller on contigs in whole genome are saved in the file %s' %(str(datetime.datetime.now()), os.path.join(args.vcf,'wg_commands')))
-        
-        else:
-            vcf_path=args.vcf
-            for chrom in chrom_list:
-                ctime=time.time()
-                args.chrom=chrom
-                args.vcf=os.path.join(vcf_path, args.chrom)
-                run(args)
-                print('%s: Variant calling on %s completed. Time taken=%.4fs.' %(str(datetime.datetime.now()), chrom, time.time()-ctime))
-        
     elapsed=time.time()-t
     print ('\n%s: Total Time Elapsed: %.2f seconds' %(str(datetime.datetime.now()), elapsed))

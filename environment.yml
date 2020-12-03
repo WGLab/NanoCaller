@@ -8,6 +8,7 @@ dependencies:
   - biopython
   - muscle
   - numpy
+  - parallel
   - pysam
   - python=3.6
   - rtg-tools

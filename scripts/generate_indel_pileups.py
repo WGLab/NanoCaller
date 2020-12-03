@@ -203,7 +203,7 @@ def get_indel_testing_candidates(dct):
         def ex_bed(tree, pos):
             return False 
         
-    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-200),end+400+1),fastafile.fetch(chrom,max(1,start-200)-1,end+400)) }
+    ref_dict={j:s.upper() if s in 'AGTC' else '' for j,s in zip(range(max(1,start-200),end+400+1),fastafile.fetch(chrom,max(1,start-200)-1,end+400)) }
     
     hap_dict={1:[],2:[]}
     

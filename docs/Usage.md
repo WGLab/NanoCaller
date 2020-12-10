@@ -1,6 +1,6 @@
 # Usage
 
-### Docker Installation
+### Using Docker to run NanoCaller
 #### Whole Genome Variant Calling
 
 For whole genome variant calling, or calling variants on several chromosomes, use `NanoCaller_WGS.py` to call variants. Assuming all your input files are in a folder `YOUR_INPUT_DIR`, and you want to use `YOUR_OUTPUT_DIR` to store the results. 
@@ -40,7 +40,7 @@ python NanoCaller.py \
 
 
 
-### Conda Installation
+### Running NanoCaller without Docker
 #### Whole Genome Variant Calling
 
 For whole genome variant calling, or calling variants on several chromosomes, use `NanoCaller_WGS.py` to call variants. Assuming NanoCaller respository is cloned and located at `PATH_TO_NANOCALLER_REPOSITORY` directory, run the following command.
@@ -53,6 +53,19 @@ python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller_WGS.py
 -cpu NUMBER_OF_CPUS_TO_USE
 -seq SEQUENCING_TYPE
 ```
+
+Another way to run NanoCaller for whole genome variant calling is to use `NanoCaller.py` or `NanoCaller_WGS.py` on each chromosome separately by setting `chrom` argument. This option is suitable if you have a large computing cluster with a lot of computing resources. For instance, on a Sun Grid Engine, you can submit a separate job for each chromosome like this, using 16 CPUs per job:
+
+```for i in {1..22};do echo "python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py
+-chrom chr$i
+-bam YOUR_BAM \
+-ref YOUR_REF \
+-prefix PREFIX \
+-o OUTPUT_DIRECTORY \
+-cpu 16
+-seq SEQUENCING_TYPE" |qsub -V -cwd -pe smp 16 -N chr$i -e chr$i.log -o chr$i.log; done```
+
+
 
 #### Single Chromosome Variant Calling
 
@@ -184,12 +197,12 @@ Required arguments:
 ## Usage Cases and Suggestions
 
 Some important options to keep in mind when using NanoCaller:
-- `seq` flag is important to set to either `ont` or `pacbio` because NanoCaller has slightly different settings for generating inputs for each type of sequencing.
-- `--exclude_bed` flag can be used to speed up NanoCaller. For instance, by setting the flag to `hg38`, you can tell NanoCaller to skip centromere and telomere regions which have incredibly high number of candidate variants due to poor alignment.
-- `model` flag can be used to choose which SNP calling model you want to use. By default we use `NanoCaller1` which is trained on HG001 ONT reads, and it works very well across genomes and sequencing technologies. We do not recommend using `NanoCaller3` model trained on PacBio data to call variants on ONT reads.
-- `mode` flag can be used to select which types of variants you want to call. The fastest option is `snps_unphased` which only make SNP calls.
+- `seq` argument is important to set to either `ont` or `pacbio` because NanoCaller has slightly different settings for generating inputs for each type of sequencing.
+- `--exclude_bed` argument can be used to speed up NanoCaller. For instance, by setting it to `hg38`, you can tell NanoCaller to skip centromere and telomere regions which have incredibly high number of candidate variants due to poor alignment.
+- `model` argument can be used to choose which SNP calling model you want to use. By default we use `NanoCaller1` which is trained on HG001 ONT reads, and it works very well across genomes and sequencing technologies. We do not recommend using `NanoCaller3` model trained on PacBio data to call variants on ONT reads.
+- `mode` argument can be used to select which types of variants you want to call. The fastest option is `snps_unphased` which only make SNP calls.
 - We recommend using `NanoCaller_WGS.py` for whole genome variant calling, and `NanoCaller.py` for signle chromosome variant calling, although `NanoCaller_WGS.py` can also be used for single chromosome. `NanoCaller_WGS.py` uses GNU parallel to break genome into 10Mb chunks, calls variants on each chunk independently in parallel, and then combined the results at the end. `NanoCaller.py` on the other hand, uses python's multiprocessing module to call SNPs in chunks of 200Kb using multiple processors, but uses only a single CPU to run WhatsHap for phasing on entire chromosome, followed by calling indels in chunks of 50Kb in parallel. Use of single CPU for WhatsHap can cause bottleneck, so if you are not planning on using WhatsHap, i.e. you want to run in `snps_unphased` or `indels` mode, then this method is just as fast, if not less, than GNU parallel.
 - `nbr_t` option is sensitive to sequencing type so choose this accordingly.
 - `ins_t` and `del_t` are insertion and deletion frequency thresholds are per haplotype. Default values are slightly higher due to high error in ONT reads, but these thresholds can be lowered for CCS reads.
 - We do not recommend using NanoCaller to call indels on PacBio CLR reads. CLR reads have incredibly low insertion and deletion freqencies in a pileup due highly variable placement of indels by aligners. To detect indels on CLR reads, you would need to set low frequency threhsolds, which leads to a huge increase in runtime.
-- `keep_bam` can be used to save phased BAM files created by NanoCaller for indel calling. By default, we delete these BAM files in order to not use up too much storage.
+- `keep_bam` flag can be used to save phased BAM files created by NanoCaller for indel calling. By default, we delete these BAM files in order to not use up too much storage.

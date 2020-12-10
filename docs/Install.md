@@ -10,7 +10,7 @@ For instructions regarding Docker installation, please visit [Docker website](ht
 You can pull NanoCaller docker images from Docker Hub by specifiying a version number.  
 ```
 VERSION="0.3.0"
-docker run umahsn/nanocaller:${VERSION} python NanoCaller.py --help
+docker run genomicslab/nanocaller:${VERSION} python NanoCaller.py --help
 ```
 
 ### 2) Locally build docker image

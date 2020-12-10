@@ -89,7 +89,7 @@ bedtools intersect -a evaluation_files/HG002_GRCh38_1_22_v4.2.1_benchmark_noinco
 
 # Intersect HG002 high-confidence regions with various difficult-to-map regions
 bedtools subtract -a evaluation_files/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed \
--b evaluation_files/difficult_regions/homopolymers/GRCh38_SimpleRepeat_homopolymer_4to6_slop5.bed| bedtools subtract -a - -b\
+-b evaluation_files/difficult_regions/homopolymers/GRCh38_SimpleRepeat_homopolymer_4to6_slop5.bed| bedtools subtract -a - -b \
 evaluation_files/difficult_regions/homopolymers/GRCh38_AllHomopolymers_gt6bp_imperfectgt10bp_slop5.bed > \
 evaluation_files/difficult_regions/HG002_minus_homopolymer_repeats.bed
 

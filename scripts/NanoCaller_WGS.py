@@ -39,7 +39,7 @@ if __name__ == '__main__':
     
     parser.add_argument("-start",  "--start",  help="start, default is 1", type=int)
     parser.add_argument("-end",  "--end",  help="end, default is the end of contig", type=int)
-    parser.add_argument("-nbr_t",  "--neighbor_threshold",  help="SNP neighboring site thresholds with lower and upper bounds seperated by comma, for Nanopore reads '0.4,0.6' is recommended and for PacBio reads '0.3,0.7' is recommended", type=str, default='0.4,0.6')
+    parser.add_argument("-nbr_t",  "--neighbor_threshold",  help="SNP neighboring site thresholds with lower and upper bounds seperated by comma, for Nanopore reads '0.4,0.6' is recommended, for PacBio CCS anc CLR reads '0.3,0.7' and '0.3,0.6' are recommended respectively", type=str, default='0.4,0.6')
     parser.add_argument("-ins_t", "--ins_threshold", help="Insertion Threshold",type=float,default=0.4)
     parser.add_argument("-del_t", "--del_threshold", help="Deletion Threshold",type=float,default=0.6)
         

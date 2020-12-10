@@ -56,14 +56,16 @@ python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller_WGS.py
 
 Another way to run NanoCaller for whole genome variant calling is to use `NanoCaller.py` or `NanoCaller_WGS.py` on each chromosome separately by setting `chrom` argument. This option is suitable if you have a large computing cluster with a lot of computing resources. For instance, on a Sun Grid Engine, you can submit a separate job for each chromosome like this, using 16 CPUs per job:
 
-```for i in {1..22};do echo "python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py
+```
+for i in {1..22};do echo "python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py
 -chrom chr$i
 -bam YOUR_BAM \
 -ref YOUR_REF \
 -prefix PREFIX \
 -o OUTPUT_DIRECTORY \
 -cpu 16
--seq SEQUENCING_TYPE" |qsub -V -cwd -pe smp 16 -N chr$i -e chr$i.log -o chr$i.log; done```
+-seq SEQUENCING_TYPE" |qsub -V -cwd -pe smp 16 -N chr$i -e chr$i.log -o chr$i.log; done
+```
 
 
 

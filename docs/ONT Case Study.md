@@ -1,23 +1,19 @@
 # ONT Case Study
 ## HG002
 
-This case study will require installing two packages that are not required for NanoCaller. 1) AWSCLI to download the reads from AWS S3 bucket, 2) minimap2 for aligning reads to reference genome, 3) BEDTools to create evaluation regions. Some other packages that are used in this case study are samtools and rtg-tools, which can be installed using the conda setup for NanoCaller. Run the following commands to install all packages required for the case study:
-
 ```
-git clone https://github.com/WGLab/NanoCaller.git
-cd NanoCaller
-conda env create -f environment.yml
-conda activate NanoCaller
-pip install awscli
-conda install -c bioconda minimap2
-conda install -c bioconda bedtools
-```
+# create the working directory
 
-After installing these two packages, you can run the following code, which should run without any further user input and produce all the results.
-
-```
 mkdir NanoCaller_ONT_Case_Study
 cd NanoCaller_ONT_Case_Study
+
+# Clone NanoCaller repository, install all the packages needed for the case study
+
+git clone https://github.com/WGLab/NanoCaller.git
+conda env create -f NanoCaller/environment.yml
+conda activate NanoCaller
+pip install awscli
+conda install -y -c bioconda minimap2 bedtools 
 
 # Download reference genome
 wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.39_GRCh38.p13/GRCh38_major_release_seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz \
@@ -44,12 +40,12 @@ samtools index HG002.Guppy_4.2.2_prom.bam -@ $CPU
 
 # run nanocaller
 VERSION=0.3.0
-docker run -it -v ${PWD}:'/mnt/'  umahsn/nanocaller:${VERSION} python NanoCaller_WGS.py \
+docker run -it -v ${PWD}:'/mnt/'  genomicslab/nanocaller:${VERSION} python NanoCaller_WGS.py \
 -bam /mnt/HG002.Guppy_4.2.2_prom.bam -ref /mnt/GRCh38.fa -prefix HG002 \
 -o /mnt/calls -cpu $CPU --exclude_bed hg38
 
 
-# If you want to run NanoCaller without docker, run the following command `python PATH_TO_NANOCALLER_REPO/NanoCaller_WGS.py -bam HG002.Guppy_4.2.2_prom.bam -ref GRCh38.fa -prefix HG002 -o calls --exclude_bed hg38`
+# If you want to run NanoCaller without docker, run the following command `python NanoCaller/scripts/NanoCaller_WGS.py -bam HG002.Guppy_4.2.2_prom.bam -ref GRCh38.fa -prefix HG002 -o calls --exclude_bed hg38`
 
 
 # run `conda install -c bioconda bedtools` to install bedtools to create BED files for variant calling evaluation in difficult-to-map genomic regions.

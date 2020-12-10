@@ -2,16 +2,23 @@
 ## HG002
 
 This case study will require installing two packages that are not required for NanoCaller. 1) AWSCLI to download the reads from AWS S3 bucket, 2) minimap2 for aligning reads to reference genome, 3) BEDTools to create evaluation regions. Some other packages that are used in this case study are samtools and rtg-tools, which can be installed using the conda setup for NanoCaller. Run the following commands to install all packages required for the case study:
+
 ```
-wget https://github.com/WGLab/NanoCaller/blob/master/environment.yml
+git clone https://github.com/WGLab/NanoCaller.git
+cd NanoCaller
 conda env create -f environment.yml
 conda activate NanoCaller
 pip install awscli
 conda install -c bioconda minimap2
 conda install -c bioconda bedtools
 ```
+
 After installing these two packages, you can run the following code, which should run without any further user input and produce all the results.
+
 ```
+mkdir NanoCaller_ONT_Case_Study
+cd NanoCaller_ONT_Case_Study
+
 # Download reference genome
 wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.39_GRCh38.p13/GRCh38_major_release_seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz \
 -O -| gunzip -c > GRCh38.fa

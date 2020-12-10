@@ -82,12 +82,12 @@ wget ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-strat
 wget ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v2.0/GRCh38/LowComplexity/GRCh38_AllHomopolymers_gt6bp_imperfectgt10bp_slop5.bed.gz \
 -O - |gzip -dc|grep -v ^'#' > evaluation_files/difficult_regions/homopolymers/GRCh38_AllHomopolymers_gt6bp_imperfectgt10bp_slop5.bed
 
-# Remove homopolymer regions from HG002 high-confidence regions
+# Intersect HG002 high-confidence regions with various difficult-to-map regions
 for x in evaluation_files/difficult_regions/GRCh38_*bed;do d="${x##*/}";\
 bedtools intersect -a evaluation_files/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed \
 -b $x > evaluation_files/difficult_regions/HG002_$d; done
 
-# Intersect HG002 high-confidence regions with various difficult-to-map regions
+# Remove homopolymer regions from HG002 high-confidence regions
 bedtools subtract -a evaluation_files/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed \
 -b evaluation_files/difficult_regions/homopolymers/GRCh38_SimpleRepeat_homopolymer_4to6_slop5.bed| bedtools subtract -a - \
 evaluation_files/difficult_regions/homopolymers/GRCh38_AllHomopolymers_gt6bp_imperfectgt10bp_slop5.bed > \

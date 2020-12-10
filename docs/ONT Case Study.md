@@ -1,5 +1,12 @@
 # ONT Case Study
 ## HG002
+
+This case study will require installing two packages that are not required for NanoCaller. 1) AWSCLI to download the reads from AWS S3 bucket, 2) BEDTools to create evaluation regions. Please install them using the following commands:
+```
+pip install awscli
+conda install bedtools
+```
+After installing these two packages, you can run the following code, which should run without any further user input and produce all the results.
 ```
 # Download reference genome
 wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.39_GRCh38.p13/GRCh38_major_release_seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz \

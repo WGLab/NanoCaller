@@ -9,7 +9,7 @@ VERSION=0.3.0
 docker run -itd \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \
-umahsn/nanocaller:${VERSION} \
+genomicslab/nanocaller:${VERSION} \
 python NanoCaller_WGS.py \
 -bam /input/YOUR_BAM \
 -ref /input/YOUR_REF \
@@ -27,7 +27,7 @@ VERSION=0.3.0
 docker run -itd \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \
-umahsn/nanocaller:${VERSION} \
+genomicslab/nanocaller:${VERSION} \
 python NanoCaller.py \
 -chrom CHROMOSOME \
 -bam /input/YOUR_BAM \

@@ -1,10 +1,14 @@
 # ONT Case Study
 ## HG002
 
-This case study will require installing two packages that are not required for NanoCaller. 1) AWSCLI to download the reads from AWS S3 bucket, 2) BEDTools to create evaluation regions. Please install them using the following commands:
+This case study will require installing two packages that are not required for NanoCaller. 1) AWSCLI to download the reads from AWS S3 bucket, 2) minimap2 for aligning reads to reference genome, 3) BEDTools to create evaluation regions. Some other packages that are used in this case study are samtools and rtg-tools, which can be installed using the conda setup for NanoCaller. Run the following commands to install all packages required for the case study:
 ```
+wget https://github.com/WGLab/NanoCaller/blob/master/environment.yml
+conda env create -f environment.yml
+conda activate NanoCaller
 pip install awscli
-conda install bedtools
+conda install -c bioconda minimap2
+conda install -c bioconda bedtools
 ```
 After installing these two packages, you can run the following code, which should run without any further user input and produce all the results.
 ```
@@ -41,7 +45,7 @@ docker run -it -v ${PWD}:'/mnt/'  umahsn/nanocaller:${VERSION} python NanoCaller
 # If you want to run NanoCaller without docker, run the following command `python PATH_TO_NANOCALLER_REPO/NanoCaller_WGS.py -bam HG002.Guppy_4.2.2_prom.bam -ref GRCh38.fa -prefix HG002 -o calls --exclude_bed hg38`
 
 
-# run `conda install bedtools` to install bedtools to create BED files for variant calling evaluation in difficult-to-map genomic regions.
+# run `conda install -c bioconda bedtools` to install bedtools to create BED files for variant calling evaluation in difficult-to-map genomic regions.
 
 
 mkdir -p evaluation_files/difficult_regions/  evaluation_files/difficult_regions/homopolymers analysis

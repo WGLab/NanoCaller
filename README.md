@@ -12,7 +12,7 @@ NanoCaller can be installed using Docker or Conda. Please refer to [installation
 python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py [-h] 
 		     -bam BAM -ref REF -prefix PREFIX 
 		     [-mode MODE] [-seq SEQUENCING] [-model MODEL]
-                     [-vcf VCF] [-chrom CHROM] [-cpu CPU]
+                     [-o OUTPUT] [-chrom CHROM] [-cpu CPU]
                      [-min_allele_freq MIN_ALLELE_FREQ]
                      [-min_nbr_sites MIN_NBR_SITES] [-include_bed INCLUDE_BED]
                      [-exclude_bed EXCLUDE_BED] [-sample SAMPLE] [-sup]
@@ -45,7 +45,7 @@ optional arguments:
                         'NanoCaller2' (trained on HG002 Nanopore reads) and
                         'NanoCaller3' (trained on HG003 PacBio reads)
                         (default: NanoCaller1)
-  -vcf VCF, --vcf VCF   VCF output path, default is current working directory
+  -o OUTPUT, --output OUTPUT   Directory to work in, default is current working directory
                         (default: None)
   -chrom CHROM, --chrom CHROM
                         Chromosome (default: None)
@@ -121,6 +121,6 @@ optional arguments:
 ## Example
 An example of NanoCaller usage is provided in [sample](sample). The results are stored in [test output](sample/test_run) and were created using the following command:
 
-`python ../scripts/NanoCaller.py -bam HG002.nanopore.chr22.sample.bam -mode both -seq ont -model NanoCaller1 -vcf test_run -chrom chr22 -start 20000000 -end 21000000 -ref chr22_ref.fa -prefix HG002.chr22.sample -cpu 1 > log`
+`python ../scripts/NanoCaller.py -bam HG002.nanopore.chr22.sample.bam -mode both -seq ont -model NanoCaller1 -o test_run -chrom chr22 -start 20000000 -end 21000000 -ref chr22_ref.fa -prefix HG002.chr22.sample -cpu 1 > log`
 
 which is also in the file [sample_call](sample/sample_call). This example should take about 10-15 minutes to run.

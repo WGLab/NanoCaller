@@ -45,7 +45,7 @@ docker run -it -v ${PWD}:'/mnt/'  genomicslab/nanocaller:${VERSION} python NanoC
 -o /mnt/calls -cpu $CPU --exclude_bed hg38
 
 
-# If you want to run NanoCaller without docker, run the following command `python NanoCaller/scripts/NanoCaller_WGS.py -bam HG002.Guppy_4.2.2_prom.bam -ref GRCh38.fa -prefix HG002 -o calls --exclude_bed hg38`
+# If you want to run NanoCaller without docker, run the following command `python NanoCaller/scripts/NanoCaller_WGS.py -bam HG002.Guppy_4.2.2_prom.bam -ref GRCh38.fa -prefix HG002 -o calls --exclude_bed hg38 -cpu $CPU`
 
 
 # run `conda install -c bioconda bedtools` to install bedtools to create BED files for variant calling evaluation in difficult-to-map genomic regions.

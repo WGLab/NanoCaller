@@ -62,7 +62,11 @@ def test_model(params,pool):
             d['end']=min(end,mbase+50000)
             in_dict_list.append(d)
         
-        result=pool.imap_unordered(get_indel_testing_candidates, in_dict_list)
+        if params['cpu']==1:
+            result=map(get_indel_testing_candidates, in_dict_list)
+            
+        else:
+            result=pool.imap_unordered(get_indel_testing_candidates, in_dict_list)
         
         total_regions=len(in_dict_list)
         completed=0

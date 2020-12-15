@@ -10,7 +10,10 @@ from utils import *
 def run(args):
     import snpCaller, indelCaller
         
-    pool = mp.Pool(processes=args.cpu)
+    if args.cpu==1:
+        pool=None
+    else:
+        pool = mp.Pool(processes=args.cpu)
 
     if not args.output:
         args.output=os.getcwd()

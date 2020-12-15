@@ -42,7 +42,7 @@ def test_model(params,pool):
     
     
     n_input=[5,41,5]
-    cpu=params['cpu']
+
     tf.reset_default_graph()
     
     weights,biases,tensors=get_tensors(n_input,0.0)
@@ -92,7 +92,11 @@ def test_model(params,pool):
             d['end']=min(end,mbase+200000)
             in_dict_list.append(d)
         
-        result=pool.imap_unordered(get_snp_testing_candidates, in_dict_list)
+        if params['cpu']==1:
+            result=map(get_snp_testing_candidates, in_dict_list)
+        
+        else:
+            result=pool.imap_unordered(get_snp_testing_candidates, in_dict_list)
 
         total_regions=len(in_dict_list)
         completed=0

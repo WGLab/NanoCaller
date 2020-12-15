@@ -1,23 +1,28 @@
 
-2020-11-03 12:54:37.546552: Starting NanoCaller.
+2020-12-15 11:51:46.510937: Starting NanoCaller.
 
 Running arguments are saved in the following file: test_run/args
 
-2020-11-03 12:54:44.877308: SNP calling started.
-2020-11-03 12:54:46.708984: Coverage=49.63x.
-2020-11-03 12:55:07.620834: (1/5) regions completed.
-2020-11-03 12:55:21.178505: (2/5) regions completed.
-2020-11-03 12:55:32.449525: (3/5) regions completed.
-2020-11-03 12:55:44.149472: (4/5) regions completed.
-2020-11-03 12:55:55.296145: (5/5) regions completed.
+2020-12-15 11:51:54.445175: SNP calling started.
 
-2020-11-03 12:55:55.611312: SNP calling completed for contig chr22. Time taken= 70.7340
+2020-12-15 11:51:56.552637: Coverage=49.63x.
+2020-12-15 11:52:20.333301: (1/5) regions completed.
+2020-12-15 11:52:36.487862: (2/5) regions completed.
+2020-12-15 11:52:49.490300: (3/5) regions completed.
+2020-12-15 11:53:02.292401: (4/5) regions completed.
+2020-12-15 11:53:14.600400: (5/5) regions completed.
+Writing to /tmp/bcftools-sort.fnHPHD
+Merging 1 temporary files
+Cleaning
+Done
 
 
-2020-11-03 12:55:55.611387: ------WhatsHap SNP phasing log------
+2020-12-15 11:53:14.967118: SNP calling completed for contig chr22. Time taken= 80.5220
 
 
-This is WhatsHap 1.0 running under Python 3.6.8
+2020-12-15 11:53:14.967204: ------WhatsHap SNP phasing log------
+
+This is WhatsHap 1.0 running under Python 3.6.11
 Working on 1 samples from 1 family
 ======== Working on chromosome 'chr22'
 ---- Processing individual SAMPLE
@@ -40,22 +45,23 @@ Largest component contains 1348 variants (100.0% of accessible variants) between
 Done writing VCF
 
 == SUMMARY ==
-Maximum memory usage: 0.699 GB
-Time spent reading BAM/CRAM:                    6.2 s
+Maximum memory usage: 0.355 GB
+Time spent reading BAM/CRAM:                    5.0 s
 Time spent parsing VCF:                         0.0 s
-Time spent selecting reads:                     0.3 s
-Time spent phasing:                             5.8 s
-Time spent writing VCF:                         0.0 s
+Time spent selecting reads:                     0.5 s
+Time spent phasing:                             8.1 s
+Time spent writing VCF:                         0.1 s
 Time spent finding components:                  0.0 s
-Time spent on rest:                             0.3 s
-Total elapsed time:                            12.7 s
+Time spent on rest:                             0.4 s
+Total elapsed time:                            14.0 s
 
 
-2020-11-03 12:56:11.768244: ------SNP phasing completed------
 
 
-2020-11-03 12:56:11.768306: ------WhatsHap BAM phasing log------
+2020-12-15 11:53:33.743588: ------SNP phasing completed------
 
+
+2020-12-15 11:53:33.743669: ------WhatsHap BAM phasing log------
 
 Found 1 samples in input VCF
 Keeping 1 samples for haplo-tagging
@@ -67,33 +73,45 @@ Found 2474 reads covering 1323 variants
 Total alignments processed:                      3967
 Alignments that could be tagged:                 2612
 Alignments spanning multiple phase sets:            0
-haplotag - total processing time: 8.877756118774414
+haplotag - total processing time: 7.949145078659058
 
 
-2020-11-03 12:56:23.551385: ------BAM phasing completed-----
 
-2020-11-03 12:56:23.551511: Indel calling started.
-2020-11-03 12:56:37.223048: (1/20) regions completed.
-2020-11-03 12:56:49.573645: (2/20) regions completed.
-2020-11-03 12:57:08.137466: (3/20) regions completed.
-2020-11-03 12:57:30.306719: (4/20) regions completed.
-2020-11-03 12:57:46.430516: (5/20) regions completed.
-2020-11-03 12:58:01.844967: (6/20) regions completed.
-2020-11-03 12:58:11.831042: (7/20) regions completed.
-2020-11-03 12:58:33.912745: (8/20) regions completed.
-2020-11-03 12:58:52.015400: (9/20) regions completed.
-2020-11-03 12:59:06.197186: (10/20) regions completed.
-2020-11-03 12:59:24.105673: (11/20) regions completed.
-2020-11-03 13:01:08.098350: (12/20) regions completed.
-2020-11-03 13:01:19.541288: (13/20) regions completed.
-2020-11-03 13:01:33.742843: (14/20) regions completed.
-2020-11-03 13:01:46.493032: (15/20) regions completed.
-2020-11-03 13:02:00.343629: (16/20) regions completed.
-2020-11-03 13:02:15.169278: (17/20) regions completed.
-2020-11-03 13:02:29.679240: (18/20) regions completed.
-2020-11-03 13:02:47.559419: (19/20) regions completed.
-2020-11-03 13:03:06.198732: (20/20) regions completed.
-2020-11-03 13:03:06.488109: Indel calling completed for contig chr22. Time taken= 402.9366
-2020-11-03 13:03:06.488197: Post processing
 
-2020-11-03 13:03:11.648681: Total Time Elapsed: 514.12 seconds
+2020-12-15 11:53:45.776510: ------BAM phasing completed-----
+
+2020-12-15 11:53:45.776640: Indel calling started.
+2020-12-15 11:54:05.073745: (1/20) regions completed.
+2020-12-15 11:54:23.467969: (2/20) regions completed.
+2020-12-15 11:54:50.175749: (3/20) regions completed.
+2020-12-15 11:55:22.075120: (4/20) regions completed.
+2020-12-15 11:55:46.103592: (5/20) regions completed.
+2020-12-15 11:56:09.731025: (6/20) regions completed.
+2020-12-15 11:56:24.271868: (7/20) regions completed.
+2020-12-15 11:56:58.973673: (8/20) regions completed.
+2020-12-15 11:57:27.175183: (9/20) regions completed.
+2020-12-15 11:57:48.967288: (10/20) regions completed.
+2020-12-15 11:58:15.602348: (11/20) regions completed.
+2020-12-15 12:00:44.880064: (12/20) regions completed.
+2020-12-15 12:01:03.013816: (13/20) regions completed.
+2020-12-15 12:01:24.416389: (14/20) regions completed.
+2020-12-15 12:01:44.582849: (15/20) regions completed.
+2020-12-15 12:02:05.310054: (16/20) regions completed.
+2020-12-15 12:02:27.753123: (17/20) regions completed.
+2020-12-15 12:02:50.474625: (18/20) regions completed.
+2020-12-15 12:03:18.572774: (19/20) regions completed.
+2020-12-15 12:03:46.566836: (20/20) regions completed.
+Writing to /tmp/bcftools-sort.oKHcDK
+Merging 1 temporary files
+Cleaning
+Done
+
+2020-12-15 12:03:46.930933: Indel calling completed for contig chr22. Time taken= 601.1544
+2020-12-15 12:03:46.973526: Post processing
+
+
+
+Checking the headers and starting positions of 2 files
+
+
+2020-12-15 12:03:54.094108: Total Time Elapsed: 727.59 seconds

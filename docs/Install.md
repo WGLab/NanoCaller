@@ -9,7 +9,7 @@ For instructions regarding Docker installation, please visit [Docker website](ht
 ### 1) via Docker Hub (preferred)
 You can pull NanoCaller docker images from Docker Hub by specifiying a version number.  
 ```
-VERSION="0.3.0"
+VERSION="0.3.1"
 docker run genomicslab/nanocaller:${VERSION} python NanoCaller.py --help
 ```
 
@@ -26,10 +26,10 @@ docker run  nanocaller python NanoCaller.py --help
 If you want to use NanoCaller Docker image saved in a tar file, download the image file by specifying a version number and use `docker load`.
 
 ```
-VERSION="0.3.0"
+VERSION="0.3.1"
 wget https://github.com/WGLab/NanoCaller/releases/download/v${VERSION}/nanocaller_docker.tar.gz
 docker load --input nanocaller_docker.tar.gz
-docker run  nanocaller python NanoCaller.py --help
+docker run genomicslab/nanocaller:${VERSION}  python NanoCaller.py --help
 ```
 
 

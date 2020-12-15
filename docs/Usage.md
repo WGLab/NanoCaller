@@ -5,7 +5,7 @@
 
 For whole genome variant calling, or calling variants on several chromosomes, use `NanoCaller_WGS.py` to call variants. Assuming all your input files are in a folder `YOUR_INPUT_DIR`, and you want to use `YOUR_OUTPUT_DIR` to store the results. 
 ```
-VERSION=0.3.0
+VERSION=0.3.1
 docker run -itd \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \
@@ -23,7 +23,7 @@ python NanoCaller_WGS.py \
 
 For calling variants on single chromosomes, use `NanoCaller.py` to call variants. Assuming all your input files are in a folder `YOUR_INPUT_DIR`, and you want to use `YOUR_OUTPUT_DIR` to store the results. 
 ```
-VERSION=0.3.0
+VERSION=0.3.1
 docker run -itd \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \

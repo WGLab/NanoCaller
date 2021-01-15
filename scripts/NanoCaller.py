@@ -126,7 +126,7 @@ def run(args):
                 os.remove('%s.phased.bam' %snp_vcf)
             
             print('%s: Post processing' %(str(datetime.datetime.now())),flush=True)
-            run_cmd('samtools faidx %s %s>%s/%s.fa' %(args.ref,args.chrom,args.output,args.chrom))
+            run_cmd('samtools faidx %s %s > %s/%s.fa' %(args.ref,args.chrom,args.output,args.chrom))
 
             if os.path.exists('%s/ref.sdf' %args.output):
                 if os.path.isdir('%s/ref.sdf' %args.output):

@@ -123,7 +123,12 @@ if __name__ == '__main__':
 
             dirname = os.path.dirname(__file__)
 
-            chr_end=chrom_lengths[chrom]
+            try:
+               chr_end=chrom_lengths[chrom]
+            
+            except KeyError:
+               print('Contig %s not found in reference' %chrom,flush=True)
+               continue
             for mbase in range(1,chr_end,10000000):
                 out_path=os.path.join(args.output, 'intermediate_files', '%s_%d_%d' %(chrom, mbase, min(chr_end,mbase+10000000-1)))
                 wg_commands.write('python %s -chrom %s %s -cpu 1 --output %s -start %d -end %d -prefix %s_%d_%d\n' %(os.path.join(dirname,'NanoCaller.py'), chrom, cmd, out_path ,mbase, min(chr_end,mbase+10000000-1),chrom, mbase, min(chr_end,mbase+10000000-1)))

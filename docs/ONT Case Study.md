@@ -28,7 +28,7 @@ wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.39_GRC
 for i in {1..3};do aws s3 cp s3://human-pangenomics/NHGRI_UCSC_panel/HG002/nanopore/Guppy_4.2.2/GM24385_${i}_Guppy_4.2.2_prom.fastq.gz \
 ./ --no-sign-request;done
 
-CPU=32  # number of threads or parallel jobs
+CPU=16  # number of threads or parallel jobs. Please set this number higher or lower according to the number of processes allowed in your system.
 
 # align FASTQ files to reference genome, write sorted alignments to a BAM file
 minimap2 -a -z 600,200 -x map-ont GRCh38.fa GM24385_1_Guppy_4.2.2_prom.fastq.gz \

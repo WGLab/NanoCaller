@@ -171,15 +171,21 @@ if __name__ == '__main__':
     bad_runs=run_cmd('grep -L "Total Time Elapsed" %s/*' %log_path, output=True)
     
     if bad_runs:
-        failed_job_file=os.path.join(args.output,'failed_jobs')
+        failed_job_file=os.path.join(args.output,'failed_jobs_commands')
+        failed_job_file_cmb_logs=os.path.join(args.output,'failed_jobs_combined_logs')
+        failed_jobs_names=re.findall('%s/(.+?)\n' %log_path,bad_runs)
+        failed_jobs_logs=re.findall('(.+?)\n',bad_runs)
         
-        print('Number of jobs failed = %d\nThe names, log file paths and commands of these jobs are stored in the following file: %s\n' %(len(re.findall('%s/(.+?)\n' %log_path,bad_runs)), failed_job_file),flush=True)
+        run_cmd('grep -L "Total Time Elapsed" %s/*| while read file; do printf "\n\n\n#### Log File: $file ####\n"; cat $file; printf "%%0.s-" {1..100}; done > %s' %(log_path, failed_job_file_cmb_logs))
+        
+        print('Number of jobs failed = %d\nThe combined logs of failed jobs are written in this file: %s\nThe commands of these jobs are stored in the following file: %s\n' %(len(failed_jobs_names),failed_job_file_cmb_logs, failed_job_file),flush=True)
         
         with open(failed_job_file,'w') as fail_job:
-            fail_job.write('Regions\tLog\tCommand\n')
-            for job,log in zip(re.findall('%s/(.+?)\n' %log_path,bad_runs), re.findall('(.+?)\n',bad_runs)):
-                fail_job.write('%s\t%s\t%s\n' %(job,log, job_dict[job]))
-
+            for job,log in zip(failed_jobs_names,failed_jobs_logs):
+                fail_job.write('%s\n' %job_dict[job])
+        
+        
+        
     final_logs=''
     if args.mode in ['snps_unphased','snps','both']:
         final_logs+=run_cmd('ls -1 %s/*/*snps.vcf.gz|bcftools concat -f - |bcftools sort|bgziptabix %s/%s.snps.vcf.gz' %(out_path, args.output, args.prefix),error=True)

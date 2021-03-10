@@ -128,20 +128,11 @@ def run(args):
             print('%s: Post processing' %(str(datetime.datetime.now())),flush=True)
             run_cmd('samtools faidx %s %s > %s/%s.fa' %(args.ref,args.chrom,args.output,args.chrom))
 
-            if os.path.exists('%s/ref.sdf' %args.output):
-                if os.path.isdir('%s/ref.sdf' %args.output):
-                    shutil.rmtree('%s/ref.sdf' %args.output)
-                else:
-                    os.remove('%s/ref.sdf' %args.output)
+            remove_path('%s/ref.sdf' %args.output)
 
             run_cmd('rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.output,args.chrom,args.output))
-
-            if os.path.exists('%s.decomposed.vcf.gz' %indel_vcf):
-                if os.path.isdir('%s.decomposed.vcf.gz' %indel_vcf):
-                    shutil.rmtree('%s.decomposed.vcf.gz' %indel_vcf)
-                else:
-                    os.remove('%s.decomposed.vcf.gz' %indel_vcf)
-                
+            
+            remove_path('%s.decomposed.vcf.gz' %indel_vcf)    
                 
             run_cmd('rtg RTG_MEM=4G vcfdecompose -i %s.vcf.gz --break-mnps -o - -t %s/ref.sdf|rtg RTG_MEM=4G vcffilter -i - --non-snps-only -o  %s.decomposed.vcf.gz' %(indel_vcf,args.output,indel_vcf))
 

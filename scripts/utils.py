@@ -1,5 +1,5 @@
 from subprocess import PIPE, Popen
-
+import os, shutil
 
 def run_cmd(cmd, verbose=False, output=False,error=False):
     stream=Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
@@ -19,3 +19,14 @@ def run_cmd(cmd, verbose=False, output=False,error=False):
     if error:
         return stderr
     
+
+def remove_path(path):
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+
+def make_and_remove_path(path):
+    remove_path(path)
+    os.makedirs(path)

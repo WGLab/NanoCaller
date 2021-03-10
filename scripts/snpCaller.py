@@ -38,7 +38,7 @@ def test_model(params,pool):
     
     if coverage==0:
         print('%s: No coverage found for the contig %s.' %(str(datetime.datetime.now()), chrom), flush=True)
-        return False
+        return
     
     
     n_input=[5,41,5]

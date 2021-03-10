@@ -35,11 +35,11 @@ def run(args):
             
             if end==None:
                 print('%s: contig %s not found in reference.' %(str(datetime.datetime.now()), args.chrom), flush=True)
-                return 
+                sys.exit(2) 
                 
         except FileNotFoundError:
             print('%s: Index file .fai required for reference genome file' %(str(datetime.datetime.now())), flush=True)
-            return
+            sys.exit(2)
             
     else:
         end=args.end

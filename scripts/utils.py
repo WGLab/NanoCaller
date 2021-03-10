@@ -1,7 +1,7 @@
 from subprocess import PIPE, Popen
 
 
-def run_cmd(cmd, verbose=False, output=False):
+def run_cmd(cmd, verbose=False, output=False,error=False):
     stream=Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
     stdout, stderr = stream.communicate()
     
@@ -16,3 +16,6 @@ def run_cmd(cmd, verbose=False, output=False):
         
     if output:
         return stdout
+    if error:
+        return stderr
+    

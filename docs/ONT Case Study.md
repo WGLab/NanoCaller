@@ -39,7 +39,7 @@ GM24385_2_Guppy_4.2.2_prom.fastq.gz  GM24385_3_Guppy_4.2.2_prom.fastq.gz -t $CPU
 samtools index HG002.Guppy_4.2.2_prom.bam -@ $CPU
 
 # run nanocaller
-VERSION=0.3.1
+VERSION=0.3.3
 docker run -it -v ${PWD}:'/mnt/'  genomicslab/nanocaller:${VERSION} python NanoCaller_WGS.py \
 -bam /mnt/HG002.Guppy_4.2.2_prom.bam -ref /mnt/GRCh38.fa -prefix HG002 \
 -o /mnt/calls -cpu $CPU --exclude_bed hg38

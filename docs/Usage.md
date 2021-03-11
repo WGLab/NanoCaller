@@ -195,8 +195,46 @@ Required arguments:
   -prefix PREFIX, --prefix PREFIX
                         VCF file prefix (default: None)
 ```
+## Understanding NanoCaller Output
+Depending upon which mode is run, NanoCaller will produce the following files:
 
-## Usage Cases and Suggestions
+- PREFIX.snps.vcf.gz contains unphased SNP calls made by NanoCaller using a deep learning model. NanoCaller modes that produce this file are: `snps_unphased`, `snps` and `both`.
+- PREFIX.snps.phased.vcf.gz contains SNP calls from PREFIX.snps.vcf.gz that are phase with WhatsHap. By default they have the same genotype as in the PREFIX.snps.vcf.gz file, unless `--enable_whatshap` flag is set which can allow WhatsHap to change genotypes. NanoCaller modes that produce this file are: `snps` and `both`.
+- PREFIX.indels.vcf.gz contains indel calls made by NanoCaller using multiple sequence alignment. Some of these calls might be indels combined with nearby substitutions or multi-nucleotide substitutions. NanoCaller modes that produce this file are: `indels` and `both`.
+- PREFIX.final.vcf.gz contains SNP calls from PREFIX.snps.phased.vcf.gz and indel calls from PREFIX.indels.vcf.gz. Before combining variants from the two files, some variants from PREFIX.indels.vcf.gz file are decomposed to extract SNP calls that are within 'indel' calls. The reason for this is that some SNPs cannot be detected during alignment pileup if they are located around an indel, and are thus only visible when the indel sequence is resolved properly. NanoCaller mode that produce this file is: `both`.
+
+## Parameter Recommendations
+For ONT reads:
+```
+-seq ont
+-model NanoCaller1 # or --model NanoCaller2
+-nbr_t 0.4,0.6
+-ins_t 0.4
+-del_t 0.6
+```
+
+For PacBio CCS reads:
+```
+-seq pacbio
+-model NanoCaller1 # or --model NanoCaller3
+-nbr_t 0.3,0.7
+-ins_t 0.3
+-del_t 0.3
+-enable_whatshap
+```
+
+For PacBio CLR reads:
+```
+-seq pacbio
+-model NanoCaller1
+-nbr_t 0.3,0.6
+-ins_t 0.3
+-del_t 0.3
+-enable_whatshap
+```
+
+
+## Important Considerations
 
 Some important options to keep in mind when using NanoCaller:
 - `seq` argument is important to set to either `ont` or `pacbio` because NanoCaller has slightly different settings for generating inputs for each type of sequencing.
@@ -205,7 +243,7 @@ Some important options to keep in mind when using NanoCaller:
 - `mode` argument can be used to select which types of variants you want to call. The fastest option is `snps_unphased` which only make SNP calls.
 - `nbr_t` option is sensitive to sequencing type so choose this accordingly.
 - `ins_t` and `del_t` are insertion and deletion frequency thresholds are per haplotype. Default values are slightly higher due to high error in ONT reads, but these thresholds can be lowered for CCS reads.
-- We do not recommend using NanoCaller to call indels on PacBio CLR reads. CLR reads have incredibly low insertion and deletion freqencies in a pileup due highly variable placement of indels by aligners. To detect indels on CLR reads, you would need to set low frequency threhsolds, which leads to a huge increase in runtime.
+- CLR reads have incredibly low insertion and deletion freqencies in a pileup due highly variable placement of indels by aligners. To detect indels on CLR reads, you would need to set low frequency threhsolds, which leads to a huge increase in runtime.
 - `keep_bam` flag can be used to save phased BAM files created by NanoCaller for indel calling. By default, we delete these BAM files in order to not use up too much storage.
 
 We recommend using `NanoCaller_WGS.py` for whole genome variant calling, and `NanoCaller.py` for single chromosome variant calling, although `NanoCaller_WGS.py` can also be used for single chromosome. `NanoCaller_WGS.py` breaks genome into 10Mb chunks, uses GNU parallel to run `NanoCaller.py` on each chunk independently using 1 CPU, and then combines the results at the end. We do not break genome into chunks smaller than 10Mb so that phasing can be done accurately. Lets say you can use 20 CPUs, and if you use `NanoCaller_WGS.py` for whole human genome of 3000Mb, NanoCaller will create 300 jobs for 20 CPUs to run. But if you use it for a chromosome of size 100Mb, then only 10 jobs will be created for 20 CPUs, and using more than 10 CPUs is not going to improve runtime and the rest of the CPUs will be left idle. If you run `NanoCaller.py` on the same 100Mb chromosome with 20 CPUs, `NanoCaller.py` will use python's multiprocessing module to generate features for SNPs in chunks of 200Kb using 20 CPUs by running 500 jobs, use only a single CPU to run WhatsHap for phasing the entire chromosome, followed by generating features for indels in chunks of 50Kb using 20 CPUs by running 2000 jobs. This method is more aggressive in terms of utilizing computing resources by breaking the chromosome into very small chunks for feature generation, creates fewer intermediate files and folder, but can have bottleneck issues with using WhatsHap with 1 CPU only.

@@ -94,7 +94,7 @@ def run(args):
             print('\n%s: ------SNP phasing completed------\n' %(str(datetime.datetime.now())),flush=True)
 
 
-            if args.mode=='both':
+            if args.mode=='both' or args.phase_bam:
                 print('\n%s: ------WhatsHap BAM phasing log------\n' %(str(datetime.datetime.now())),flush=True)
                 
                 run_cmd("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --tag-supplementary" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end), verbose=True)
@@ -183,7 +183,7 @@ if __name__ == '__main__':
     
     parser.add_argument('-keep_bam','--keep_bam', help='Keep phased bam files.', default=False, action='store_true')
     
-    
+    parser.add_argument('-phase_bam','--phase_bam', help='Phase phased bam files.', default=False, action='store_true')
     
     
     args = parser.parse_args()

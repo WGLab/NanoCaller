@@ -46,7 +46,8 @@ if __name__ == '__main__':
     parser.add_argument("-enable_whatshap",  "--enable_whatshap",  help="Allow WhatsHap to change SNP genotypes when phasing using --distrust-genotypes and --include-homozygous flags (this is not the same as regenotyping), considerably increasing the time needed for phasing. It has a negligible effect on SNP calling accuracy for Nanopore reads, but may make a small improvement for PacBio reads. By default WhatsHap will only phase SNP calls produced by NanoCaller, but not change their genotypes.",  default=False, action='store_true')
     
     parser.add_argument('-keep_bam','--keep_bam', help='Keep phased bam files.', default=False, action='store_true')
-    
+    parser.add_argument('-phase_bam','--phase_bam', help='Phase phased bam files.', default=False, action='store_true')
+
     
     parser.add_argument('-wgs_contigs_type','--wgs_contigs_type', \
                         help="""Options are "with_chr", "without_chr" and "all",\
@@ -124,7 +125,7 @@ if __name__ == '__main__':
                 if x in ['chrom','wgs_contigs_type','start','end','output','cpu','prefix'] or args_dict[x] is None:
                     pass
 
-                elif x in ['supplementary', 'enable_whatshap','keep_bam']:
+                elif x in ['supplementary', 'enable_whatshap','keep_bam','phase_bam']:
                     if args_dict[x]==True:
                         cmd+=' --%s ' %x
 

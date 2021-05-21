@@ -13,6 +13,6 @@ General usage of NanoCaller is described in [Usage](docs/Usage.md). For a compre
 ## Example
 An example of NanoCaller usage is provided in [sample](sample). The results are stored in [test output](sample/test_run) and were created using the following command:
 
-`python ../scripts/NanoCaller.py -bam HG002.nanopore.chr22.sample.bam -mode both -seq ont -model NanoCaller1 -o test_run -chrom chr22 -start 20000000 -end 21000000 -ref chr22_ref.fa -prefix HG002.chr22.sample -cpu 1 > log`
+`python ../scripts/NanoCaller.py -bam HG002.nanopore.chr22.sample.bam -p ont -o test_run -chrom chr22 -start 20000000 -end 21000000 -ref chr22_ref.fa -cpu 4 > log`
 
 which is also in the file [sample_call](sample/sample_call). This example should take about 10-15 minutes to run.

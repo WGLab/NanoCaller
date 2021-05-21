@@ -90,46 +90,56 @@ python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller_WGS.py
 
 ## General Usage Options
 ```
-usage: NanoCaller_WGS.py [-h] [-mode MODE] [-seq SEQUENCING] [-model MODEL]
-                         [-o OUTPUT] [-chrom CHROM] [-cpu CPU]
+usage: NanoCaller_WGS.py [-h] [-mode MODE] [-seq SEQUENCING] [-cpu CPU]
+                         [-mincov MINCOV] [-maxcov MAXCOV] [-keep_bam]
+                         [-o OUTPUT] [-prefix PREFIX] [-sample SAMPLE]
+                         [-chrom [CHROM [CHROM ...]]]
+                         [-include_bed INCLUDE_BED] [-exclude_bed EXCLUDE_BED]
+                         [-wgs_contigs_type WGS_CONTIGS_TYPE] [-p PRESET] -bam
+                         BAM -ref REF [-snp_model SNP_MODEL]
                          [-min_allele_freq MIN_ALLELE_FREQ]
-                         [-min_nbr_sites MIN_NBR_SITES] -bam BAM -ref REF
-                         -prefix PREFIX [-include_bed INCLUDE_BED]
-                         [-exclude_bed EXCLUDE_BED] [-sample SAMPLE] [-sup]
-                         [-mincov MINCOV] [-maxcov MAXCOV] [-start START]
-                         [-end END] [-nbr_t NEIGHBOR_THRESHOLD]
-                         [-ins_t INS_THRESHOLD] [-del_t DEL_THRESHOLD]
-                         [-enable_whatshap] [-keep_bam]
-                         [-wgs_contigs_type WGS_CONTIGS_TYPE]
+                         [-min_nbr_sites MIN_NBR_SITES]
+                         [-nbr_t NEIGHBOR_THRESHOLD] [-sup]
+                         [-indel_model INDEL_MODEL] [-ins_t INS_THRESHOLD]
+                         [-del_t DEL_THRESHOLD] [-win_size WIN_SIZE]
+                         [-small_win_size SMALL_WIN_SIZE] [-phase_bam]
+                         [-enable_whatshap]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -mode MODE, --mode MODE
-                        Testing mode, options are 'snps', 'snps_unphased',
-                        'indels' and 'both'. 'snps_unphased' mode quits
-                        NanoCaller without using WhatsHap for phasing.
-                        (default: both)
-  -seq SEQUENCING, --sequencing SEQUENCING
-                        Sequencing type, options are 'ont' and 'pacbio'
-                        (default: ont)
-  -model MODEL, --model MODEL
-                        NanoCaller SNP model to be used, options are
-                        'NanoCaller1' (trained on HG001 Nanopore reads),
-                        'NanoCaller2' (trained on HG002 Nanopore reads) and
-                        'NanoCaller3' (trained on HG003 PacBio reads)
-                        (default: NanoCaller1)
-  -o OUTPUT, --output OUTPUT
-                        VCF output path, default is current working directory
+
+Required Arguments:
+  -bam BAM, --bam BAM   Bam file, should be phased if 'indel' mode is selected
                         (default: None)
-  -chrom CHROM, --chrom CHROM
-                        A space/whitespace separated list of contigs in
-                        quotation marks e.g. "chr3 chr6 chr22" . (default:
-                        None)
-  -cpu CPU, --cpu CPU   CPUs (default: 1)
-  -min_allele_freq MIN_ALLELE_FREQ, --min_allele_freq MIN_ALLELE_FREQ
-                        minimum alternative allele frequency (default: 0.15)
-  -min_nbr_sites MIN_NBR_SITES, --min_nbr_sites MIN_NBR_SITES
-                        minimum number of nbr sites (default: 1)
+  -ref REF, --ref REF   Reference genome file with .fai index (default: None)
+
+Preset:
+  -p PRESET, --preset PRESET
+                        Apply recommended preset values for SNP and Indel
+                        calling parameters, options are 'ont', 'ul_ont',
+                        'ul_ont_extreme', 'ccs' and 'clr' (default: None)
+
+Configurations:
+  -mode MODE, --mode MODE
+                        NanoCaller mode to run, options are 'snps',
+                        'snps_unphased', 'indels' and 'both'. 'snps_unphased'
+                        mode quits NanoCaller without using WhatsHap for
+                        phasing. (default: both)
+  -seq SEQUENCING, --sequencing SEQUENCING
+                        Sequencing type, options are 'ont', 'ul_ont',
+                        'ul_ont_extreme', and 'pacbio' (default: ont)
+  -cpu CPU, --cpu CPU   Number of CPUs to use (default: 1)
+  -mincov MINCOV, --mincov MINCOV
+                        Minimum coverage to call a variant (default: 8)
+  -maxcov MAXCOV, --maxcov MAXCOV
+                        Maximum coverage of reads to use. If sequencing depth
+                        at a candidate site exceeds maxcov then reads are
+                        downsampled. (default: 160)
+
+Variant Calling Regions:
+  -chrom [CHROM [CHROM ...]], --chrom [CHROM [CHROM ...]]
+                        A space/whitespace separated list of contigs, e.g.
+                        chr3 chr6 chr22. (default: None)
   -include_bed INCLUDE_BED, --include_bed INCLUDE_BED
                         Only call variants inside the intervals specified in
                         the bgzipped and tabix indexed BED file. If any other
@@ -148,28 +158,63 @@ optional arguments:
                         and mm39. To use these BED files use one of the
                         following options: ['hg38', 'hg19', 'mm10', 'mm39'].
                         (default: None)
-  -sample SAMPLE, --sample SAMPLE
-                        VCF file sample name (default: SAMPLE)
-  -sup, --supplementary
-                        Use supplementary reads (default: False)
-  -mincov MINCOV, --mincov MINCOV
-                        min coverage (default: 8)
-  -maxcov MAXCOV, --maxcov MAXCOV
-                        max coverage (default: 160)
-  -start START, --start START
-                        start, default is 1 (default: None)
-  -end END, --end END   end, default is the end of contig (default: None)
+  -wgs_contigs_type WGS_CONTIGS_TYPE, --wgs_contigs_type WGS_CONTIGS_TYPE
+                        Options are "with_chr", "without_chr" and "all",
+                        "with_chr" option will assume human genome and run
+                        NanoCaller on chr1-22, "without_chr" will run on
+                        chromosomes 1-22 if the BAM and reference genome files
+                        use chromosome names without "chr". "all" option will
+                        run NanoCaller on each contig present in reference
+                        genome FASTA file. (default: with_chr)
+
+SNP Calling:
+  -snp_model SNP_MODEL, --snp_model SNP_MODEL
+                        NanoCaller SNP model to be used (default: ONT-HG002)
+  -min_allele_freq MIN_ALLELE_FREQ, --min_allele_freq MIN_ALLELE_FREQ
+                        minimum alternative allele frequency (default: 0.15)
+  -min_nbr_sites MIN_NBR_SITES, --min_nbr_sites MIN_NBR_SITES
+                        minimum number of nbr sites (default: 1)
   -nbr_t NEIGHBOR_THRESHOLD, --neighbor_threshold NEIGHBOR_THRESHOLD
                         SNP neighboring site thresholds with lower and upper
                         bounds seperated by comma, for Nanopore reads
                         '0.4,0.6' is recommended, for PacBio CCS anc CLR reads
                         '0.3,0.7' and '0.3,0.6' are recommended respectively
                         (default: 0.4,0.6)
+  -sup, --supplementary
+                        Use supplementary reads (default: False)
 
+Indel Calling:
+  -indel_model INDEL_MODEL, --indel_model INDEL_MODEL
+                        NanoCaller indel model to be used (default: ONT-HG002)
   -ins_t INS_THRESHOLD, --ins_threshold INS_THRESHOLD
                         Insertion Threshold (default: 0.4)
   -del_t DEL_THRESHOLD, --del_threshold DEL_THRESHOLD
                         Deletion Threshold (default: 0.6)
+  -win_size WIN_SIZE, --win_size WIN_SIZE
+                        Size of the sliding window in which the number of
+                        indels is counted to determine indel candidate site.
+                        Only indels longer than 2bp are counted in this
+                        window. Larger window size can increase recall, but
+                        use a maximum of 50 only (default: 40)
+  -small_win_size SMALL_WIN_SIZE, --small_win_size SMALL_WIN_SIZE
+                        Size of the sliding window in which indel frequency is
+                        determined for small indels (default: 4)
+
+Output Options:
+  -keep_bam, --keep_bam
+                        Keep phased bam files. (default: False)
+  -o OUTPUT, --output OUTPUT
+                        VCF output path, default is current working directory
+                        (default: None)
+  -prefix PREFIX, --prefix PREFIX
+                        VCF file prefix (default: variant_calls)
+  -sample SAMPLE, --sample SAMPLE
+                        VCF file sample name (default: SAMPLE)
+
+Phasing:
+  -phase_bam, --phase_bam
+                        Phase bam files if snps mode is selected. This will
+                        phase bam file without indel calling. (default: False)
   -enable_whatshap, --enable_whatshap
                         Allow WhatsHap to change SNP genotypes when phasing
                         using --distrust-genotypes and --include-homozygous
@@ -180,23 +225,7 @@ optional arguments:
                         PacBio reads. By default WhatsHap will only phase SNP
                         calls produced by NanoCaller, but not change their
                         genotypes. (default: False)
-  -keep_bam, --keep_bam
-                        Keep phased bam files. (default: False)
-  -wgs_contigs_type WGS_CONTIGS_TYPE, --wgs_contigs_type WGS_CONTIGS_TYPE
-                        Options are "with_chr", "without_chr" and "all",
-                        "with_chr" option will assume human genome and run
-                        NanoCaller on chr1-22, "without_chr" will run on
-                        chromosomes 1-22 if the BAM and reference genome files
-                        use chromosome names without "chr". "all" option will
-                        run NanoCaller on each contig present in reference
-                        genome FASTA file. (default: with_chr)
 
-Required arguments:
-  -bam BAM, --bam BAM   Bam file, should be phased if 'indel' mode is selected
-                        (default: None)
-  -ref REF, --ref REF   reference genome file with .fai index (default: None)
-  -prefix PREFIX, --prefix PREFIX
-                        VCF file prefix (default: None)
 ```
 ## Understanding NanoCaller Output
 Depending upon which mode is run, NanoCaller will produce the following files:

@@ -1,78 +1,78 @@
-2020-12-15 12:03:49 serial = 27182818284
-2020-12-15 12:03:49 email = anon
-2020-12-15 12:03:49 RTG version = RTG Tools 3.11 / Core 6e08b60e18 (2020-02-26)
-2020-12-15 12:03:49 awt.toolkit = sun.awt.X11.XToolkit
-2020-12-15 12:03:49 file.encoding = UTF-8
-2020-12-15 12:03:49 file.separator = /
-2020-12-15 12:03:49 host.name = reslnvhpc017
-2020-12-15 12:03:49 java.awt.graphicsenv = sun.awt.X11GraphicsEnvironment
-2020-12-15 12:03:49 java.awt.printerjob = sun.print.PSPrinterJob
-2020-12-15 12:03:49 java.class.path = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0/RTG.jar
-2020-12-15 12:03:49 java.class.version = 55.0
-2020-12-15 12:03:49 java.home = /home/ahsanm1/anaconda3/envs/NanoCaller
-2020-12-15 12:03:49 java.io.tmpdir = /tmp
-2020-12-15 12:03:49 java.library.path = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0
-2020-12-15 12:03:49 java.runtime.name = OpenJDK Runtime Environment
-2020-12-15 12:03:49 java.runtime.version = 11.0.8-internal+0-adhoc..src
-2020-12-15 12:03:49 java.specification.name = Java Platform API Specification
-2020-12-15 12:03:49 java.specification.vendor = Oracle Corporation
-2020-12-15 12:03:49 java.specification.version = 11
-2020-12-15 12:03:49 java.vendor = N/A
-2020-12-15 12:03:49 java.vendor.url = https://openjdk.java.net/
-2020-12-15 12:03:49 java.vendor.url.bug = https://bugreport.java.com/bugreport/
-2020-12-15 12:03:49 java.version = 11.0.8-internal
-2020-12-15 12:03:49 java.version.date = 2020-07-14
-2020-12-15 12:03:49 java.vm.compressedOopsMode = Zero based
-2020-12-15 12:03:49 java.vm.info = mixed mode
-2020-12-15 12:03:49 java.vm.name = OpenJDK 64-Bit Server VM
-2020-12-15 12:03:49 java.vm.specification.name = Java Virtual Machine Specification
-2020-12-15 12:03:49 java.vm.specification.vendor = Oracle Corporation
-2020-12-15 12:03:49 java.vm.specification.version = 11
-2020-12-15 12:03:49 java.vm.vendor = Oracle Corporation
-2020-12-15 12:03:49 java.vm.version = 11.0.8-internal+0-adhoc..src
-2020-12-15 12:03:49 jdk.debug = release
-2020-12-15 12:03:49 lang.version = 11.0.8-internal
-2020-12-15 12:03:49 line.separator = 
+2021-05-20 20:32:07 serial = 27182818284
+2021-05-20 20:32:07 email = anon
+2021-05-20 20:32:07 RTG version = RTG Tools 3.11 / Core 6e08b60e18 (2020-02-26)
+2021-05-20 20:32:07 awt.toolkit = sun.awt.X11.XToolkit
+2021-05-20 20:32:07 file.encoding = UTF-8
+2021-05-20 20:32:07 file.separator = /
+2021-05-20 20:32:07 host.name = reslnvvhpc033.research.chop.edu
+2021-05-20 20:32:07 java.awt.graphicsenv = sun.awt.X11GraphicsEnvironment
+2021-05-20 20:32:07 java.awt.printerjob = sun.print.PSPrinterJob
+2021-05-20 20:32:07 java.class.path = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0/RTG.jar
+2021-05-20 20:32:07 java.class.version = 55.0
+2021-05-20 20:32:07 java.home = /home/ahsanm1/anaconda3/envs/NanoCaller
+2021-05-20 20:32:07 java.io.tmpdir = /tmp
+2021-05-20 20:32:07 java.library.path = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0
+2021-05-20 20:32:07 java.runtime.name = OpenJDK Runtime Environment
+2021-05-20 20:32:07 java.runtime.version = 11.0.8-internal+0-adhoc..src
+2021-05-20 20:32:07 java.specification.name = Java Platform API Specification
+2021-05-20 20:32:07 java.specification.vendor = Oracle Corporation
+2021-05-20 20:32:07 java.specification.version = 11
+2021-05-20 20:32:07 java.vendor = N/A
+2021-05-20 20:32:07 java.vendor.url = https://openjdk.java.net/
+2021-05-20 20:32:07 java.vendor.url.bug = https://bugreport.java.com/bugreport/
+2021-05-20 20:32:07 java.version = 11.0.8-internal
+2021-05-20 20:32:07 java.version.date = 2020-07-14
+2021-05-20 20:32:07 java.vm.compressedOopsMode = Zero based
+2021-05-20 20:32:07 java.vm.info = mixed mode
+2021-05-20 20:32:07 java.vm.name = OpenJDK 64-Bit Server VM
+2021-05-20 20:32:07 java.vm.specification.name = Java Virtual Machine Specification
+2021-05-20 20:32:07 java.vm.specification.vendor = Oracle Corporation
+2021-05-20 20:32:07 java.vm.specification.version = 11
+2021-05-20 20:32:07 java.vm.vendor = Oracle Corporation
+2021-05-20 20:32:07 java.vm.version = 11.0.8-internal+0-adhoc..src
+2021-05-20 20:32:07 jdk.debug = release
+2021-05-20 20:32:07 lang.version = 11.0.8-internal
+2021-05-20 20:32:07 line.separator = 
 
-2020-12-15 12:03:49 models.dir = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0/models
-2020-12-15 12:03:49 nashorn.option.no.deprecation.warning = true
-2020-12-15 12:03:49 os.arch = amd64
-2020-12-15 12:03:49 os.freememory = 1107992576
-2020-12-15 12:03:49 os.name = Linux
-2020-12-15 12:03:49 os.totalmemory = 12429058048
-2020-12-15 12:03:49 os.version = 3.10.0-1160.2.1.el7.x86_64
-2020-12-15 12:03:49 path.separator = :
-2020-12-15 12:03:49 processor.arch = amd64
-2020-12-15 12:03:49 processor.count = 4
-2020-12-15 12:03:49 references.dir = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0/references
-2020-12-15 12:03:49 runtime.freememory = 185763568
-2020-12-15 12:03:49 runtime.maxmemory = 4294967296
-2020-12-15 12:03:49 runtime.totalMemory = 195035136
-2020-12-15 12:03:49 sun.arch.data.model = 64
-2020-12-15 12:03:49 sun.boot.library.path = /home/ahsanm1/anaconda3/envs/NanoCaller/lib
-2020-12-15 12:03:49 sun.cpu.endian = little
-2020-12-15 12:03:49 sun.cpu.isalist = 
-2020-12-15 12:03:49 sun.io.unicode.encoding = UnicodeLittle
-2020-12-15 12:03:49 sun.java.command = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0/RTG.jar format -f fasta test_run/chr22.fa -o test_run/ref.sdf
-2020-12-15 12:03:49 sun.java.launcher = SUN_STANDARD
-2020-12-15 12:03:49 sun.jnu.encoding = UTF-8
-2020-12-15 12:03:49 sun.management.compiler = HotSpot 64-Bit Tiered Compilers
-2020-12-15 12:03:49 sun.os.patch.level = unknown
-2020-12-15 12:03:49 talkback = true
-2020-12-15 12:03:49 usage = false
-2020-12-15 12:03:49 user.country = US
-2020-12-15 12:03:49 user.dir = /home/ahsanm1/repos/NanoCaller/sample
-2020-12-15 12:03:49 user.home = /home/ahsanm1
-2020-12-15 12:03:49 user.language = en
-2020-12-15 12:03:49 user.name = ahsanm1
-2020-12-15 12:03:49 user.timezone = America/New_York
-2020-12-15 12:03:49 vendor = N/A
-2020-12-15 12:03:49 gzipfix.enabled = true
-2020-12-15 12:03:49 Command line arguments: rtg format -f fasta test_run/chr22.fa -o test_run/ref.sdf
-2020-12-15 12:03:49 Run Id: db9b0a6e-4e24-487a-a135-7110f88c4a37
-2020-12-15 12:03:49 Formatting FASTA data
-2020-12-15 12:03:49 Performing trimming with no trimming
-2020-12-15 12:03:49 Processing "test_run/chr22.fa"
-2020-12-15 12:03:51 Writing SDF-Id: 61ba592b-2671-4aef-adba-8c977bea1018
-2020-12-15 12:03:51 Referenced SDF-ID: 61ba592b-2671-4aef-adba-8c977bea1018 Type: DNA Sequences: 1 Max-Length: 50818468 Min-Length: 50818468 Arm: UNKNOWN
-2020-12-15 12:03:51 Finished successfully in 2 s.
+2021-05-20 20:32:07 models.dir = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0/models
+2021-05-20 20:32:07 nashorn.option.no.deprecation.warning = true
+2021-05-20 20:32:07 os.arch = amd64
+2021-05-20 20:32:07 os.freememory = 2156621824
+2021-05-20 20:32:07 os.name = Linux
+2021-05-20 20:32:07 os.totalmemory = 6032523264
+2021-05-20 20:32:07 os.version = 4.18.0-240.15.1.el8_3.x86_64
+2021-05-20 20:32:07 path.separator = :
+2021-05-20 20:32:07 processor.arch = amd64
+2021-05-20 20:32:07 processor.count = 4
+2021-05-20 20:32:07 references.dir = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0/references
+2021-05-20 20:32:07 runtime.freememory = 85098088
+2021-05-20 20:32:07 runtime.maxmemory = 4294967296
+2021-05-20 20:32:07 runtime.totalMemory = 94371840
+2021-05-20 20:32:07 sun.arch.data.model = 64
+2021-05-20 20:32:07 sun.boot.library.path = /home/ahsanm1/anaconda3/envs/NanoCaller/lib
+2021-05-20 20:32:07 sun.cpu.endian = little
+2021-05-20 20:32:07 sun.cpu.isalist = 
+2021-05-20 20:32:07 sun.io.unicode.encoding = UnicodeLittle
+2021-05-20 20:32:07 sun.java.command = /home/ahsanm1/anaconda3/envs/NanoCaller/share/rtg-tools-3.11-0/RTG.jar format -f fasta test_run/chr22.fa -o test_run/ref.sdf
+2021-05-20 20:32:07 sun.java.launcher = SUN_STANDARD
+2021-05-20 20:32:07 sun.jnu.encoding = UTF-8
+2021-05-20 20:32:07 sun.management.compiler = HotSpot 64-Bit Tiered Compilers
+2021-05-20 20:32:07 sun.os.patch.level = unknown
+2021-05-20 20:32:07 talkback = true
+2021-05-20 20:32:07 usage = false
+2021-05-20 20:32:07 user.country = US
+2021-05-20 20:32:07 user.dir = /home/ahsanm1/repos/NanoCaller/sample
+2021-05-20 20:32:07 user.home = /home/ahsanm1
+2021-05-20 20:32:07 user.language = en
+2021-05-20 20:32:07 user.name = ahsanm1
+2021-05-20 20:32:07 user.timezone = America/New_York
+2021-05-20 20:32:07 vendor = N/A
+2021-05-20 20:32:07 gzipfix.enabled = true
+2021-05-20 20:32:07 Command line arguments: rtg format -f fasta test_run/chr22.fa -o test_run/ref.sdf
+2021-05-20 20:32:07 Run Id: 5f74ed1c-bbd0-43db-91c8-3dab23295c79
+2021-05-20 20:32:07 Formatting FASTA data
+2021-05-20 20:32:07 Performing trimming with no trimming
+2021-05-20 20:32:07 Processing "test_run/chr22.fa"
+2021-05-20 20:32:11 Writing SDF-Id: 1e9fa026-0f3e-4678-952b-fa171de678ac
+2021-05-20 20:32:11 Referenced SDF-ID: 1e9fa026-0f3e-4678-952b-fa171de678ac Type: DNA Sequences: 1 Max-Length: 50818468 Min-Length: 50818468 Arm: UNKNOWN
+2021-05-20 20:32:11 Finished successfully in 3 s.

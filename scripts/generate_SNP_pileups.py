@@ -5,9 +5,90 @@ import multiprocessing as mp
 from pysam import VariantFile
 from intervaltree import Interval, IntervalTree
 
-base_to_num_map={'*':4,'A':0,'G':1,'T':2,'C':3,'N':4}
+def get_cnd_pos(v_pos,cnd_pos, seq='ont'):
+    if seq=='ont':
+        ls=cnd_pos[abs(cnd_pos-v_pos)<50000] 
+
+        ls1_0= [p for p in ls if (p>=v_pos-2000) &  (p<v_pos)][:2]
+        ls1_1= [p for p in ls if (p>=v_pos-5000) &  (p<v_pos-2000)][-3:]
+        ls1_2= [p for p in ls if (p>=v_pos-10000) & (p<v_pos-5000)][-4:]
+        ls1_3= [p for p in ls if (p>=v_pos-20000) & (p<v_pos-10000)][-5:]
+        ls1_4= [p for p in ls if                  (p<v_pos-20000)][-6:]
+
+        ls2_0= [p for p in ls if (p>v_pos) & (p<=v_pos+2000)][-2:]
+        ls2_1= [p for p in ls if (p>v_pos+2000) & (p<=v_pos+5000)][:3]
+        ls2_2= [p for p in ls if (p>v_pos+5000) & (p<=v_pos+10000)][:4]
+        ls2_3= [p for p in ls if (p>v_pos+10000) & (p<=v_pos+20000)][:5]
+        ls2_4= [p for p in ls if (p>v_pos+20000)][:6]
+
+        ls_total_1=sorted(ls1_0+ls1_1+ls1_2+ls1_3+ls1_4)
+        ls_total_2=sorted(ls2_0+ls2_1+ls2_2+ls2_3+ls2_4)
+
+    elif seq=='ul_ont':
+        ls=cnd_pos[abs(cnd_pos-v_pos)<100000] 
+
+        ls1_0= [p for p in ls if (p>=v_pos-2000) &  (p<v_pos)][:2]
+        ls1_1= [p for p in ls if (p>=v_pos-5000) &  (p<v_pos-2000)][-2:]
+        ls1_2= [p for p in ls if (p>=v_pos-10000) & (p<v_pos-5000)][-3:]
+        ls1_3= [p for p in ls if (p>=v_pos-20000) & (p<v_pos-10000)][-3:]
+        ls1_4= [p for p in ls if (p>=v_pos-40000) & (p<v_pos-20000)][-4:]
+        ls1_5= [p for p in ls if (p>=v_pos-50000) & (p<v_pos-40000)][-3:]
+        ls1_6= [p for p in ls if                  (p<v_pos-50000)][-3:]
+
+        ls2_0= [p for p in ls if (p>v_pos) & (p<=v_pos+2000)][-2:]
+        ls2_1= [p for p in ls if (p>v_pos+2000) & (p<=v_pos+5000)][:2]
+        ls2_2= [p for p in ls if (p>v_pos+5000) & (p<=v_pos+10000)][:3]
+        ls2_3= [p for p in ls if (p>v_pos+10000) & (p<=v_pos+20000)][:3]
+        ls2_4= [p for p in ls if (p>v_pos+20000) & (p<=v_pos+40000)][:4]
+        ls2_5= [p for p in ls if (p>v_pos+40000) & (p<=v_pos+50000)][:3]
+        ls2_6= [p for p in ls if (p>v_pos+50000)][:3]
+
+        ls_total_1=sorted(ls1_0+ls1_1+ls1_2+ls1_3+ls1_4+ls1_5+ls1_6)
+        ls_total_2=sorted(ls2_0+ls2_1+ls2_2+ls2_3+ls2_4+ls2_5+ls2_6)
+    
+    elif seq=='ul_ont_extreme':
+        ls=cnd_pos[abs(cnd_pos-v_pos)<300000] 
+
+        ls1_0= [p for p in ls if (p>=v_pos-10000) &  (p<v_pos)][:2]
+        ls1_1= [p for p in ls if (p>=v_pos-20000) & (p<v_pos-10000)][-2:]
+        ls1_2= [p for p in ls if (p>=v_pos-50000) & (p<v_pos-20000)][-3:]
+        ls1_3= [p for p in ls if (p>=v_pos-75000) & (p<v_pos-50000)][-3:]
+        ls1_4= [p for p in ls if (p>=v_pos-100000) & (p<v_pos-75000)][-4:]
+        ls1_5= [p for p in ls if (p>=v_pos-200000) & (p<v_pos-100000)][-4:]
+        ls1_6= [p for p in ls if                  (p<v_pos-200000)][-2:]
+
+        ls2_0= [p for p in ls if (p>v_pos) & (p<=v_pos+10000)][-2:]
+        ls2_1= [p for p in ls if (p>v_pos+10000) & (p<=v_pos+20000)][:2]
+        ls2_2= [p for p in ls if (p>v_pos+20000) & (p<=v_pos+50000)][:3]
+        ls2_3= [p for p in ls if (p>v_pos+50000) & (p<=v_pos+75000)][:3]
+        ls2_4= [p for p in ls if (p>v_pos+75000) & (p<=v_pos+100000)][:4]
+        ls2_5= [p for p in ls if (p>v_pos+100000) & (p<=v_pos+200000)][:4]
+        ls2_6= [p for p in ls if (p>v_pos+200000)][:2]
+
+        ls_total_1=sorted(ls1_0+ls1_1+ls1_2+ls1_3+ls1_4+ls1_5+ls1_6)
+        ls_total_2=sorted(ls2_0+ls2_1+ls2_2+ls2_3+ls2_4+ls2_5+ls2_6)
+        
+    elif seq=='pacbio':
+        ls=cnd_pos[abs(cnd_pos-v_pos)<20000]
+   
+        ls1_0= [p for p in ls if (p>=v_pos-2000) &  (p<v_pos)][:4]
+        ls1_1= [p for p in ls if (p>=v_pos-5000) &  (p<v_pos-2000)][-5:]
+        ls1_2= [p for p in ls if (p>=v_pos-10000) & (p<v_pos-5000)][-5:]
+        ls1_3= [p for p in ls if (p>=v_pos-20000) & (p<v_pos-10000)][-6:]
+        
+        ls2_0= [p for p in ls if (p>v_pos) & (p<=v_pos+2000)][-4:]
+        ls2_1= [p for p in ls if (p>v_pos+2000) & (p<=v_pos+5000)][:5]
+        ls2_2= [p for p in ls if (p>v_pos+5000) & (p<=v_pos+10000)][:5]
+        ls2_3= [p for p in ls if (p>v_pos+10000) & (p<=v_pos+20000)][:6]
+        
+        ls_total_1=sorted(ls1_0+ls1_1+ls1_2+ls1_3)
+        ls_total_2=sorted(ls2_0+ls2_1+ls2_2+ls2_3)
+
+    return ls_total_1, ls_total_2
 
 def get_nbr(dct):
+    base_to_num_map={'*':4,'A':0,'G':1,'T':2,'C':3,'N':4}
+
     chrom=dct['chrom']
     start=max(dct['start']-50000,1)
     end=dct['end']+50000
@@ -40,6 +121,7 @@ def get_nbr(dct):
     return output_seq
 
 def get_snp_testing_candidates(dct):
+    base_to_num_map={'*':4,'A':0,'G':1,'T':2,'C':3,'N':4}
     
     chrom=dct['chrom']
     start=dct['start']
@@ -130,29 +212,7 @@ def get_snp_testing_candidates(dct):
 
         for v_pos in pos_list:
             np.random.seed(812)
-            if dct['seq']=='ont':
-                ls=cnd_pos[abs(cnd_pos-v_pos)<50000] 
-                
-                ls1_0= [p for p in ls if (p>=v_pos-2000) &  (p<v_pos)][:2]
-                ls1_1= [p for p in ls if (p>=v_pos-5000) &  (p<v_pos-2000)][-3:]
-                ls1_2= [p for p in ls if (p>=v_pos-10000) & (p<v_pos-5000)][-4:]
-                ls1_3= [p for p in ls if (p>=v_pos-20000) & (p<v_pos-10000)][-5:]
-                ls1_4= [p for p in ls if                  (p<v_pos-20000)][-6:]
-
-                ls2_0= [p for p in ls if (p>v_pos) & (p<=v_pos+2000)][-2:]
-                ls2_1= [p for p in ls if (p>v_pos+2000) & (p<=v_pos+5000)][:3]
-                ls2_2= [p for p in ls if (p>v_pos+5000) & (p<=v_pos+10000)][:4]
-                ls2_3= [p for p in ls if (p>v_pos+10000) & (p<=v_pos+20000)][:5]
-                ls2_4= [p for p in ls if (p>v_pos+20000)][:6]
-            
-                ls_total_1=sorted(ls1_0+ls1_1+ls1_2+ls1_3+ls1_4)
-                ls_total_2=sorted(ls2_0+ls2_1+ls2_2+ls2_3+ls2_4)
-
-            else:
-                ls=cnd_pos[abs(cnd_pos-v_pos)<20000] 
-                
-                ls_total_1= [p for p in ls if (p>=v_pos-20000) &  (p<v_pos)][-20:]
-                ls_total_2= [p for p in ls if (p>v_pos) & (p<=v_pos+20000)][:20]
+            ls_total_1, ls_total_2 = get_cnd_pos(v_pos, cnd_pos, dct['seq'])
                                 
             nbr_dict={}
 

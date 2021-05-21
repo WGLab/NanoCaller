@@ -18,6 +18,28 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 rev_gt_map={0:'hom-ref', 1:'hom-alt', 2:'het-ref', 3:'het-alt'}
 rev_base_map={0:'A',1:'G',2:'T',3:'C',4:'-'}
 
+indel_model_dict={'NanoCaller1_beta':'release_data/ONT_models/indels/NanoCaller1_beta/model-30',
+                  'NanoCaller3_beta':'release_data/hifi_models/indels/NanoCaller3_beta/model-25',
+                  'ONT-HG001':'release_data/ONT_models/indels/HG001_guppy4.2_giab-3.3.2/model-100',
+                  'ONT-HG002':'release_data/ONT_models/indels/HG002_guppy4.2_giab-4.2.1/model-100',
+                  'CCS-HG001':'release_data/hifi_models/indels/HG001_giab-3.3.2/model-100',
+                  'CCS-HG002':'release_data/hifi_models/indels/HG002_giab-4.2.1/model-100'}
+
+def get_indel_model(indel_model):
+    if os.path.exists(indel_model):
+        if os.path.isdir(indel_model):
+            indel_model_path=glob.glob(os.path.join(indel_model,'*.meta'))[0].rstrip('.meta')
+    
+    elif indel_model in indel_model_dict:
+        dirname = os.path.dirname(__file__)
+        indel_model_path=os.path.join(dirname, indel_model_dict[indel_model])
+        
+    else:
+        return None
+
+    return indel_model_path
+
+
 def test_model(params,pool):
     print('%s: Indel calling started.' %(str(datetime.datetime.now())), flush=True)
     
@@ -36,14 +58,25 @@ def test_model(params,pool):
     sess.run(init)
     sess.run(tf.local_variables_initializer())
     saver = tf.train.Saver()
-    dirname = os.path.dirname(__file__)
-    saver.restore(sess, os.path.join(dirname, 'release_data/NanoCaller_indels/ont/model-30' if params['seq']=='ont' else  'release_data/NanoCaller_indels/pacbio/model-25'))
+    
+    
+    
+    model_path=get_indel_model(params['indel_model'])
+    
+    if model_path==None:
+        print('Invalid indel model name or path', flush=True)
+        return
+    
+    saver.restore(sess, model_path)
     batch_size=100
 
     neg_file=open(os.path.join(vcf_path,'%s.indel_stats' %prefix),'w')
     neg_file.write('pos,ref\n')
     
-    with open(os.path.join(vcf_path,'%s.indels.vcf' %prefix),'w') as f:
+    
+    outfile=os.path.join(vcf_path,'%s.indels' %prefix)
+    
+    with open('%s.raw.vcf' %outfile,'w') as f:
 
         f.write('##fileformat=VCFv4.2\n')
         f.write('##FILTER=<ID=PASS,Description="All filters passed">\n')
@@ -164,7 +197,7 @@ def test_model(params,pool):
             
             
     neg_file.close()
-    outfile=os.path.join(vcf_path,'%s.indels' %prefix)
-    run_cmd("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(outfile, outfile))
+    
+    run_cmd("bcftools sort %s.raw.vcf|bgziptabix %s.raw.vcf.gz" %(outfile, outfile))
 
     return outfile

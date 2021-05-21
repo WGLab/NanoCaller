@@ -10,7 +10,7 @@ Mean length        : 50818468
 Maximum length     : 50818468
 
 Output Data
-SDF-ID             : 61ba592b-2671-4aef-adba-8c977bea1018
+SDF-ID             : 1e9fa026-0f3e-4678-952b-fa171de678ac
 Number of sequences: 1
 Total residues     : 50818468
 Minimum length     : 50818468

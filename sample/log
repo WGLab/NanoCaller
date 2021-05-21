@@ -1,26 +1,25 @@
 
-2020-12-15 11:51:46.510937: Starting NanoCaller.
+2021-05-20 20:23:18.097567: Starting NanoCaller.
 
-Running arguments are saved in the following file: test_run/args
+NanoCaller command and arguments are saved in the following file: test_run/args
 
-2020-12-15 11:51:54.445175: SNP calling started.
-
-2020-12-15 11:51:56.552637: Coverage=49.63x.
-2020-12-15 11:52:20.333301: (1/5) regions completed.
-2020-12-15 11:52:36.487862: (2/5) regions completed.
-2020-12-15 11:52:49.490300: (3/5) regions completed.
-2020-12-15 11:53:02.292401: (4/5) regions completed.
-2020-12-15 11:53:14.600400: (5/5) regions completed.
-Writing to /tmp/bcftools-sort.fnHPHD
+2021-05-20 20:24:27.000376: SNP calling started.
+2021-05-20 20:24:29.034565: Coverage=49.63x.
+2021-05-20 20:25:19.374780: (1/5) regions completed.
+2021-05-20 20:25:19.987599: (2/5) regions completed.
+2021-05-20 20:25:22.506581: (3/5) regions completed.
+2021-05-20 20:25:22.982726: (4/5) regions completed.
+2021-05-20 20:25:31.501830: (5/5) regions completed.
+Writing to /tmp/bcftools-sort.Aiemfm
 Merging 1 temporary files
 Cleaning
 Done
 
 
-2020-12-15 11:53:14.967118: SNP calling completed for contig chr22. Time taken= 80.5220
+2021-05-20 20:25:32.575827: SNP calling completed for contig chr22. Time taken= 65.5755
 
 
-2020-12-15 11:53:14.967204: ------WhatsHap SNP phasing log------
+2021-05-20 20:25:32.575919: ------WhatsHap SNP phasing log------
 
 This is WhatsHap 1.0 running under Python 3.6.11
 Working on 1 samples from 1 family
@@ -28,90 +27,85 @@ Working on 1 samples from 1 family
 ---- Processing individual SAMPLE
 Using maximum coverage per sample of 15X
 Number of variants skipped due to missing genotypes: 0
-Number of remaining heterozygous variants: 1348
+Number of remaining heterozygous variants: 1104
 Reading alignments and detecting alleles ...
-Found 2481 reads covering 1348 variants
-Kept 2153 reads that cover at least two variants each
+Found 2405 reads covering 1104 variants
+Kept 2049 reads that cover at least two variants each
 Reducing coverage to at most 15X by selecting most informative reads ...
-Selected 466 reads covering 1348 variants
+Selected 448 reads covering 1104 variants
 Best-case phasing would result in 1 non-singleton phased blocks (1 in total)
 ... after read selection: 1 non-singleton phased blocks (1 in total)
-Variants covered by at least one phase-informative read in at least one individual after read selection: 1348
+Variants covered by at least one phase-informative read in at least one individual after read selection: 1104
 Phasing 1 sample by solving the MEC problem ...
-MEC cost: 55050
+MEC cost: 23970
 No. of phased blocks: 1
-Largest component contains 1348 variants (100.0% of accessible variants) between position 20000722 and 20999039
+Largest component contains 1104 variants (100.0% of accessible variants) between position 20000722 and 20999039
 ======== Writing VCF
 Done writing VCF
 
 == SUMMARY ==
-Maximum memory usage: 0.355 GB
-Time spent reading BAM/CRAM:                    5.0 s
+Maximum memory usage: 0.410 GB
+Time spent reading BAM/CRAM:                    4.2 s
 Time spent parsing VCF:                         0.0 s
-Time spent selecting reads:                     0.5 s
-Time spent phasing:                             8.1 s
-Time spent writing VCF:                         0.1 s
+Time spent selecting reads:                     0.3 s
+Time spent phasing:                             4.6 s
+Time spent writing VCF:                         0.0 s
 Time spent finding components:                  0.0 s
-Time spent on rest:                             0.4 s
-Total elapsed time:                            14.0 s
+Time spent on rest:                             0.7 s
+Total elapsed time:                            10.0 s
 
 
 
+2021-05-20 20:26:18.005657: ------SNP phasing completed------
 
-2020-12-15 11:53:33.743588: ------SNP phasing completed------
 
-
-2020-12-15 11:53:33.743669: ------WhatsHap BAM phasing log------
+2021-05-20 20:26:18.005727: ------WhatsHap BAM phasing log------
 
 Found 1 samples in input VCF
 Keeping 1 samples for haplo-tagging
 Found 0 samples in BAM file
 Reading alignments and detecting alleles ...
-Found 2474 reads covering 1323 variants
+Found 2404 reads covering 1098 variants
 
 == SUMMARY ==
 Total alignments processed:                      3967
-Alignments that could be tagged:                 2612
+Alignments that could be tagged:                 2576
 Alignments spanning multiple phase sets:            0
-haplotag - total processing time: 7.949145078659058
+haplotag - total processing time: 15.44283127784729
 
 
 
+2021-05-20 20:27:01.371112: ------BAM phasing completed-----
 
-2020-12-15 11:53:45.776510: ------BAM phasing completed-----
-
-2020-12-15 11:53:45.776640: Indel calling started.
-2020-12-15 11:54:05.073745: (1/20) regions completed.
-2020-12-15 11:54:23.467969: (2/20) regions completed.
-2020-12-15 11:54:50.175749: (3/20) regions completed.
-2020-12-15 11:55:22.075120: (4/20) regions completed.
-2020-12-15 11:55:46.103592: (5/20) regions completed.
-2020-12-15 11:56:09.731025: (6/20) regions completed.
-2020-12-15 11:56:24.271868: (7/20) regions completed.
-2020-12-15 11:56:58.973673: (8/20) regions completed.
-2020-12-15 11:57:27.175183: (9/20) regions completed.
-2020-12-15 11:57:48.967288: (10/20) regions completed.
-2020-12-15 11:58:15.602348: (11/20) regions completed.
-2020-12-15 12:00:44.880064: (12/20) regions completed.
-2020-12-15 12:01:03.013816: (13/20) regions completed.
-2020-12-15 12:01:24.416389: (14/20) regions completed.
-2020-12-15 12:01:44.582849: (15/20) regions completed.
-2020-12-15 12:02:05.310054: (16/20) regions completed.
-2020-12-15 12:02:27.753123: (17/20) regions completed.
-2020-12-15 12:02:50.474625: (18/20) regions completed.
-2020-12-15 12:03:18.572774: (19/20) regions completed.
-2020-12-15 12:03:46.566836: (20/20) regions completed.
-Writing to /tmp/bcftools-sort.oKHcDK
+2021-05-20 20:27:01.371315: Indel calling started.
+2021-05-20 20:27:46.458763: (1/20) regions completed.
+2021-05-20 20:27:59.022313: (2/20) regions completed.
+2021-05-20 20:28:01.968826: (3/20) regions completed.
+2021-05-20 20:28:19.241454: (4/20) regions completed.
+2021-05-20 20:28:41.257086: (5/20) regions completed.
+2021-05-20 20:28:54.310999: (6/20) regions completed.
+2021-05-20 20:29:02.310691: (7/20) regions completed.
+2021-05-20 20:29:20.178653: (8/20) regions completed.
+2021-05-20 20:29:48.230621: (9/20) regions completed.
+2021-05-20 20:29:54.771051: (10/20) regions completed.
+2021-05-20 20:30:08.057755: (11/20) regions completed.
+2021-05-20 20:30:08.394126: (12/20) regions completed.
+2021-05-20 20:30:44.343456: (13/20) regions completed.
+2021-05-20 20:30:54.628624: (14/20) regions completed.
+2021-05-20 20:30:55.331784: (15/20) regions completed.
+2021-05-20 20:30:55.542931: (16/20) regions completed.
+2021-05-20 20:31:34.282948: (17/20) regions completed.
+2021-05-20 20:31:54.394415: (18/20) regions completed.
+2021-05-20 20:31:56.801625: (19/20) regions completed.
+2021-05-20 20:31:57.870660: (20/20) regions completed.
+Writing to /tmp/bcftools-sort.klLpGJ
 Merging 1 temporary files
 Cleaning
 Done
 
-2020-12-15 12:03:46.930933: Indel calling completed for contig chr22. Time taken= 601.1544
-2020-12-15 12:03:46.973526: Post processing
-
-
-
+2021-05-20 20:31:58.908061: Post processing
+2021-05-20 20:32:15.720842: Indel calling completed for contig chr22. Time taken= 314.3496
 Checking the headers and starting positions of 2 files
 
 
-2020-12-15 12:03:54.094108: Total Time Elapsed: 727.59 seconds
+2021-05-20 20:32:16.975191: Total Time Elapsed: 539.01 seconds

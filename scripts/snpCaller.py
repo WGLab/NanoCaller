@@ -17,22 +17,53 @@ config.gpu_options.allow_growth = True
 num_to_base_map={0:'A',1:'G',2:'T',3:'C'}
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
+snp_model_dict={'NanoCaller1_beta':'release_data/ONT_models/SNPs/NanoCaller1_beta/model-rt-1',
+                'NanoCaller2_beta':'release_data/ONT_models/SNPs/NanoCaller1_beta/model-rt-1',
+                'NanoCaller3_beta':'release_data/clr_models/SNPs/NanoCaller3_beta/model-rt-100',
+                'ONT-HG001_guppy2.3.8':'release_data/ONT_models/SNPs/HG001_guppy2.3.8_giab-3.3.2/model-100',
+                'ONT-HG001':'release_data/ONT_models/SNPs/HG001_guppy4.2.2_giab-3.3.2/model-1',
+                'ONT-HG001_guppy2.3.8_guppy4.2.2':'release_data/ONT_models/SNPs/HG001_guppy2.3.8_guppy4.2.2_giab-3.3.2/model-100',
+                'ONT-HG001-4_guppy4.2.2':'release_data/ONT_models/SNPs/HG001_guppy4.2.2_giab-3.3.2_HG002-4_guppy4.2.2_giab-4.2.1/model-100',
+                'ONT-HG002':'release_data/ONT_models/SNPs/HG002_guppy4.2.2_giab-4.2.1/model-100',
+                'ONT-HG002_guppy4.2.2_giab-3.3.2':'release_data/ONT_models/SNPs/HG002_guppy4.2.2_giab-3.3.2/model-100',
+                'ONT-HG002_guppy2.3.5_giab-3.3.2':'release_data/ONT_models/SNPs/HG002_guppy2.3.5_giab-3.3.2/model-100',
+                'ONT-HG002_guppy2.3.5_giab-4.2.1':'release_data/ONT_models/SNPs/HG002_guppy2.3.5_giab-4.2.1/model-100',
+                'ONT-HG002_r10.3_guppy4.0.11':'release_data/ONT_models/SNPs/HG002_r10.3_guppy4.0.11_giab-4.2.1/model-100',
+                'ONT-HG002_bonito':'release_data/ONT_models/SNPs/HG002_bonito_giab-4.2.1/model-100',
+                'CCS-HG001':'release_data/hifi_models/SNPs/HG001_giab-3.3.2/model-100',
+                'CCS-HG002':'release_data/hifi_models/SNPs/HG002_giab-4.2.1/model-100',
+                'CCS-HG001-4':'release_data/hifi_models/SNPs/HG001_giab-3.3.2_HG002-4_giab-4.2.1/model-100',
+                'CLR-HG002':'release_data/clr_models/SNPs/HG002_giab-4.2.1/model-100'
+               }
+
+def get_SNP_model(snp_model):
+    if os.path.exists(snp_model):
+        if os.path.isdir(snp_model):
+            snp_model_path=glob.glob(os.path.join(snp_model,'*.meta'))[0].rstrip('.meta')
+    
+    elif snp_model in snp_model_dict:
+        dirname = os.path.dirname(__file__)
+        snp_model_path=os.path.join(dirname, snp_model_dict[snp_model])
+    
+    else:
+        return None,None
+    
+    coverage_path='%s.coverage' %snp_model_path
+    
+    if os.path.exists(coverage_path):
+        train_coverage=float(open(coverage_path,'r').readlines()[0].rstrip('\n'))
+    else:
+        train_coverage=0
+        
+    return snp_model_path, train_coverage
+        
 def test_model(params,pool):
     print('%s: SNP calling started.' %(str(datetime.datetime.now())), flush=True)
     
-    model,vcf_path,prefix= params['model'],params['vcf_path'], params['prefix']
+    vcf_path,prefix= params['vcf_path'], params['prefix']
     chrom,start,end=params['chrom'], params['start'],params['end']          
-            
-    if params['supplementary']:
-        flag=0x4|0x100|0x200|0x400
-    else:
-        flag=0x4|0x100|0x200|0x400|0x800
     
-    regions='-b %s' %params['include_bed'] if params['include_bed'] else ''
-    
-    stream = run_cmd("samtools depth %s -r %s:%d-%d -G %d %s|awk '{if ($3>=%d){sum+=$3; cnt+=1}}END{if(cnt>0){print sum/cnt}else{print 0}}'" %(params['sam_path'], chrom, start, end, flag, regions, params['mincov']), output= True)
-    
-    coverage=float(stream)
+    coverage=get_coverage(params, pool)
     
     print('%s: Coverage=%.2fx.' %(str(datetime.datetime.now()), coverage), flush=True)
     
@@ -47,19 +78,14 @@ def test_model(params,pool):
     
     weights,biases,tensors=get_tensors(n_input,0.0)
     (x,GT_label,A_label, G_label, T_label, C_label,GT_score, A_score, G_score, T_score, C_score, accuracy_GT, accuracy_A,  accuracy_G,  accuracy_T,  accuracy_C, prediction_accuracy_GT, prediction_accuracy_A,  prediction_accuracy_G,  prediction_accuracy_T,  prediction_accuracy_C, prediction_GT, prediction_A,  prediction_G,  prediction_T,  prediction_C, accuracy, cost, optimizer,  cost_GT, cost_A, cost_G, cost_T, cost_C,A_ref,G_ref,T_ref,C_ref,prob_GT,prob_A,prob_G,prob_T,prob_C,keep)=tensors
-
-    dirname = os.path.dirname(__file__)
-    if model== 'NanoCaller1':
-        model_path=os.path.join(dirname, 'release_data/NanoCaller1/model-rt-1')
-        train_coverage=43
     
-    elif model== 'NanoCaller2':
-        model_path=os.path.join(dirname, 'release_data/NanoCaller2/model-rt-1')
-        train_coverage=62
-        
-    elif model== 'NanoCaller3':
-        model_path=os.path.join(dirname, 'release_data/NanoCaller3/model-rt-100')
-        train_coverage=28
+    model_path, train_coverage=get_SNP_model(params['snp_model'])
+    
+    if model_path==None:
+        print('Invalid SNP model name or path', flush=True)
+        return
+    
+    train_coverage=coverage if train_coverage==0 else train_coverage
         
     init = tf.global_variables_initializer()
     sess = tf.Session()
@@ -71,7 +97,6 @@ def test_model(params,pool):
     batch_size=1000
     neg_file=open(os.path.join(vcf_path,'%s.snp_stats' %prefix),'w')
     neg_file.write('pos,ref,prob_GT,prob_A,prob_G,prob_T,prob_C,DP,freq\n')
-
     
     with open(os.path.join(vcf_path,'%s.snps.vcf' %prefix),'w') as f:
 
@@ -172,9 +197,7 @@ def test_model(params,pool):
             os.fsync(neg_file.fileno())
     
     output_file=os.path.join(vcf_path,'%s.snps' %prefix)
-    run_cmd("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(output_file, output_file))
-    
-    
+    run_cmd("bcftools sort %s.vcf|bgziptabix %s.vcf.gz" %(output_file, output_file))  
     
     return output_file
                     

@@ -17,9 +17,9 @@ config.gpu_options.allow_growth = True
 num_to_base_map={0:'A',1:'G',2:'T',3:'C'}
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-snp_model_dict={'NanoCaller1_beta':'release_data/ONT_models/SNPs/NanoCaller1_beta/model-rt-1',
-                'NanoCaller2_beta':'release_data/ONT_models/SNPs/NanoCaller1_beta/model-rt-1',
-                'NanoCaller3_beta':'release_data/clr_models/SNPs/NanoCaller3_beta/model-rt-100',
+snp_model_dict={'NanoCaller1':'release_data/ONT_models/SNPs/NanoCaller1_beta/model-rt-1',
+                'NanoCaller2':'release_data/ONT_models/SNPs/NanoCaller1_beta/model-rt-1',
+                'NanoCaller3':'release_data/clr_models/SNPs/NanoCaller3_beta/model-rt-100',
                 'ONT-HG001_guppy2.3.8':'release_data/ONT_models/SNPs/HG001_guppy2.3.8_giab-3.3.2/model-100',
                 'ONT-HG001':'release_data/ONT_models/SNPs/HG001_guppy4.2.2_giab-3.3.2/model-1',
                 'ONT-HG001_guppy2.3.8_guppy4.2.2':'release_data/ONT_models/SNPs/HG001_guppy2.3.8_guppy4.2.2_giab-3.3.2/model-100',

@@ -18,8 +18,8 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 rev_gt_map={0:'hom-ref', 1:'hom-alt', 2:'het-ref', 3:'het-alt'}
 rev_base_map={0:'A',1:'G',2:'T',3:'C',4:'-'}
 
-indel_model_dict={'NanoCaller1_beta':'release_data/ONT_models/indels/NanoCaller1_beta/model-30',
-                  'NanoCaller3_beta':'release_data/hifi_models/indels/NanoCaller3_beta/model-25',
+indel_model_dict={'NanoCaller1':'release_data/ONT_models/indels/NanoCaller1_beta/model-30',
+                  'NanoCaller3':'release_data/hifi_models/indels/NanoCaller3_beta/model-25',
                   'ONT-HG001':'release_data/ONT_models/indels/HG001_guppy4.2_giab-3.3.2/model-100',
                   'ONT-HG002':'release_data/ONT_models/indels/HG002_guppy4.2_giab-4.2.1/model-100',
                   'CCS-HG001':'release_data/hifi_models/indels/HG001_giab-3.3.2/model-100',

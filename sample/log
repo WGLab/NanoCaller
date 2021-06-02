@@ -1,25 +1,25 @@
 
-2021-05-20 20:23:18.097567: Starting NanoCaller.
+2021-06-02 14:28:00.131475: Starting NanoCaller.
 
 NanoCaller command and arguments are saved in the following file: test_run/args
 
-2021-05-20 20:24:27.000376: SNP calling started.
-2021-05-20 20:24:29.034565: Coverage=49.63x.
-2021-05-20 20:25:19.374780: (1/5) regions completed.
-2021-05-20 20:25:19.987599: (2/5) regions completed.
-2021-05-20 20:25:22.506581: (3/5) regions completed.
-2021-05-20 20:25:22.982726: (4/5) regions completed.
-2021-05-20 20:25:31.501830: (5/5) regions completed.
-Writing to /tmp/bcftools-sort.Aiemfm
+2021-06-02 14:28:10.406980: SNP calling started.
+2021-06-02 14:28:11.614041: Coverage=49.63x.
+2021-06-02 14:28:30.705911: (1/5) regions completed.
+2021-06-02 14:28:31.111391: (2/5) regions completed.
+2021-06-02 14:28:33.422817: (3/5) regions completed.
+2021-06-02 14:28:33.980946: (4/5) regions completed.
+2021-06-02 14:28:42.578650: (5/5) regions completed.
+Writing to /tmp/bcftools-sort.JJMJGm
 Merging 1 temporary files
 Cleaning
 Done
 
 
-2021-05-20 20:25:32.575827: SNP calling completed for contig chr22. Time taken= 65.5755
+2021-06-02 14:28:42.965420: SNP calling completed for contig chr22. Time taken= 32.5585
 
 
-2021-05-20 20:25:32.575919: ------WhatsHap SNP phasing log------
+2021-06-02 14:28:42.965516: ------WhatsHap SNP phasing log------
 
 This is WhatsHap 1.0 running under Python 3.6.11
 Working on 1 samples from 1 family
@@ -44,22 +44,22 @@ Largest component contains 1104 variants (100.0% of accessible variants) between
 Done writing VCF
 
 == SUMMARY ==
-Maximum memory usage: 0.410 GB
-Time spent reading BAM/CRAM:                    4.2 s
+Maximum memory usage: 0.405 GB
+Time spent reading BAM/CRAM:                    4.3 s
 Time spent parsing VCF:                         0.0 s
 Time spent selecting reads:                     0.3 s
-Time spent phasing:                             4.6 s
+Time spent phasing:                             4.7 s
 Time spent writing VCF:                         0.0 s
 Time spent finding components:                  0.0 s
-Time spent on rest:                             0.7 s
-Total elapsed time:                            10.0 s
+Time spent on rest:                             0.3 s
+Total elapsed time:                             9.7 s
 
 
 
-2021-05-20 20:26:18.005657: ------SNP phasing completed------
+2021-06-02 14:28:57.235094: ------SNP phasing completed------
 
 
-2021-05-20 20:26:18.005727: ------WhatsHap BAM phasing log------
+2021-06-02 14:28:57.235161: ------WhatsHap BAM phasing log------
 
 Found 1 samples in input VCF
 Keeping 1 samples for haplo-tagging
@@ -71,41 +71,41 @@ Found 2404 reads covering 1098 variants
 Total alignments processed:                      3967
 Alignments that could be tagged:                 2576
 Alignments spanning multiple phase sets:            0
-haplotag - total processing time: 15.44283127784729
+haplotag - total processing time: 14.16346287727356
 
 
 
-2021-05-20 20:27:01.371112: ------BAM phasing completed-----
+2021-06-02 14:29:15.232845: ------BAM phasing completed-----
 
-2021-05-20 20:27:01.371315: Indel calling started.
-2021-05-20 20:27:46.458763: (1/20) regions completed.
-2021-05-20 20:27:59.022313: (2/20) regions completed.
-2021-05-20 20:28:01.968826: (3/20) regions completed.
-2021-05-20 20:28:19.241454: (4/20) regions completed.
-2021-05-20 20:28:41.257086: (5/20) regions completed.
-2021-05-20 20:28:54.310999: (6/20) regions completed.
-2021-05-20 20:29:02.310691: (7/20) regions completed.
-2021-05-20 20:29:20.178653: (8/20) regions completed.
-2021-05-20 20:29:48.230621: (9/20) regions completed.
-2021-05-20 20:29:54.771051: (10/20) regions completed.
-2021-05-20 20:30:08.057755: (11/20) regions completed.
-2021-05-20 20:30:08.394126: (12/20) regions completed.
-2021-05-20 20:30:44.343456: (13/20) regions completed.
-2021-05-20 20:30:54.628624: (14/20) regions completed.
-2021-05-20 20:30:55.331784: (15/20) regions completed.
-2021-05-20 20:30:55.542931: (16/20) regions completed.
-2021-05-20 20:31:34.282948: (17/20) regions completed.
-2021-05-20 20:31:54.394415: (18/20) regions completed.
-2021-05-20 20:31:56.801625: (19/20) regions completed.
-2021-05-20 20:31:57.870660: (20/20) regions completed.
-Writing to /tmp/bcftools-sort.klLpGJ
+2021-06-02 14:29:15.233018: Indel calling started.
+2021-06-02 14:29:39.681133: (1/20) regions completed.
+2021-06-02 14:29:46.554341: (2/20) regions completed.
+2021-06-02 14:29:49.894755: (3/20) regions completed.
+2021-06-02 14:30:00.605057: (4/20) regions completed.
+2021-06-02 14:30:12.416231: (5/20) regions completed.
+2021-06-02 14:30:18.178797: (6/20) regions completed.
+2021-06-02 14:30:22.935747: (7/20) regions completed.
+2021-06-02 14:30:33.904743: (8/20) regions completed.
+2021-06-02 14:30:44.849507: (9/20) regions completed.
+2021-06-02 14:30:51.698883: (10/20) regions completed.
+2021-06-02 14:30:55.064388: (11/20) regions completed.
+2021-06-02 14:30:59.885519: (12/20) regions completed.
+2021-06-02 14:31:14.695965: (13/20) regions completed.
+2021-06-02 14:31:20.831301: (14/20) regions completed.
+2021-06-02 14:31:23.645290: (15/20) regions completed.
+2021-06-02 14:31:26.830008: (16/20) regions completed.
+2021-06-02 14:31:41.489520: (17/20) regions completed.
+2021-06-02 14:31:52.687059: (18/20) regions completed.
+2021-06-02 14:31:55.940709: (19/20) regions completed.
+2021-06-02 14:31:59.371528: (20/20) regions completed.
+Writing to /tmp/bcftools-sort.aLmFlf
 Merging 1 temporary files
 Cleaning
 Done
 
-2021-05-20 20:31:58.908061: Post processing
-2021-05-20 20:32:15.720842: Indel calling completed for contig chr22. Time taken= 314.3496
+2021-06-02 14:31:59.801147: Post processing
+2021-06-02 14:32:05.696332: Indel calling completed for contig chr22. Time taken= 170.4634
 Checking the headers and starting positions of 2 files
 
 
-2021-05-20 20:32:16.975191: Total Time Elapsed: 539.01 seconds
+2021-06-02 14:32:06.242275: Total Time Elapsed: 246.13 seconds

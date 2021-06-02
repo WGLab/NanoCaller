@@ -20,10 +20,6 @@ def run(args):
     
     os.makedirs(args.output, exist_ok=True)
     
-    
-    with open(os.path.join(args.output,'args'),'w') as file:
-        file.write(str(args))
-    
     end=None
     if not args.end:
         try:
@@ -153,7 +149,7 @@ if __name__ == '__main__':
                  
                 'ul_ont': {'sequencing':'ul_ont', 'snp_model':'ONT-HG002', 'indel_model':'ONT-HG002', 'neighbor_threshold':'0.4,0.6', 'ins_threshold':0.4,'del_threshold':0.6, 'enable_whatshap':False},
                  
-                'ul_ont_extreme':{'sequencing':'ul_ont', 'snp_model':'ONT-HG002', 'indel_model':'ONT-HG002', 'neighbor_threshold':'0.4,0.6', 'ins_threshold':0.4,'del_threshold':0.6, 'enable_whatshap':False},
+                'ul_ont_extreme':{'sequencing':'ul_ont_extreme', 'snp_model':'ONT-HG002', 'indel_model':'ONT-HG002', 'neighbor_threshold':'0.4,0.6', 'ins_threshold':0.4,'del_threshold':0.6, 'enable_whatshap':False},
                  
                 'ccs':{'sequencing':'pacbio', 'snp_model': 'CCS-HG002', 'indel_model':'CCS-HG002', 'neighbor_threshold':'0.3,0.7', 'ins_threshold':0.4,'del_threshold':0.4, 'enable_whatshap':True},
                  
@@ -178,13 +174,14 @@ if __name__ == '__main__':
     phase_group=parser.add_argument_group("Phasing")
     
     config_group.add_argument("-mode",  "--mode",  help="NanoCaller mode to run, options are 'snps', 'snps_unphased', 'indels' and 'both'. 'snps_unphased' mode quits NanoCaller without using WhatsHap for phasing.", type=str, default='both')
-    config_group.add_argument("-seq",  "--sequencing",  help="Sequencing type, options are 'ont', 'ul_ont', 'ul_ont_extreme', and 'pacbio'", type=str, default='ont')
+    config_group.add_argument("-seq",  "--sequencing",  help="Sequencing type, options are 'ont', 'ul_ont', 'ul_ont_extreme', and 'pacbio'.  'ont' works well for any type of ONT sequencing datasets. However, use 'ul_ont' if you have several ultra-long ONT reads up to 100kbp long, and 'ul_ont_extreme' if you have several ultra-long ONT reads up to 300kbp long. For PacBio CCS (HiFi) and CLR reads, use 'pacbio'.", type=str, default='ont')
 
     config_group.add_argument("-cpu",  "--cpu",  help="Number of CPUs to use", type=int, default=1)
     
     config_group.add_argument("-mincov",  "--mincov",  help="Minimum coverage to call a variant", type=int, default=8)
     config_group.add_argument("-maxcov",  "--maxcov",  help="Maximum coverage of reads to use. If sequencing depth at a candidate site exceeds maxcov then reads are downsampled.", type=int, default=160)
     
+    #output options
     out_group.add_argument('-keep_bam','--keep_bam', help='Keep phased bam files.', default=False, action='store_true')
     out_group.add_argument("-o",  "--output",  help="VCF output path, default is current working directory", type=str)    
     out_group.add_argument("-prefix",  "--prefix",  help="VCF file prefix", type=str, default='variant_calls')
@@ -197,7 +194,7 @@ if __name__ == '__main__':
     region_group.add_argument("-end",  "--end",  help="end, default is the end of contig", type=int)
     
     #preset
-    preset_group.add_argument("-p",  "--preset",  help="Apply recommended preset values for SNP and Indel calling parameters, options are 'ont', 'ul_ont', 'ul_ont_extreme', 'ccs' and 'clr'", type=str)
+    preset_group.add_argument("-p",  "--preset",  help="Apply recommended preset values for SNP and Indel calling parameters, options are 'ont', 'ul_ont', 'ul_ont_extreme', 'ccs' and 'clr'. 'ont' works well for any type of ONT sequencing datasets. However, use 'ul_ont' if you have several ultra-long ONT reads up to 100kbp long, and 'ul_ont_extreme' if you have several ultra-long ONT reads up to 300kbp long. For PacBio CCS (HiFi) and CLR reads, use 'ccs'and 'clr' respectively. Presets are described in detail here: github.com/WGLab/NanoCaller/blob/master/docs/Usage.md#preset-options.", type=str)
     
     #required
     requiredNamed.add_argument("-bam",  "--bam",  help="Bam file, should be phased if 'indel' mode is selected", required=True)
@@ -225,11 +222,9 @@ if __name__ == '__main__':
     
     phase_group.add_argument("-enable_whatshap",  "--enable_whatshap",  help="Allow WhatsHap to change SNP genotypes when phasing using --distrust-genotypes and --include-homozygous flags (this is not the same as regenotyping), considerably increasing the time needed for phasing. It has a negligible effect on SNP calling accuracy for Nanopore reads, but may make a small improvement for PacBio reads. By default WhatsHap will only phase SNP calls produced by NanoCaller, but not change their genotypes.",  default=False, action='store_true')
     
-    
-    
-    
-    
     args = parser.parse_args()
+    
+    args.supplementary=False
     
     set_flags=[]
     
@@ -243,14 +238,7 @@ if __name__ == '__main__':
     if args.preset:
         for p in preset_dict[args.preset]:
             if p not in set_flags:
-                vars(args)[p]=preset_dict[args.preset][p]
-    
-    
-    
-    
-    args = parser.parse_args()
-    
-    
+                vars(args)[p]=preset_dict[args.preset][p]    
     
     if not args.output:
         args.output=os.getcwd()

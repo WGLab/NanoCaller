@@ -37,14 +37,14 @@ Feel free to share your models if you use NanoCallers to train other models.
 | -------------------------- | --------------------- | --------------- | -------- | --------- | ------------ |
 | ONT-HG001                  | ONT R9.4.1            | HG001           | 55       | v3.3.2    | Guppy4.2.2   |
 | ONT-HG001\_GP2.3.8         | ONT R9.4.1            | HG001           | 34       | v3.3.2    | Guppy2.3.8   |
-| ONT-HG001_guppy2.3.8_guppy4.2.2 | ONT R9.4.1            | HG001           | 45       | v3.3.2    | Guppy (2.3.8 + 4.2.2)   |
+| ONT-HG001\_GP2.3.8-4.2.2 | ONT R9.4.1            | HG001           | 45       | v3.3.2    | Guppy (2.3.8 + 4.2.2)   |
+| ONT-HG001-4\_GP4.2.2     | ONT R9.4.1            | HG001-4         | 69       | v3.3.2 (HG001) + v4.2.1 (HG002-4)| Guppy4.2.2|
 | ONT-HG002                  | ONT R9.4.1            | HG002           | 47       | v4.2.1    | Guppy4.2.2   |
 | ONT-HG002\_GP4.2.2\_v3.3.2 | ONT R9.4.1            | HG002           | 47       | v3.3.2    | Guppy4.2.2   |
 | ONT-HG002\_GP2.3.4\_v3.3.2 | ONT R9.4.1            | HG002           | 53       | v3.3.2    | Guppy2.3.4   |
-| ONT-HG002_guppy2.3.4_giab-4.2.1 | ONT R9.4.1            | HG002           | 53       | v4.2.1    | Guppy2.3.4   |
+| ONT-HG002\_GP2.3.4\_v4.2.1 | ONT R9.4.1            | HG002           | 53       | v4.2.1    | Guppy2.3.4   |
 | ONT-HG002\_bonito          | ONT R9.4.1            | HG002 (chr1-21) | 51       | v4.2.1    | Bonito v0.30 |
 | ONT-HG002\_r10.3           | ONT R10.3             | HG002 (chr1-21) | 32       | v4.2.1    | Guppy4.0.11  |
-| ONT-HG001-4_guppy4.2.2     | ONT R9.4.1            | HG001-4         | 69       | v3.3.2 (HG001) + v4.2.1 (HG002-4)| Guppy4.2.2|
 | CCS-HG001                  | PacBio CCS            | HG001           | 57       | v3.3.2    | \-           |
 | CCS-HG002                  | PacBio CCS            | HG002           | 56       | v4.2.1    | \-           |
 | CCS-HG001-4                | PacBio CCS            | HG001-4         | 55       | v3.3.2 (HG001) + v4.2.1 (HG002-4)| Guppy4.2.2    | \-           |

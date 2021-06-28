@@ -21,7 +21,7 @@ An example of NanoCaller usage is provided in [sample](sample). The results are 
 which is also in the file [sample_call](sample/sample_call). This example should take about 10-15 minutes to run.
 
 ## Well-trained models
-The well-trained models for [ONT](https://github.com/WGLab/NanoCaller/tree/master/scripts/release_data/ONT_models) data, [CLR](https://github.com/WGLab/NanoCaller/tree/master/scripts/release_data/clr_models) data and [HIFI](https://github.com/WGLab/NanoCaller/tree/master/scripts/release_data/hifi_models) data can be found [here](https://github.com/WGLab/NanoCaller/tree/master/scripts/release_data). These models are trained on chr1-22 of the genomes they are trained on, unless mentioned othewise.
+The well-trained models for [ONT](https://github.com/WGLab/NanoCaller/tree/master/scripts/release_data/ONT_models) data, [CLR](https://github.com/WGLab/NanoCaller/tree/master/scripts/release_data/clr_models) data and [HIFI](https://github.com/WGLab/NanoCaller/tree/master/scripts/release_data/hifi_models) data can be found [here](https://github.com/WGLab/NanoCaller/tree/master/scripts/release_data). These models are trained on chr1-22 of the genomes stated below, unless mentioned othewise.
 
 You can specify SNP and indel models using `--snp_model` and `--indel_model` parameters with a model name from tables below. For instance, if you want to use 'ONT-HG002\_bonito' SNP model and 'ONT-HG002' indel model, use the following command:
 

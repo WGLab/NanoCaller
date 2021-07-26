@@ -60,7 +60,7 @@ for i in {1..22};do mkdir chr$i; medaka_variant -i HG002_ont.bam -r chr$i -f /ho
 
 ls -1 chr*/round_1_phased.vcf|bcftools concat -f - -a|bcftools sort| rtg vcfdecompose -t GRCh38.sdf -i - -o - --break-mnps --break-indels| bgziptabix HG002_medaka.temp.vcf.gz
 
-python remove_bad_medaka_entries.py HG002_medaka.temp.vcf.gz |bgziptabix HG002_medaka.temp.vcf.gz
+python remove_bad_medaka_entries.py HG002_medaka.temp.vcf.gz |bgziptabix HG002_medaka.vcf.gz
 
 rtg vcffilter -i HG002_medaka.vcf.gz --snps-only -o -|bgziptabix HG002_medaka.snps.vcf.gz
 rtg vcffilter -i HG002_medaka.vcf.gz --non-snps-only -o -|bgziptabix HG002_medaka.indels.vcf.gz
@@ -77,10 +77,11 @@ bcftools merge HG002_nanocaller.fixed.snps.vcf.gz HG002_clair.fixed.snps.vcf.gz 
 python snp_ensemble.py HG002_merged.snps.vcf.gz ensemble | bzgiptabix HG002_ensemble.snps.vcf.gz
 
 bcftools view HG002_ensemble.snps.vcf.gz -i "QUAL>=7.41" | bzgiptabix HG002_ensemble.snps.filtered.vcf.gz 
+```
 
 For HG003 and HG004 we used 15.6 and 13.6 as QUAL cut off for SNPs in the step above.
 
-
+```
 bcftools merge HG002_nanocaller.fixed.indels.vcf.gz HG002_clair.fixed.indels.vcf.gz HG002_medaka.fixed.indels.vcf.gz | bgziptabix HG002_merged.indels.vcf.gz
 
 python indel_ensemble.py HG002_merged.indels.vcf.gz ensemble | bzgiptabix HG002_ensemble.indels.vcf.gz

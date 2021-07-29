@@ -29,6 +29,7 @@ python nanocaller_indel_fixer.py HG002_nanocaller.indels.vcf.gz nanocaller |bgzi
 ## Clair Commands
 
 Clair v2.0.1 (commit f97b099d00188dfdcdeb4bcc32080e1a8f457d5d): https://github.com/HKU-BAL/Clair/releases/tag/v2.0.1
+
 Clair model used: http://www.bio8.cs.hku.hk/clair_models/ont/1_124x.tar
 
 ```
@@ -38,7 +39,7 @@ pypy3 clair.py callVarBamParallel \
        --bam_fn HG002_ont.bam \
        --sampleName HG002 \
        --output_prefix HG002 \
-       > commands.sh`
+       > commands.sh
        
 cat command.sh | parallel -j16
 
@@ -56,7 +57,7 @@ python clair_indels_vcf_fixer.py  HG002_clair.indels.vcf.gz clair |bgziptabix  H
 Medaka v0.10.0 (commit eeb1af187c1aafc693ea19b25795485d385461eb): https://github.com/nanoporetech/medaka/releases/tag/v0.10.0
 
 ```
-for i in {1..22};do mkdir chr$i; medaka_variant -i HG002_ont.bam -r chr$i -f /home/ahsanm1/umair_wlab/data/GRCh38.fa -o chr$i -t 16 -d;done
+for i in {1..22};do mkdir chr$i; medaka_variant -i HG002_ont.bam -r chr$i -f GRCh38.fa -o chr$i -t 16 -d;done
 
 ls -1 chr*/round_1_phased.vcf|bcftools concat -f - -a|bcftools sort| rtg vcfdecompose -t GRCh38.sdf -i - -o - --break-mnps --break-indels| bgziptabix HG002_medaka.temp.vcf.gz
 
@@ -74,7 +75,7 @@ python medaka_indels_vcf_fixer.py  HG002_medaka.indels.vcf.gz medaka |bgziptabix
 ```
 bcftools merge HG002_nanocaller.fixed.snps.vcf.gz HG002_clair.fixed.snps.vcf.gz HG002_medaka.fixed.snps.vcf.gz | bgziptabix HG002_merged.snps.vcf.gz
 
-python snp_ensemble.py HG002_merged.snps.vcf.gz ensemble | bzgiptabix HG002_ensemble.snps.vcf.gz
+python snp_ensemble.py HG002_merged.snps.vcf.gz ensemble v2 | bzgiptabix HG002_ensemble.snps.vcf.gz
 
 bcftools view HG002_ensemble.snps.vcf.gz -i "QUAL>=7.41" | bzgiptabix HG002_ensemble.snps.filtered.vcf.gz 
 ```

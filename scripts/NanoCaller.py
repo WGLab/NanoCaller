@@ -10,10 +10,7 @@ from utils import *
 def run(args):
     import snpCaller, indelCaller
         
-    if args.cpu==1:
-        pool=None
-    else:
-        pool = mp.Pool(processes=args.cpu)
+    pool = mp.Pool(processes=args.cpu)
 
     if not args.output:
         args.output=os.getcwd()
@@ -136,9 +133,8 @@ def run(args):
             final_path=os.path.join(args.output,'%s.final.vcf.gz' %args.prefix)
             run_cmd('bcftools concat %s.phased.vcf.gz %s.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
 
-    if pool:
-        pool.close()
-        pool.join()
+    pool.close()
+    pool.join()
     
 if __name__ == '__main__':
     

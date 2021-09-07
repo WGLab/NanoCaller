@@ -12,7 +12,7 @@ _**v0.4.1** (Aug 3 2021)_ : Fixed a bug causing slower runtime in whole genome v
 _**v0.4.0** (June 2 2021)_ : Added NanoCaller models trained on ONT reads basecalled with Guppy v4.2.2 and Bonito v0.30, as well as R10.3 reads. Added new NanoCaller models trained with long CCS reads (15-20kb library selection). Improved indel calling with rolling window for candidate selection which helps with indels in low complexity regions.
 
 ## Citing NanoCaller
-Please cite: Ahsan, Umair and Liu, Qian and Wang, Kai. NanoCaller for accurate detection of SNPs and small indels from long-read sequencing by deep neural networks. bioRxiv 2019.12.29.890418; doi: https://doi.org/10.1101/2019.12.29.890418
+Please cite: Ahsan, M.U., Liu, Q., Fang, L. et al. NanoCaller for accurate detection of SNPs and indels in difficult-to-map regions from long-read sequencing by haplotype-aware deep neural networks. Genome Biol 22, 261 (2021). https://doi.org/10.1186/s13059-021-02472-2.
 
 ## Installation
 NanoCaller can be installed using Docker or Conda. Please refer to [Installation](docs/Install.md) for instructions regarding installing NanoCaller.

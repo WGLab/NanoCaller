@@ -214,7 +214,7 @@ def get_indel_testing_candidates(dct):
     position_queue_small=collections.deque(small_size*[{}], small_size)
 
     variants={}
-    max_range={'large':max(10,window_size),'small':10}
+    max_range={0:max(10,window_size),1:10}
     
     count=0
     prev=0
@@ -274,13 +274,13 @@ def get_indel_testing_candidates(dct):
 
                     if max([del_freq_0,del_freq_1])>=del_t or max([ins_freq_0,ins_freq_1])>=ins_t:
                         prev=v_pos+window_size
-                        variants[v_pos-window_size]='large'
+                        variants[max(1,v_pos-window_size)]=0
                         count+=1
 
                     elif max([del_freq_small_0,del_freq_small_1])>=del_t or max([ins_freq_small_0,ins_freq_small_1])>=ins_t or (del_freq_small_0+ins_freq_small_0)>=0.9 or (del_freq_small_1+ins_freq_small_1)>=0.9:
 
                         prev=v_pos+10
-                        variants[v_pos-10]='small'
+                        variants[max(1,v_pos-10)]=1
                         count+=1
             
                     elif dct['seq']=='pacbio' and len_seq_tot >=2*mincov:
@@ -309,10 +309,10 @@ def get_indel_testing_candidates(dct):
 
                             if len(read_names_0)>=mincov and len(read_names_1)>=mincov:
                                 prev=v_pos+10
-                                variants[v_pos-10]='small'
+                                variants[max(1,v_pos-10)]=1
                                 count+=1
 
-    for pcol in samfile.pileup(chrom,max(0,start-1),end,min_base_quality=0, flag_filter=flag,truncate=True):
+    for pcol in samfile.pileup(chrom,max(0,start-10-window_size),end,min_base_quality=0, flag_filter=flag,truncate=True):
                     
         v_pos=pcol.pos+1
         
@@ -325,10 +325,8 @@ def get_indel_testing_candidates(dct):
             d={'hap0':{},'hap1':{}}
             d_tot={}
                         
-            ref=''.join([ref_dict[p] for p in range(v_pos-window_before,v_pos+window_after+1)])
+            ref=''.join([ref_dict[p] for p in range(v_pos-window_before,min(end,v_pos+window_after+1))])
             
-            if len(ref)<window_after:
-                continue
                     
             for pread in pcol.pileups:
                 dt=pread.alignment.query_sequence[max(0,pread.query_position_or_next-window_before):pread.query_position_or_next+window_after]                    

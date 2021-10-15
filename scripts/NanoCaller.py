@@ -127,7 +127,7 @@ def run(args):
         
         if args.mode=='both':
             
-            if not args.keep_bam:
+            if not args.keep_bam and not args.phase_bam:
                 os.remove('%s.phased.bam' %snp_vcf)
                 
             final_path=os.path.join(args.output,'%s.final.vcf.gz' %args.prefix)

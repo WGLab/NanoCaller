@@ -63,6 +63,7 @@ def test_model(params,pool):
     vcf_path,prefix= params['vcf_path'], params['prefix']
     chrom,start,end=params['chrom'], params['start'],params['end']          
     
+
     coverage=get_coverage(params, pool)
     
     print('%s: Coverage=%.2fx.' %(str(datetime.datetime.now()), coverage), flush=True)
@@ -71,6 +72,10 @@ def test_model(params,pool):
         print('%s: No coverage found for the contig %s.' %(str(datetime.datetime.now()), chrom), flush=True)
         return
     
+    if params['maxcov'] < coverage:
+        coverage=params['maxcov']
+    
+        print('%s: Coverage exceeds maxcov parameter. Downsampling to --maxcov parameter=%.2fx.' %(str(datetime.datetime.now()), coverage), flush=True)
     
     n_input=[5,41,5]
 

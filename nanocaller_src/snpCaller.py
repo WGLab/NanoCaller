@@ -5,10 +5,10 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
-from model_architect import *
-from generate_SNP_pileups import get_snp_testing_candidates
+from .model_architect import *
+from .generate_SNP_pileups import get_snp_testing_candidates
 from intervaltree import Interval, IntervalTree
-from utils import *
+from .utils import *
 
 if type(tf.contrib) != type(tf): tf.contrib._warning = None
 config = tf.ConfigProto()

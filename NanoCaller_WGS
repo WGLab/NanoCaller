@@ -1,145 +1,17 @@
+#!/usr/bin/env python
+
 from warnings import simplefilter 
 simplefilter(action='ignore', category=FutureWarning)
 
-import time, argparse, os, shutil, sys, pysam, datetime
+import time, argparse, os, shutil, sys, pysam, datetime, re
 import multiprocessing as mp
 from intervaltree import Interval, IntervalTree
 from subprocess import PIPE, Popen
-from utils import *
-
-def run(args):
-    import snpCaller, indelCaller
-        
-    pool = mp.Pool(processes=args.cpu)
-
-    if not args.output:
-        args.output=os.getcwd()
-    
-    os.makedirs(args.output, exist_ok=True)
-    
-    end=None
-    if not args.end:
-        try:
-            with open(args.ref+'.fai','r') as file:
-                for line in file:
-                    if line.split('\t')[0]==args.chrom:
-                        
-                        end=int(line.split('\t')[1])
-            
-            if end==None:
-                print('%s: contig %s not found in reference.' %(str(datetime.datetime.now()), args.chrom), flush=True)
-                sys.exit(2) 
-                
-        except FileNotFoundError:
-            print('%s: Index file .fai required for reference genome file' %(str(datetime.datetime.now())), flush=True)
-            sys.exit(2)
-            
-    else:
-        end=args.end
-    
-    if not args.start:
-        start=1
-    else:
-        start=args.start
-    
-    threshold=[float(args.neighbor_threshold.split(',')[0]), float(args.neighbor_threshold.split(',')[1])]
-    
-    dirname = os.path.dirname(__file__)
-    
-    if args.exclude_bed in ['hg38', 'hg19', 'mm10', 'mm39']:
-        args.exclude_bed=os.path.join(dirname, 'release_data/bed_files/%s_centro_telo.bed.gz' %args.exclude_bed)
-    
-    if args.include_bed:
-        tbx = pysam.TabixFile(args.include_bed)
-        include_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(args.chrom, parser=pysam.asBed()))
-        
-        include_intervals=IntervalTree(include_intervals.overlap(start,end))
-        
-        if include_intervals:
-            start=max(start, min(x[0] for x in include_intervals))
-            end=min(end, max(x[1] for x in include_intervals))
-        
-        else:
-            print('%s: No overlap between include_bed file and start/end coordinates' %(str(datetime.datetime.now())),flush=True)
-            return
-        
-    in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':args.bam, 'fasta_path':args.ref, \
-             'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
-             'threshold':threshold, 'snp_model':args.snp_model, 'cpu':args.cpu,  'vcf_path':args.output,'prefix':args.prefix,'sample':args.sample, \
-            'seq':args.sequencing, 'supplementary':args.supplementary, 'include_bed':args.include_bed, 'exclude_bed':args.exclude_bed}
-        
-    snp_vcf=''
-    if args.mode in ['snps', 'snps_unphased', 'both']:
-        snp_time=time.time()
-        snp_vcf=snpCaller.test_model(in_dict, pool)
-        print('\n%s: SNP calling completed for contig %s. Time taken= %.4f\n' %(str(datetime.datetime.now()), in_dict['chrom'], time.time()-snp_time),flush=True)
-
-        if snp_vcf and args.mode in ['snps', 'both']:
-            enable_whatshap = '--distrust-genotypes --include-homozygous' if args.enable_whatshap else ''
-            
-            print('\n%s: ------WhatsHap SNP phasing log------\n' %(str(datetime.datetime.now())),flush=True)
-            
-            run_cmd("whatshap phase %s.vcf.gz %s -o %s.phased.preclean.vcf -r %s --ignore-read-groups --chromosome %s %s" %(snp_vcf,in_dict['sam_path'], snp_vcf, in_dict['fasta_path'], in_dict['chrom'] , enable_whatshap), verbose=True)
-            
-            
-            run_cmd("bcftools view -e  'GT=\"0\\0\"' %s.phased.preclean.vcf|bgziptabix %s.phased.vcf.gz" %(snp_vcf,snp_vcf))
-            
-            print('\n%s: ------SNP phasing completed------\n' %(str(datetime.datetime.now())),flush=True)
-
-
-            if args.mode=='both' or args.phase_bam:
-                print('\n%s: ------WhatsHap BAM phasing log------\n' %(str(datetime.datetime.now())),flush=True)
-                
-                run_cmd("whatshap haplotag --ignore-read-groups --ignore-linked-read -o %s.phased.bam --reference %s %s.phased.vcf.gz %s --regions %s:%d:%d --tag-supplementary" %(snp_vcf,in_dict['fasta_path'], snp_vcf, in_dict['sam_path'], args.chrom,start,end), verbose=True)
-
-                run_cmd('samtools index %s.phased.bam' %snp_vcf )
-                
-                print('\n%s: ------BAM phasing completed-----\n' %(str(datetime.datetime.now())),flush=True)
-            
-        else:
-            return
-            
-    if args.mode in ['indels','both']:
-        
-        sam_path= '%s.phased.bam' %snp_vcf if args.mode=='both' else args.bam
-        
-        in_dict={'chrom':args.chrom, 'start':start, 'end':end, 'sam_path':sam_path, 'fasta_path':args.ref, \
-             'mincov':args.mincov,  'maxcov':args.maxcov, 'min_allele_freq':args.min_allele_freq, 'min_nbr_sites':args.min_nbr_sites, \
-             'threshold':threshold, 'snp_model':args.snp_model,'indel_model':args.indel_model, 'cpu':args.cpu,  'vcf_path':args.output,'prefix':args.prefix,'sample':args.sample, 'seq':args.sequencing, \
-                'del_t':args.del_threshold,'ins_t':args.ins_threshold,'supplementary':args.supplementary, 'include_bed':args.include_bed\
-                , 'exclude_bed':args.exclude_bed,'win_size':args.win_size,'small_win_size':args.small_win_size}
-        ind_time=time.time()
-        indel_vcf=indelCaller.test_model(in_dict, pool)
-        
-        print('%s: Post processing' %(str(datetime.datetime.now())),flush=True)
-        
-        run_cmd('samtools faidx %s %s > %s/%s.fa' %(args.ref,args.chrom,args.output,args.chrom))
-
-        remove_path('%s/ref.sdf' %args.output)
-
-        run_cmd('rtg RTG_MEM=4G format -f fasta %s/%s.fa -o %s/ref.sdf' % (args.output,args.chrom,args.output))
-
-        remove_path('%s.vcf.gz' %indel_vcf)    
-
-        run_cmd('rtg RTG_MEM=4G vcfdecompose -i %s.raw.vcf.gz --break-mnps -o - -t %s/ref.sdf|rtg RTG_MEM=4G vcffilter -i - --non-snps-only -o  %s.vcf.gz' %(indel_vcf,args.output,indel_vcf))
-            
-        print('%s: Indel calling completed for contig %s. Time taken= %.4f' %(str(datetime.datetime.now()), in_dict['chrom'], time.time()-ind_time),flush=True)
-        
-        if args.mode=='both':
-            
-            if not args.keep_bam and not args.phase_bam:
-                os.remove('%s.phased.bam' %snp_vcf)
-                
-            final_path=os.path.join(args.output,'%s.final.vcf.gz' %args.prefix)
-            run_cmd('bcftools concat %s.phased.vcf.gz %s.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
-
-    pool.close()
-    pool.join()
+from nanocaller_src.utils import *
     
 if __name__ == '__main__':
     
     t=time.time()
-    
     
     preset_dict={'ont':{'sequencing':'ont', 'snp_model':'ONT-HG002', 'indel_model':'ONT-HG002', 'neighbor_threshold':'0.4,0.6', 'ins_threshold':0.4,'del_threshold':0.6, 'enable_whatshap':False},
                  
@@ -170,6 +42,7 @@ if __name__ == '__main__':
     phase_group=parser.add_argument_group("Phasing")
     
     config_group.add_argument("-mode",  "--mode",  help="NanoCaller mode to run, options are 'snps', 'snps_unphased', 'indels' and 'both'. 'snps_unphased' mode quits NanoCaller without using WhatsHap for phasing.", type=str, default='both')
+    
     config_group.add_argument("-seq",  "--sequencing",  help="Sequencing type, options are 'ont', 'ul_ont', 'ul_ont_extreme', and 'pacbio'.  'ont' works well for any type of ONT sequencing datasets. However, use 'ul_ont' if you have several ultra-long ONT reads up to 100kbp long, and 'ul_ont_extreme' if you have several ultra-long ONT reads up to 300kbp long. For PacBio CCS (HiFi) and CLR reads, use 'pacbio'.", type=str, default='ont')
 
     config_group.add_argument("-cpu",  "--cpu",  help="Number of CPUs to use", type=int, default=1)
@@ -184,10 +57,18 @@ if __name__ == '__main__':
     out_group.add_argument("-sample",  "--sample",  help="VCF file sample name", type=str, default='SAMPLE')
 
     #region
+    region_group.add_argument("-chrom",  "--chrom", nargs='*',  help='A space/whitespace separated list of contigs, e.g. chr3 chr6 chr22.')
     region_group.add_argument("-include_bed",  "--include_bed",  help="Only call variants inside the intervals specified in the bgzipped and tabix indexed BED file. If any other flags are used to specify a region, intersect the region with intervals in the BED file, e.g. if -chom chr1 -start 10000000 -end 20000000 flags are set, call variants inside the intervals specified by the BED file that overlap with chr1:10000000-20000000. Same goes for the case when whole genome variant calling flag is set.", type=str, default=None)
     region_group.add_argument("-exclude_bed",  "--exclude_bed",  help="Path to bgzipped and tabix indexed BED file containing intervals to ignore  for variant calling. BED files of centromere and telomere regions for the following genomes are included in NanoCaller: hg38, hg19, mm10 and mm39. To use these BED files use one of the following options: ['hg38', 'hg19', 'mm10', 'mm39'].", type=str, default=None)
-    region_group.add_argument("-start",  "--start",  help="start, default is 1", type=int)
-    region_group.add_argument("-end",  "--end",  help="end, default is the end of contig", type=int)
+    region_group.add_argument('-wgs_contigs_type','--wgs_contigs_type', \
+                        help="""Options are "with_chr", "without_chr" and "all",\
+                        "with_chr" option will assume \
+                        human genome and run NanoCaller on chr1-22, "without_chr" will \
+                        run on chromosomes 1-22 if the BAM and reference genome files \
+                        use chromosome names without "chr". "all" option will run \
+                        NanoCaller on each contig present in reference genome FASTA file.""", \
+                        type=str, default='with_chr')
+    
     
     #preset
     preset_group.add_argument("-p",  "--preset",  help="Apply recommended preset values for SNP and Indel calling parameters, options are 'ont', 'ul_ont', 'ul_ont_extreme', 'ccs' and 'clr'. 'ont' works well for any type of ONT sequencing datasets. However, use 'ul_ont' if you have several ultra-long ONT reads up to 100kbp long, and 'ul_ont_extreme' if you have several ultra-long ONT reads up to 300kbp long. For PacBio CCS (HiFi) and CLR reads, use 'ccs'and 'clr' respectively. Presets are described in detail here: github.com/WGLab/NanoCaller/blob/master/docs/Usage.md#preset-options.", type=str)
@@ -195,7 +76,6 @@ if __name__ == '__main__':
     #required
     requiredNamed.add_argument("-bam",  "--bam",  help="Bam file, should be phased if 'indel' mode is selected", required=True)
     requiredNamed.add_argument("-ref",  "--ref",  help="Reference genome file with .fai index", required=True)
-    requiredNamed.add_argument("-chrom",  "--chrom",  help="Chromosome",required=True)
     
     #snp
     snp_group.add_argument("-snp_model",  "--snp_model",  help="NanoCaller SNP model to be used", default='ONT-HG002')
@@ -218,9 +98,11 @@ if __name__ == '__main__':
     
     phase_group.add_argument("-enable_whatshap",  "--enable_whatshap",  help="Allow WhatsHap to change SNP genotypes when phasing using --distrust-genotypes and --include-homozygous flags (this is not the same as regenotyping), considerably increasing the time needed for phasing. It has a negligible effect on SNP calling accuracy for Nanopore reads, but may make a small improvement for PacBio reads. By default WhatsHap will only phase SNP calls produced by NanoCaller, but not change their genotypes.",  default=False, action='store_true')
     
-    args = parser.parse_args()
     
-    args.supplementary=False
+    
+    
+    
+    args = parser.parse_args()
     
     set_flags=[]
     
@@ -234,13 +116,21 @@ if __name__ == '__main__':
     if args.preset:
         for p in preset_dict[args.preset]:
             if p not in set_flags:
-                vars(args)[p]=preset_dict[args.preset][p]    
-    
+                vars(args)[p]=preset_dict[args.preset][p]
+                
+                
     if not args.output:
         args.output=os.getcwd()
     
-    os.makedirs(args.output, exist_ok=True)  
+    if args.phase_bam:
+        args.keep_bam=True
+        
+    make_and_remove_path(os.path.join(args.output, 'intermediate_files'))
     
+    log_path=os.path.join(args.output,'logs' )
+    make_and_remove_path(log_path) 
+    
+    remove_path(os.path.join(args.output,'args'))
     
     with open(os.path.join(args.output,'args'),'w') as file:
         file.write('Command: python %s\n\n\n' %(' '.join(sys.argv)))
@@ -248,9 +138,136 @@ if __name__ == '__main__':
         for k in vars(args):
             file.write('{}: {}\n'.format(k,vars(args)[k]) )
         
+        
     print('\n%s: Starting NanoCaller.\n\nNanoCaller command and arguments are saved in the following file: %s\n' %(str(datetime.datetime.now()), os.path.join(args.output,'args')), flush=True)
     
-    run(args)
+    if args.chrom:
+        chrom_list= args.chrom
+        
+    else:
+        if args.wgs_contigs_type=='with_chr':
+            chrom_list=['chr%d' %d for d in range(1,23)]
+
+        elif args.wgs_contigs_type == 'without_chr':
+            chrom_list=['%d' %d for d in range(1,23)]
+
+        elif args.wgs_contigs_type == 'all':
+            chrom_list=[]
+
+            try:
+                with open(args.ref+'.fai','r') as file:
+                    for line in file:
+                        chrom_list.append(line.split('\t')[0])
+
+            except FileNotFoundError:
+                print('%s: index file .fai required for reference genome file.\n' %str(datetime.datetime.now()), flush=True)
+                sys.exit(2)
+
+    if args.include_bed:
+        stream=run_cmd('zcat %s|cut -f 1|uniq' %args.include_bed, output=True)
+        bed_chroms=stream.split()
+
+        chrom_list=[chrom for chrom in chrom_list if chrom in bed_chroms]
+
+    args_dict=vars(args)
+    chrom_lengths={}
+    with open(args.ref+'.fai','r') as file:
+        for line in file:
+            chrom_lengths[line.split('\t')[0]]=int(line.split('\t')[1])
+
+    bam_chrom_list=out=run_cmd('samtools idxstats %s|cut -f 1' %args.bam, output=True).split('\n')
+
+    
+    job_dict={}
+    
+    remove_path(os.path.join(args.output,'wg_commands'))
+    with open(os.path.join(args.output,'wg_commands'),'w') as wg_commands:
+        job_counter=0
+        for chrom in chrom_list:
+            cmd=''
+
+            for x in args_dict:
+                if x in ['chrom','wgs_contigs_type','start','end','output','cpu','prefix'] or args_dict[x] is None:
+                    pass
+
+                elif x in ['supplementary', 'enable_whatshap','keep_bam','phase_bam']:
+                    if args_dict[x]==True:
+                        cmd+=' --%s ' %x
+
+                else:
+                    cmd+= '--%s %s ' %(x, args_dict[x])
+
+            dirname = os.path.dirname(__file__)
+
+            try:
+                chr_end=chrom_lengths[chrom]
+            
+            except KeyError:
+                print('Contig %s not found in reference. Ignoring it.' %chrom,flush=True)
+                continue
+            
+            if chrom not in bam_chrom_list:
+                print('Contig %s not found in BAM file. Ignoring it.' %chrom,flush=True)
+                continue
+                
+            for mbase in range(1,chr_end,10000000):
+                job_id='%s_%d_%d' %(chrom, mbase, min(chr_end,mbase+10000000-1))
+                out_path=os.path.join(args.output, 'intermediate_files', job_id)
+                job_command='python %s -chrom %s %s -cpu 1 --output %s -start %d -end %d -prefix %s > %s/%s 2>&1' %(os.path.join(dirname,'NanoCaller.py'), chrom, cmd, out_path ,mbase, min(chr_end,mbase+10000000-1),job_id, log_path,job_id)
+                job_dict[job_id]=job_command
+                wg_commands.write('%s\n' %job_command)
+                
+                job_counter+=1
+                
+    if job_counter==0:
+        print('VARIANT CALLING FAILED due to lack of suitable contigs. Please check if the contig names specified are consistent and present in reference genome, BAM file and any --include_bed file.\n', flush=True)
+        sys.exit(2)
+    
+    print('%s: Commands for running NanoCaller on contigs in whole genome are saved in the file: %s.\n' %(str(datetime.datetime.now()), os.path.join(args.output,'wg_commands')), flush=True)
+    
+    
+        
+    print('Running %d jobs using %d workers in parallel.\n\nIMPORTANT: Logs for each parallel job generated by NanoCaller are saved in the file: %s, check this directory for additional information for any errors in running the jobs.\nA log file created by parallel command is saved in the file: %s, which contains exit codes of each parallel job.\n' %(job_counter, args.cpu, log_path, os.path.join(args.output,'parallel_run_log')), flush=True)
+
+    remove_path(os.path.join(args.output,'parallel_run_log'))
+    run_cmd('cat %s|parallel -j %d --joblog %s' %(os.path.join(args.output,'wg_commands'), args.cpu, os.path.join(args.output,'parallel_run_log')), verbose=True)
+    
+    out_path=os.path.join(args.output, 'intermediate_files')
+    
+    bad_runs=run_cmd('grep -L "Total Time Elapsed" %s/*' %log_path, output=True)
+    
+    if bad_runs:
+        failed_job_file=os.path.join(args.output,'failed_jobs_commands')
+        failed_job_file_cmb_logs=os.path.join(args.output,'failed_jobs_combined_logs')
+        failed_jobs_names=re.findall('%s/(.+?)\n' %log_path,bad_runs)
+        failed_jobs_logs=re.findall('(.+?)\n',bad_runs)
+        
+        run_cmd('grep -L "Total Time Elapsed" %s/*| while read file; do printf "\n\n\n#### Log File: $file ####\n"; cat $file; printf "%%0.s-" {1..100}; done > %s' %(log_path, failed_job_file_cmb_logs))
+        
+        print('Number of jobs failed = %d\nCombined logs of failed jobs are written in this file: %s\nThe commands of these jobs are stored in the following file: %s\n' %(len(failed_jobs_names),failed_job_file_cmb_logs, failed_job_file),flush=True)
+        
+        with open(failed_job_file,'w') as fail_job:
+            for job,log in zip(failed_jobs_names,failed_jobs_logs):
+                fail_job.write('%s\n' %job_dict[job])
+        
+        
+        
+    final_logs=''
+    if args.mode in ['snps_unphased','snps','both']:
+        final_logs+=run_cmd('ls -1 %s/*/*snps.vcf.gz|bcftools concat -f - -a|bcftools sort|bgziptabix %s/%s.snps.vcf.gz' %(out_path, args.output, args.prefix),error=True)
+        
+        if args.mode!='snps_unphased':
+            final_logs+=run_cmd('ls -1 %s/*/*snps.phased.vcf.gz|bcftools concat -f - -a|bcftools sort|bgziptabix %s/%s.snps.phased.vcf.gz' %(out_path, args.output, args.prefix),error=True)
+    
+    if args.mode in ['indels','both']:
+        final_logs+=run_cmd('ls -1 %s/*/*indels.vcf.gz|bcftools concat -f - -a|bcftools sort|bgziptabix %s/%s.indels.vcf.gz' %(out_path, args.output, args.prefix),error=True)
+    
+    if args.mode=='both':
+        final_logs+=run_cmd('ls -1 %s/*/*final.vcf.gz|bcftools concat -f - -a|bcftools sort|bgziptabix %s/%s.final.vcf.gz' %(out_path, args.output, args.prefix),error=True)
+        
+    
+    if 'ls: cannot access' in final_logs:
+        print('VARIANT CALLING FAILED. Please check any errors printed above, or in the log files here: %s.\n' %log_path, flush=True)
     
     elapsed=time.time()-t
-    print ('\n%s: Total Time Elapsed: %.2f seconds' %(str(datetime.datetime.now()), elapsed))
+    print ('\n%s: Total Time Elapsed: %.2f seconds' %(str(datetime.datetime.now()), elapsed), flush=True)

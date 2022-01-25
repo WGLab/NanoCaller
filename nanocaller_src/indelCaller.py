@@ -5,10 +5,10 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
-from model_architect_indel import *
+from .model_architect_indel import *
 from Bio import pairwise2
-from generate_indel_pileups import get_indel_testing_candidates
-from utils import *
+from .generate_indel_pileups import get_indel_testing_candidates
+from .utils import *
 
 if type(tf.contrib) != type(tf): tf.contrib._warning = None
 config =  tf.compat.v1.ConfigProto()
@@ -136,8 +136,7 @@ def test_model(params,pool):
                             q=-100*np.log10(1e-6+batch_prob_all[j,0])
                             allele0_data, allele1_data,allele_total_data= batch_alleles_seq[j]
                             
-                            if batch_pred_all[j]==1:
-                                    if allele_total_data[0]:
+                            if batch_pred_all[j]==1 and allele_total_data[0]:
                                         gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
                                         s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele_total_data[0], allele_total_data[1], q, gq)
                                         f.write(s)

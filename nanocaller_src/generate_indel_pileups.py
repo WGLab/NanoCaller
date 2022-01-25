@@ -188,9 +188,11 @@ def get_indel_testing_candidates(dct):
         
     ref_dict={j:s.upper() if s in 'AGTC' else '' for j,s in zip(range(max(1,start-200),end+400+1),fastafile.fetch(chrom,max(1,start-200)-1,end+400)) }
     
+    chrom_length=fastafile.get_reference_length(chrom)
+    
     hap_dict={1:[],2:[]}
     
-    for pread in samfile.fetch(chrom, max(0,dct['start']-100), dct['end']+100):
+    for pread in samfile.fetch(chrom, max(0,dct['start']-100000), dct['end']+1000):
         if pread.has_tag('HP'):
             hap_dict[pread.get_tag('HP')].append(pread.qname)
 
@@ -214,6 +216,8 @@ def get_indel_testing_candidates(dct):
     position_queue_small=collections.deque(small_size*[{}], small_size)
 
     variants={}
+    extra_variants={}
+    
     max_range={0:max(10,window_size),1:10}
     
     count=0
@@ -221,9 +225,6 @@ def get_indel_testing_candidates(dct):
     for pcol in samfile.pileup(chrom,max(0,start-1),end,min_base_quality=0,\
                                            flag_filter=flag,truncate=True):
             v_pos=pcol.pos+1
-            if count>200:
-                print('%s: Skipping region %s:%d-%d due to poor alignment.' %(str(datetime.datetime.now()), chrom, v_pos, end), flush =True)
-                break
                 
             if in_bed(include_intervals, v_pos) and not ex_bed(exclude_intervals, v_pos):                
                 read_names=pcol.get_query_names()
@@ -257,8 +258,10 @@ def get_indel_testing_candidates(dct):
                 ins_queue_small_0.append(ins_set_small_0)
                 ins_queue_small_1.append(ins_set_small_1)
 
-
-                if v_pos>prev and len_seq_0>=mincov  and len_seq_1>=mincov:
+                if v_pos<=prev:
+                    continue
+                    
+                if len_seq_0>=mincov  and len_seq_1>=mincov:
 
                     del_freq_0=len(set.union(*del_queue_0))/len_seq_0 if len_seq_0>0 else 0
                     ins_freq_0=len(set.union(*ins_queue_0))/len_seq_0 if len_seq_0>0 else 0
@@ -282,16 +285,15 @@ def get_indel_testing_candidates(dct):
                         prev=v_pos+10
                         variants[max(1,v_pos-10)]=1
                         count+=1
+                
             
-                    elif dct['seq']=='pacbio' and len_seq_tot >=2*mincov:
+                elif dct['impute_indel_phase'] and len_seq_tot >=2*mincov:
                         seq_v2=[x.upper() for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)]
                         seq=[x[:2] for x in seq_v2]
                         seq_tot=''.join(seq)
 
-
                         del_freq_tot=(seq_tot.count('-')+seq_tot.count('*'))/len_seq_tot if len_seq_tot>0 else 0
                         ins_freq_tot=seq_tot.count('+')/len_seq_tot if len_seq_tot>0 else 0
-
                         if (del_t<=del_freq_tot or ins_t<=ins_freq_tot):
                             groups={}
                             for s,n in zip(seq_v2,read_names):
@@ -300,67 +302,73 @@ def get_indel_testing_candidates(dct):
                                 groups[s].append(n)
 
                             counts=sorted([(x,len(groups[x])) for x in groups],key=lambda x:x[1],reverse=True)
+                            
                             if counts[0][1]<=0.8*len_seq_tot:
-                                read_names_0=groups[counts[0][0]]
-                                read_names_1=groups[counts[1][0]]
+                                read_names_0=set(groups[counts[0][0]])
+                                read_names_1=set(groups[counts[1][0]]) if counts[1][1]>=mincov else set(read_names)-read_names_0
                             else:
                                 read_names_0=groups[counts[0][0]][:counts[0][1]//2]
                                 read_names_1=groups[counts[0][0]][counts[0][1]//2:]
-
                             if len(read_names_0)>=mincov and len(read_names_1)>=mincov:
                                 prev=v_pos+10
                                 variants[max(1,v_pos-10)]=1
+                                extra_variants[max(1,v_pos-10)]=(read_names_0,read_names_1)
                                 count+=1
 
     for pcol in samfile.pileup(chrom,max(0,start-10-window_size),end,min_base_quality=0, flag_filter=flag,truncate=True):
                     
         v_pos=pcol.pos+1
-        
-        if v_pos in variants:
+        if v_pos in extra_variants:
             read_names=pcol.get_query_names()
+            read_names_0, read_names_1 =extra_variants[v_pos]
+            
+        elif v_pos in variants:
+            read_names=pcol.get_query_names()
+            
             read_names_0=set(read_names) & hap_reads_0
             read_names_1=set(read_names) & hap_reads_1
-           
-
-            d={'hap0':{},'hap1':{}}
-            d_tot={}
-                        
-            ref=''.join([ref_dict[p] for p in range(v_pos-window_before,min(end,v_pos+window_after+1))])
             
-                    
-            for pread in pcol.pileups:
-                dt=pread.alignment.query_sequence[max(0,pread.query_position_or_next-window_before):pread.query_position_or_next+window_after]                    
-                d_tot[pread.alignment.qname]=dt
-                    
-                if pread.alignment.qname in read_names_0:
-                    d['hap0'][pread.alignment.qname]=dt
+        else:
+            continue
 
-                elif pread.alignment.qname in read_names_1:
-                    d['hap1'][pread.alignment.qname]=dt    
-            
-            
-            seq_list=d['hap0']
-            flag0,_, data_0,alt_0,ref_seq_0=msa(seq_list,ref,v_pos,2,dct['maxcov'])
+        d={'hap0':{},'hap1':{}}
+        d_tot={}
 
-            seq_list=d['hap1']
-            flag1,_, data_1,alt_1,ref_seq_1=msa(seq_list,ref,v_pos,2,dct['maxcov'])
-            
-            seq_list = d_tot
-            flag_total,indel_flag_total,data_total,alt_total,ref_seq_total=msa(seq_list,ref,v_pos,dct['mincov'],dct['maxcov'])
+        ref=''.join([ref_dict[p] for p in range(v_pos-window_before,min(chrom_length,v_pos+window_after+1))])
 
-            if flag0 and flag1 and flag_total:
-                output_pos.append(v_pos)
-                output_data_0.append(data_0)
-                output_data_1.append(data_1)
-                output_data_total.append(data_total)
-                
-                tp=max_range[variants[v_pos]]
-                
-                alleles.append([allele_prediction(alt_0, ref_seq_0, max_range[variants[v_pos]]),\
-                                allele_prediction(alt_1, ref_seq_1, max_range[variants[v_pos]]), \
-                                allele_prediction(alt_total, ref_seq_total, max_range[variants[v_pos]])])
-                
-                
+
+        for pread in pcol.pileups:
+            dt=pread.alignment.query_sequence[max(0,pread.query_position_or_next-window_before):pread.query_position_or_next+window_after]                    
+            d_tot[pread.alignment.qname]=dt
+
+            if pread.alignment.qname in read_names_0:
+                d['hap0'][pread.alignment.qname]=dt
+
+            elif pread.alignment.qname in read_names_1:
+                d['hap1'][pread.alignment.qname]=dt    
+
+
+        seq_list=d['hap0']
+        flag0,_, data_0,alt_0,ref_seq_0=msa(seq_list,ref,v_pos,2,dct['maxcov'])
+
+        seq_list=d['hap1']
+        flag1,_, data_1,alt_1,ref_seq_1=msa(seq_list,ref,v_pos,2,dct['maxcov'])
+
+        seq_list = d_tot
+        flag_total,indel_flag_total,data_total,alt_total,ref_seq_total=msa(seq_list,ref,v_pos,dct['mincov'],dct['maxcov'])
+
+        if flag0 and flag1 and flag_total:
+            output_pos.append(v_pos)
+            output_data_0.append(data_0)
+            output_data_1.append(data_1)
+            output_data_total.append(data_total)
+
+            tp=max_range[variants[v_pos]]
+
+            alleles.append([allele_prediction(alt_0, ref_seq_0, max_range[variants[v_pos]]),\
+                            allele_prediction(alt_1, ref_seq_1, max_range[variants[v_pos]]), \
+                            allele_prediction(alt_total, ref_seq_total, max_range[variants[v_pos]])])
+
 
     if len(output_pos)==0:
         return (output_pos,output_data_0,output_data_1,output_data_total,alleles)

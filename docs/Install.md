@@ -11,8 +11,8 @@ For instructions regarding Docker installation, please visit [Docker website](ht
 ### 1) via Docker Hub (preferred)
 You can pull NanoCaller docker images from Docker Hub by specifiying a version number.  
 ```
-VERSION="1.0.1"
-docker run genomicslab/nanocaller:${VERSION} python NanoCaller.py --help
+VERSION="2.0.0"
+docker run genomicslab/nanocaller:${VERSION} NanoCaller --help
 ```
 
 ### 2) Locally build docker image
@@ -21,7 +21,7 @@ If you want to build an image for the latest commit of NanoCaller Github reposit
 ```
 git clone https://github.com/WGLab/NanoCaller.git
 docker build -t nanocaller NanoCaller
-docker run  nanocaller python NanoCaller.py --help
+docker run  nanocaller NanoCaller --help
 ```
 
 ## Singularity
@@ -40,12 +40,18 @@ curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash Miniconda3-latest-Linux-x86_64.sh
 ```
 
-Go through all the prompts (installation in `$HOME` is recommended). After Anaconda is installed successfully, simply run:
+Go through all the prompts (installation in `$HOME` is recommended). Make sure you are using conda version >=4.9. After Anaconda is installed successfully, simply run:
 
 ```
 git clone https://github.com/WGLab/NanoCaller.git
 cd NanoCaller
 conda env create -f environment.yml
-conda activate NanoCaller
+chmod +x NanoCaller NanoCaller_WGS
+
+conda env config vars set -n nanocaller_env PATH=$PWD:$PATH # this will add NanoCaller repository to PATH everytime you activate nanocaller_env environment. If you dont want to do this, then you would need to run NanoCaller by giving full path to repository
+
+conda activate nanocaller_env
 ```
 The installation should take about 10 minutes, including the installation of Miniconda.
+
+

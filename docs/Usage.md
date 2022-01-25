@@ -13,7 +13,7 @@ docker run -itd \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \
 genomicslab/nanocaller:${VERSION} \
-python NanoCaller_WGS.py \
+NanoCaller_WGS \
 -bam /input/YOUR_BAM \
 -ref /input/YOUR_REF \
 -o /output \
@@ -30,7 +30,7 @@ docker run -itd \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \
 genomicslab/nanocaller:${VERSION} \
-python NanoCaller.py \
+NanoCaller \
 -chrom CHROMOSOME \
 -bam /input/YOUR_BAM \
 -ref /input/YOUR_REF \
@@ -46,7 +46,7 @@ python NanoCaller.py \
 
 For whole genome variant calling, or calling variants on several chromosomes, use `NanoCaller_WGS.py` to call variants. Assuming NanoCaller respository is cloned and located at `PATH_TO_NANOCALLER_REPOSITORY` directory, run the following command.
 ```
-python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller_WGS.py 
+NanoCaller_WGS
 -bam YOUR_BAM \
 -ref YOUR_REF \
 -o OUTPUT_DIRECTORY \
@@ -54,10 +54,10 @@ python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller_WGS.py
 -p PRESET
 ```
 
-Another way to run NanoCaller for whole genome variant calling is to use `NanoCaller.py` or `NanoCaller_WGS.py` on each chromosome separately by setting `chrom` argument. This option is suitable if you have a large computing cluster with a lot of computing resources. For instance, on a Sun Grid Engine, you can submit a separate job for each chromosome like this, using 16 CPUs per job:
+Another way to run NanoCaller for whole genome variant calling is to use `NanoCaller` or `NanoCaller_WGS` on each chromosome separately by setting `chrom` argument. This option is suitable if you have a large computing cluster with a lot of computing resources. For instance, on a Sun Grid Engine, you can submit a separate job for each chromosome like this, using 16 CPUs per job:
 
 ```
-for i in {1..22};do echo "python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller.py
+for i in {1..22};do echo "NanoCaller
 -chrom chr$i
 -bam YOUR_BAM \
 -ref YOUR_REF \
@@ -70,11 +70,11 @@ for i in {1..22};do echo "python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCalle
 
 #### Single Chromosome Variant Calling
 
-For calling variants on single chromosomes, use `NanoCaller.py` to call variants.
+For calling variants on single chromosomes, use `NanoCaller` to call variants.
 
  Assuming NanoCaller respository is cloned and located at `PATH_TO_NANOCALLER_REPOSITORY` directory, run the following command.
 ```
-python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller_WGS.py 
+NanoCaller_WGS 
 -chrom CHROMOSOME \
 -bam YOUR_BAM \
 -ref YOUR_REF \
@@ -87,19 +87,17 @@ python PATH_TO_NANOCALLER_REPOSITORY/scripts/NanoCaller_WGS.py
 
 ### Single Chromosome Variant Calling
 ```
-usage: NanoCaller.py [-h] [-mode MODE] [-seq SEQUENCING] [-cpu CPU]
-                     [-mincov MINCOV] [-maxcov MAXCOV] [-keep_bam] [-o OUTPUT]
-                     [-prefix PREFIX] [-sample SAMPLE]
-                     [-include_bed INCLUDE_BED] [-exclude_bed EXCLUDE_BED]
-                     [-start START] [-end END] [-p PRESET] -bam BAM -ref REF
-                     -chrom CHROM [-snp_model SNP_MODEL]
-                     [-min_allele_freq MIN_ALLELE_FREQ]
-                     [-min_nbr_sites MIN_NBR_SITES]
-                     [-nbr_t NEIGHBOR_THRESHOLD] [-sup]
-                     [-indel_model INDEL_MODEL] [-ins_t INS_THRESHOLD]
-                     [-del_t DEL_THRESHOLD] [-win_size WIN_SIZE]
-                     [-small_win_size SMALL_WIN_SIZE] [-phase_bam]
-                     [-enable_whatshap]
+usage: NanoCaller [-h] [-mode MODE] [-seq SEQUENCING] [-cpu CPU]
+                  [-mincov MINCOV] [-maxcov MAXCOV] [-keep_bam] [-o OUTPUT]
+                  [-prefix PREFIX] [-sample SAMPLE] [-include_bed INCLUDE_BED]
+                  [-exclude_bed EXCLUDE_BED] [-start START] [-end END]
+                  [-p PRESET] -bam BAM -ref REF -chrom CHROM
+                  [-snp_model SNP_MODEL] [-min_allele_freq MIN_ALLELE_FREQ]
+                  [-min_nbr_sites MIN_NBR_SITES] [-nbr_t NEIGHBOR_THRESHOLD]
+                  [-sup] [-indel_model INDEL_MODEL] [-ins_t INS_THRESHOLD]
+                  [-del_t DEL_THRESHOLD] [-win_size WIN_SIZE]
+                  [-small_win_size SMALL_WIN_SIZE] [-impute_indel_phase]
+                  [-phase_bam] [-enable_whatshap]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -203,6 +201,11 @@ Indel Calling:
   -small_win_size SMALL_WIN_SIZE, --small_win_size SMALL_WIN_SIZE
                         Size of the sliding window in which indel frequency is
                         determined for small indels (default: 4)
+  -impute_indel_phase, --impute_indel_phase
+                        Infer read phase by rudimentary allele clustering if
+                        the no or insufficient phasing information is
+                        available, can be useful for datasets without SNPs or
+                        regions with poor phasing quality (default: False)
 
 Output Options:
   -keep_bam, --keep_bam
@@ -233,20 +236,20 @@ Phasing:
 
 ### Whole Genome Variant Calling
 ```
-usage: NanoCaller_WGS.py [-h] [-mode MODE] [-seq SEQUENCING] [-cpu CPU]
-                         [-mincov MINCOV] [-maxcov MAXCOV] [-keep_bam]
-                         [-o OUTPUT] [-prefix PREFIX] [-sample SAMPLE]
-                         [-chrom [CHROM [CHROM ...]]]
-                         [-include_bed INCLUDE_BED] [-exclude_bed EXCLUDE_BED]
-                         [-wgs_contigs_type WGS_CONTIGS_TYPE] [-p PRESET] -bam
-                         BAM -ref REF [-snp_model SNP_MODEL]
-                         [-min_allele_freq MIN_ALLELE_FREQ]
-                         [-min_nbr_sites MIN_NBR_SITES]
-                         [-nbr_t NEIGHBOR_THRESHOLD] [-sup]
-                         [-indel_model INDEL_MODEL] [-ins_t INS_THRESHOLD]
-                         [-del_t DEL_THRESHOLD] [-win_size WIN_SIZE]
-                         [-small_win_size SMALL_WIN_SIZE] [-phase_bam]
-                         [-enable_whatshap]
+usage: NanoCaller_WGS [-h] [-mode MODE] [-seq SEQUENCING] [-cpu CPU]
+                      [-mincov MINCOV] [-maxcov MAXCOV] [-keep_bam]
+                      [-o OUTPUT] [-prefix PREFIX] [-sample SAMPLE]
+                      [-chrom [CHROM [CHROM ...]]] [-include_bed INCLUDE_BED]
+                      [-exclude_bed EXCLUDE_BED]
+                      [-wgs_contigs_type WGS_CONTIGS_TYPE] [-p PRESET] -bam
+                      BAM -ref REF [-snp_model SNP_MODEL]
+                      [-min_allele_freq MIN_ALLELE_FREQ]
+                      [-min_nbr_sites MIN_NBR_SITES]
+                      [-nbr_t NEIGHBOR_THRESHOLD] [-sup]
+                      [-indel_model INDEL_MODEL] [-ins_t INS_THRESHOLD]
+                      [-del_t DEL_THRESHOLD] [-win_size WIN_SIZE]
+                      [-small_win_size SMALL_WIN_SIZE] [-impute_indel_phase]
+                      [-phase_bam] [-enable_whatshap]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -356,6 +359,11 @@ Indel Calling:
   -small_win_size SMALL_WIN_SIZE, --small_win_size SMALL_WIN_SIZE
                         Size of the sliding window in which indel frequency is
                         determined for small indels (default: 4)
+  -impute_indel_phase, --impute_indel_phase
+                        Infer read phase by rudimentary allele clustering if
+                        the no or insufficient phasing information is
+                        available, can be useful for datasets without SNPs or
+                        regions with poor phasing quality (default: False)
 
 Output Options:
   -keep_bam, --keep_bam
@@ -440,6 +448,7 @@ Preset `ccs` is equivalent to:
 --ins_threshold 0.4
 --del_threshold 0.4
 --enable_whatshap
+--impute_indel_phase
 ```
 
 Preset `clr` is equivalent to:

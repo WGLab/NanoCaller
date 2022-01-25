@@ -138,7 +138,8 @@ def run(args):
 
     pool.close()
     pool.join()
-    
+
+       
 if __name__ == '__main__':
     
     t=time.time()
@@ -257,5 +258,20 @@ if __name__ == '__main__':
     
     run(args)
     
+    final_file_name={'snps_unphased':'snps','snps':'snps.phased', 'both':'final', 'indels':'indels'}
+
+    final_output=os.path.join(args.output,'%s.%s.vcf.gz' %(args.prefix, final_file_name[args.mode]))
+    
+    print('\n\n-----------------------------------------------------------\n\n',)
+    print ('\n%s: Variant calling output can be found here: %s' %(str(datetime.datetime.now()), final_output))
+
+    print('\n%s: Printing variant calling summary statistics' %str(datetime.datetime.now()))
+    stats=run_cmd('rtg vcfstats %s' %final_output, output=True, verbose=True, error=True)
+    
+    print('\n%s: Saving variant calling summary statistics to: %s' %(str(datetime.datetime.now()), os.path.join(args.output,'%s.summary' %args.prefix)))
+    with open(os.path.join(args.output,'%s.summary' %args.prefix), 'w') as stats_file:
+        stats_file.write(stats)
+    
     elapsed=time.time()-t
+
     print ('\n%s: Total Time Elapsed: %.2f seconds' %(str(datetime.datetime.now()), elapsed))

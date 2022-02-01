@@ -11,7 +11,7 @@ cd NanoCaller_ONT_Case_Study
 
 git clone https://github.com/WGLab/NanoCaller.git
 conda env create -f NanoCaller/environment.yml
-conda activate NanoCaller
+conda activate nanocaller_env
 pip install awscli
 conda install -y -c bioconda minimap2 bedtools 
 

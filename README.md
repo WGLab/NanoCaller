@@ -5,7 +5,7 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 NanoCaller is distributed under the [MIT License by Wang Genomics Lab](https://wglab.mit-license.org/).
 
 ## Latest Updates
-_**v2.0.0** (Feb 2 2022)_ : A major update in API and installation method, with release of bioconda recipe for NanoCaller. Added support for indel calling in case of poor or non-existent phasing.
+_**v2.0.0** (Feb 2 2022)_ : A major update in API and installation instructions, with release of bioconda recipe for NanoCaller. Added support for indel calling in case of poor or non-existent phasing.
 
 _**v1.0.0** (Aug 8 2021)_ : First post-production release with citeable DOI: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5176764.svg)](https://doi.org/10.5281/zenodo.5176764)
 
@@ -23,11 +23,11 @@ NanoCaller can be installed using Docker or Conda. The easiest way to install is
 
 or using Docker:
 
-`
+```
 VERSION="2.0.0"
 docker pull genomicslab/nanocaller:${VERSION}
-`
-Please refer to [Installation](docs/Install.md) for instructions regarding installing NanoCaller through other methods methods.
+```
+Please refer to [Installation](docs/Install.md) for instructions regarding installing NanoCaller through other methods.
 
 ## Usage
 General usage of NanoCaller is described in [Usage](docs/Usage.md). For a comprehensive case study of variant calling on Nanopore reads, see [ONT Case Study](docs/ONT%20Case%20Study.md), where we describe end-to-end variant calling pipeline for using NanoCaller, where we start with aligning FASTQ files of HG002, calls variants using NanoCaller, and evaluate performances on various genomic regions.

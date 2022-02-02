@@ -9,7 +9,7 @@ Please check the [NanoCaller Docker Hub repository](https://hub.docker.com/repos
 For whole genome variant calling, or calling variants on several chromosomes, use `NanoCaller_WGS.py` to call variants. Assuming all your input files are in a folder `YOUR_INPUT_DIR`, and you want to use `YOUR_OUTPUT_DIR` to store the results. 
 ```
 VERSION=0.4.0
-docker run -itd \
+docker run \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \
 genomicslab/nanocaller:${VERSION} \
@@ -26,7 +26,7 @@ NanoCaller_WGS \
 For calling variants on single chromosomes, use `NanoCaller.py` to call variants. Assuming all your input files are in a folder `YOUR_INPUT_DIR`, and you want to use `YOUR_OUTPUT_DIR` to store the results. 
 ```
 VERSION=0.4.0
-docker run -itd \
+docker run \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \
 genomicslab/nanocaller:${VERSION} \

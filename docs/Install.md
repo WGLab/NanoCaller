@@ -5,6 +5,29 @@ NanoCaller has been developed and tested to work with Linux OS; we do not recomm
 
 Please check the [NanoCaller Docker Hub repository](https://hub.docker.com/repository/docker/genomicslab/nanocaller) for the most up to date version of NanoCaller docker image.
 
+
+## Conda Installation
+
+You can install NanoCaller in conda using:
+`conda install -c bioconda nanocaller`
+
+If you do not have Anaconda, you will need to install it first. Here, we show how to install Miniconda, a minimal installation of Anaconda, which is much smaller and has a faster installation:
+
+```
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+```
+Go through all the prompts (installation in `$HOME` is recommended). The installation should take about 10 minutes, including the installation of Miniconda. 
+
+
+It is recommened that you install NanoCaller in a new conda environment to avoid any package conflict, in the following way:
+```
+conda create -n nanocaller_env -c bioconda nanocaller
+conda activate nanocaller_env
+```
+
+
+
 ## Docker Installation
 For instructions regarding Docker installation, please visit [Docker website](https://docs.docker.com/get-docker). There are three ways to obtain a Docker image for NanoCaller.
 
@@ -27,31 +50,7 @@ docker run  nanocaller NanoCaller --help
 ## Singularity
 For instructions regarding Singularity installation, please visit [Singularity website] (https://sylabs.io/guides/3.7/user-guide/quick_start.html).
 ```
-VERSION="1.0.1"
+VERSION="2.0.0"
 singularity pull docker://genomicslab/nanocaller:${VERSION}
-singularity exec -e --pwd /app nanocaller_${VERSION}.sif python NanoCaller.py --help
+singularity exec -e --pwd /app nanocaller_${VERSION}.sif NanoCaller --help
 ```
-
-## Conda Installation
-First, install Miniconda, a minimal installation of Anaconda, which is much smaller and has a faster installation:
-
-```
-curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh
-```
-
-Go through all the prompts (installation in `$HOME` is recommended). Make sure you are using conda version >=4.9. After Anaconda is installed successfully, simply run:
-
-```
-git clone https://github.com/WGLab/NanoCaller.git
-cd NanoCaller
-conda env create -f environment.yml
-chmod +x NanoCaller NanoCaller_WGS
-
-conda env config vars set -n nanocaller_env PATH=$PWD:$PATH # this will add NanoCaller repository to PATH everytime you activate nanocaller_env environment. If you dont want to do this, then you would need to run NanoCaller by giving full path to repository
-
-conda activate nanocaller_env
-```
-The installation should take about 10 minutes, including the installation of Miniconda.
-
-

@@ -5,6 +5,8 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 NanoCaller is distributed under the [MIT License by Wang Genomics Lab](https://wglab.mit-license.org/).
 
 ## Latest Updates
+_**v2.0.0** (Feb 2 2022)_ : A major update in API and installation method, with release of bioconda recipe for NanoCaller. Added support for indel calling in case of poor or non-existent phasing.
+
 _**v1.0.0** (Aug 8 2021)_ : First post-production release with citeable DOI: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5176764.svg)](https://doi.org/10.5281/zenodo.5176764)
 
 _**v0.4.1** (Aug 3 2021)_ : Fixed a bug causing slower runtime in whole genome variant calling mode. 
@@ -15,7 +17,17 @@ _**v0.4.0** (June 2 2021)_ : Added NanoCaller models trained on ONT reads baseca
 Please cite: Ahsan, M.U., Liu, Q., Fang, L. et al. NanoCaller for accurate detection of SNPs and indels in difficult-to-map regions from long-read sequencing by haplotype-aware deep neural networks. Genome Biol 22, 261 (2021). https://doi.org/10.1186/s13059-021-02472-2.
 
 ## Installation
-NanoCaller can be installed using Docker or Conda. Please refer to [Installation](docs/Install.md) for instructions regarding installing NanoCaller.
+NanoCaller can be installed using Docker or Conda. The easiest way to install is from the bioconda channel:
+
+`conda install -c bioconda nanocaller`
+
+or using Docker:
+
+`
+VERSION="2.0.0"
+docker pull genomicslab/nanocaller:${VERSION}
+`
+Please refer to [Installation](docs/Install.md) for instructions regarding installing NanoCaller through other methods methods.
 
 ## Usage
 General usage of NanoCaller is described in [Usage](docs/Usage.md). For a comprehensive case study of variant calling on Nanopore reads, see [ONT Case Study](docs/ONT%20Case%20Study.md), where we describe end-to-end variant calling pipeline for using NanoCaller, where we start with aligning FASTQ files of HG002, calls variants using NanoCaller, and evaluate performances on various genomic regions.
@@ -32,11 +44,8 @@ Trained models for [ONT](https://github.com/WGLab/NanoCaller/tree/master/scripts
 
 You can specify SNP and indel models using `--snp_model` and `--indel_model` parameters with a model name from tables below. For instance, if you want to use 'ONT-HG002\_bonito' SNP model and 'ONT-HG002' indel model, use the following command:
 
-`NanoCaller --snp_model ONT-HG002_bonito--indel_model ONT-HG002`
+`NanoCaller --snp_model ONT-HG002_bonito --indel_model ONT-HG002`
 
-
-
-Feel free to share your models if you use NanoCallers to train other models. 
 
 #### SNP Models
 

@@ -191,7 +191,7 @@ if __name__ == '__main__':
                 if x in ['chrom','wgs_contigs_type','start','end','output','cpu','prefix'] or args_dict[x] is None:
                     pass
 
-                elif x in ['supplementary', 'enable_whatshap','keep_bam','phase_bam']:
+                elif x in ['supplementary', 'enable_whatshap','keep_bam','phase_bam','impute_indel_phase']:
                     if args_dict[x]==True:
                         cmd+=' --%s ' %x
 

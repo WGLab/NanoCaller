@@ -6,14 +6,14 @@ channels:
 dependencies:
   - bcftools
   - biopython
-  - muscle
+  - muscle=3.8
   - numpy
   - parallel
   - pysam
-  - python=3.6
+  - python>=3.8
   - rtg-tools
   - samtools=1.10
-  - tensorflow=1.13.*
+  - tensorflow>=2.2
   - whatshap=1.0
   - vcflib
   - intervaltree=3.*

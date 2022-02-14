@@ -1,7 +1,5 @@
 import time,os,copy,argparse,subprocess, datetime
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-
 import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
@@ -9,11 +7,6 @@ from .model_architect_indel import *
 from Bio import pairwise2
 from .generate_indel_pileups import get_indel_testing_candidates
 from .utils import *
-
-if type(tf.contrib) != type(tf): tf.contrib._warning = None
-config =  tf.compat.v1.ConfigProto()
-config.gpu_options.allow_growth = True
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 rev_gt_map={0:'hom-ref', 1:'hom-alt', 2:'het-ref', 3:'het-alt'}
 rev_base_map={0:'A',1:'G',2:'T',3:'C',4:'-'}
@@ -28,7 +21,7 @@ indel_model_dict={'NanoCaller1':'release_data/ONT_models/indels/NanoCaller1_beta
 def get_indel_model(indel_model):
     if os.path.exists(indel_model):
         if os.path.isdir(indel_model):
-            indel_model_path=glob.glob(os.path.join(indel_model,'*.meta'))[0].rstrip('.meta')
+            indel_model_path=glob.glob(os.path.join(indel_model,'*.index'))[0].rstrip('.index')
     
     elif indel_model in indel_model_dict:
         dirname = os.path.dirname(__file__)
@@ -47,19 +40,6 @@ def test_model(params,pool):
     
     vcf_path,prefix=params['vcf_path'], params['prefix']
     chrom,start,end=params['chrom'], params['start'],params['end']
-
-    tf.reset_default_graph()
-
-    weights,biases,tensors=get_tensors([5,128,2],0.0)
-    (x0, x1,x2,gt, accuracy, cost, optimizer, prob, rate)=tensors
-    
-    init = tf.compat.v1.global_variables_initializer()
-    sess = tf.compat.v1.Session()
-    sess.run(init)
-    sess.run(tf.local_variables_initializer())
-    saver = tf.train.Saver()
-    
-    
     
     model_path=get_indel_model(params['indel_model'])
     
@@ -67,7 +47,9 @@ def test_model(params,pool):
         print('Invalid indel model name or path', flush=True)
         return
     
-    saver.restore(sess, model_path)
+    indel_model=Indel_model()    
+    indel_model.load_weights(model_path)
+    
     batch_size=100
 
     neg_file=open(os.path.join(vcf_path,'%s.indel_stats' %prefix),'w')
@@ -119,7 +101,7 @@ def test_model(params,pool):
 
                 batch_x_all=np.hstack([batch_x0, batch_x1, batch_x2])
                 
-                batch_prob_all= sess.run(prob, feed_dict={x2: batch_x_all, rate:0.0})
+                batch_prob_all= indel_model(batch_x_all)
                 
                 batch_pred_all=np.argmax(batch_prob_all,axis=1)
                 

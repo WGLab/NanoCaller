@@ -1,6 +1,5 @@
 import time,os,copy,argparse,subprocess, sys, pysam, datetime
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
 import numpy as np
 import multiprocessing as mp
@@ -10,12 +9,7 @@ from .generate_SNP_pileups import get_snp_testing_candidates
 from intervaltree import Interval, IntervalTree
 from .utils import *
 
-if type(tf.contrib) != type(tf): tf.contrib._warning = None
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-
 num_to_base_map={0:'A',1:'G',2:'T',3:'C'}
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 snp_model_dict={'NanoCaller1':'release_data/ONT_models/SNPs/NanoCaller1_beta/model-rt-1',
                 'NanoCaller2':'release_data/ONT_models/SNPs/NanoCaller1_beta/model-rt-1',
@@ -39,7 +33,7 @@ snp_model_dict={'NanoCaller1':'release_data/ONT_models/SNPs/NanoCaller1_beta/mod
 def get_SNP_model(snp_model):
     if os.path.exists(snp_model):
         if os.path.isdir(snp_model):
-            snp_model_path=glob.glob(os.path.join(snp_model,'*.meta'))[0].rstrip('.meta')
+            snp_model_path=glob.glob(os.path.join(snp_model,'*.index'))[0].rstrip('.index')
     
     elif snp_model in snp_model_dict:
         dirname = os.path.dirname(__file__)
@@ -78,11 +72,6 @@ def test_model(params,pool):
         print('%s: Coverage exceeds maxcov parameter. Downsampling to --maxcov parameter=%.2fx.' %(str(datetime.datetime.now()), coverage), flush=True)
     
     n_input=[5,41,5]
-
-    tf.reset_default_graph()
-    
-    weights,biases,tensors=get_tensors(n_input,0.0)
-    (x,GT_label,A_label, G_label, T_label, C_label,GT_score, A_score, G_score, T_score, C_score, accuracy_GT, accuracy_A,  accuracy_G,  accuracy_T,  accuracy_C, prediction_accuracy_GT, prediction_accuracy_A,  prediction_accuracy_G,  prediction_accuracy_T,  prediction_accuracy_C, prediction_GT, prediction_A,  prediction_G,  prediction_T,  prediction_C, accuracy, cost, optimizer,  cost_GT, cost_A, cost_G, cost_T, cost_C,A_ref,G_ref,T_ref,C_ref,prob_GT,prob_A,prob_G,prob_T,prob_C,keep)=tensors
     
     model_path, train_coverage=get_SNP_model(params['snp_model'])
     
@@ -92,12 +81,8 @@ def test_model(params,pool):
     
     train_coverage=coverage if train_coverage==0 else train_coverage
         
-    init = tf.global_variables_initializer()
-    sess = tf.Session()
-    sess.run(init)
-    sess.run(tf.local_variables_initializer())
-    saver = tf.train.Saver()
-    saver.restore(sess, model_path)    
+    snp_model=SNP_model()    
+    snp_model.load_weights(model_path)
     
     batch_size=1000
     neg_file=open(os.path.join(vcf_path,'%s.snp_stats' %prefix),'w')
@@ -130,6 +115,7 @@ def test_model(params,pool):
         for res in result:
             
             pos,test_ref,x_test,dp,freq=res
+            test_ref=test_ref.astype(np.float16)
             completed+=1
             
             if len(pos)==0:
@@ -146,9 +132,7 @@ def test_model(params,pool):
                 batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
 
                 batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
-
-                batch_prob_GT,batch_prob_A,batch_prob_G,batch_prob_C,batch_prob_T= sess.run([prob_GT,prob_A,prob_G,prob_C,prob_T],\
-                                       feed_dict={x: batch_x, A_ref:batch_ref[:,0][:,np.newaxis], G_ref:batch_ref[:,1][:,np.newaxis], T_ref:batch_ref[:,2][:,np.newaxis], C_ref:batch_ref[:,3][:,np.newaxis],keep:1.0})
+                batch_prob_A, batch_prob_G, batch_prob_T, batch_prob_C, batch_prob_GT = snp_model([batch_x, batch_ref[:,0][:,np.newaxis], batch_ref[:,1][:,np.newaxis], batch_ref[:,2][:,np.newaxis], batch_ref[:,3][:,np.newaxis]])
 
                 batch_pred_GT=np.argmax(batch_prob_GT,axis=1)
 

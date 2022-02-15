@@ -67,7 +67,7 @@ if __name__ == '__main__':
                         run on chromosomes 1-22 if the BAM and reference genome files \
                         use chromosome names without "chr". "all" option will run \
                         NanoCaller on each contig present in reference genome FASTA file.""", \
-                        type=str, default='with_chr')
+                        type=str, default='all')
     
     
     #preset

@@ -115,11 +115,14 @@ def test_model(params,pool):
         for res in result:
             
             pos,test_ref,x_test,dp,freq=res
-            test_ref=test_ref.astype(np.float16)
-            completed+=1
             
+            completed+=1
             if len(pos)==0:
                 continue
+                
+                
+            test_ref=test_ref.astype(np.float16)         
+            
        
             x_test=x_test.astype(np.float32)
             

@@ -10,11 +10,10 @@ from subprocess import PIPE, Popen
 from nanocaller_src.utils import *
 
 
-def run(args):
+def run(args, pool):
     from nanocaller_src import snpCaller, indelCaller
         
-    pool = mp.Pool(processes=args.cpu)
-
+    
     if not args.output:
         args.output=os.getcwd()
     
@@ -136,10 +135,7 @@ def run(args):
             final_path=os.path.join(args.output,'%s.final.vcf.gz' %args.prefix)
             run_cmd('bcftools concat %s.phased.vcf.gz %s.vcf.gz -a -d all |bgziptabix %s' %(snp_vcf, indel_vcf, final_path))
 
-    pool.close()
-    pool.join()
-
-       
+     
 if __name__ == '__main__':
     
     t=time.time()
@@ -256,8 +252,14 @@ if __name__ == '__main__':
         
     print('\n%s: Starting NanoCaller.\n\nNanoCaller command and arguments are saved in the following file: %s\n' %(str(datetime.datetime.now()), os.path.join(args.output,'args')), flush=True)
     
-    run(args)
+    pool = mp.Pool(processes=args.cpu)
+
+    run(args, pool)
     
+    pool.close()
+    pool.join()
+
+
     final_file_name={'snps_unphased':'snps','snps':'snps.phased', 'both':'final', 'indels':'indels'}
 
     final_output=os.path.join(args.output,'%s.%s.vcf.gz' %(args.prefix, final_file_name[args.mode]))

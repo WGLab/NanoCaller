@@ -39,13 +39,13 @@ GM24385_2_Guppy_4.2.2_prom.fastq.gz  GM24385_3_Guppy_4.2.2_prom.fastq.gz -t $CPU
 samtools index HG002.Guppy_4.2.2_prom.bam -@ $CPU
 
 # run nanocaller
-VERSION=2.0.0
-docker run -it -v ${PWD}:'/mnt/'  genomicslab/nanocaller:${VERSION} NanoCaller_WGS \
--bam /mnt/HG002.Guppy_4.2.2_prom.bam -ref /mnt/GRCh38.fa -prefix HG002 -p ont \
--o /mnt/calls -cpu $CPU --exclude_bed hg38
+VERSION=3.0.0
+docker run -it -v ${PWD}:'/mnt/'  genomicslab/nanocaller:${VERSION} NanoCaller \
+--bam /mnt/HG002.Guppy_4.2.2_prom.bam --ref /mnt/GRCh38.fa --prefix HG002 --preset ont \
+--output /mnt/calls --cpu $CPU --exclude_bed hg38 --wgs_contigs chr1-22XY
 
 
-# If you want to run NanoCaller without docker, run the following command `NanoCaller_WGS -bam HG002.Guppy_4.2.2_prom.bam -ref GRCh38.fa -prefix HG002 -p ont -o calls --exclude_bed hg38 -cpu $CPU`
+# If you want to run NanoCaller without docker, run the following command `NanoCaller --bam HG002.Guppy_4.2.2_prom.bam --ref GRCh38.fa --prefix HG002 --preset ont --output calls --exclude_bed hg38 --cpu $CPU --wgs_contigs chr1-22XY`
 
 
 # run `conda install -c bioconda bedtools` to install bedtools to create BED files for variant calling evaluation in difficult-to-map genomic regions.

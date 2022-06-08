@@ -19,4 +19,3 @@ COPY ./NanoCaller /opt/conda/envs/nanocaller_env/bin
 COPY ./NanoCaller_WGS /opt/conda/envs/nanocaller_env/bin
 
 RUN chmod +x /opt/conda/envs/nanocaller_env/bin/NanoCaller
-RUN chmod +x /opt/conda/envs/nanocaller_env/bin/NanoCaller_WGS

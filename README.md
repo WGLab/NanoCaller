@@ -5,6 +5,8 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 NanoCaller is distributed under the [MIT License by Wang Genomics Lab](https://wglab.mit-license.org/).
 
 ## Latest Updates
+_**v3.0.0** (June 7 2022)_ : A major update in API with single entry point for running NanoCaller. Major changes in parallelization routine with GNU parallel no longer used for whole genome variant calling.
+
 _**v2.0.0** (Feb 2 2022)_ : A major update in API and installation instructions, with release of bioconda recipe for NanoCaller. Added support for indel calling in case of poor or non-existent phasing.
 
 _**v1.0.0** (Aug 8 2021)_ : First post-production release with citeable DOI: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5176764.svg)](https://doi.org/10.5281/zenodo.5176764)
@@ -13,8 +15,6 @@ _**v0.4.1** (Aug 3 2021)_ : Fixed a bug causing slower runtime in whole genome v
 
 _**v0.4.0** (June 2 2021)_ : Added NanoCaller models trained on ONT reads basecalled with Guppy v4.2.2 and Bonito v0.30, as well as R10.3 reads. Added new NanoCaller models trained with long CCS reads (15-20kb library selection). Improved indel calling with rolling window for candidate selection which helps with indels in low complexity regions.
 
-## Citing NanoCaller
-Please cite: Ahsan, M.U., Liu, Q., Fang, L. et al. NanoCaller for accurate detection of SNPs and indels in difficult-to-map regions from long-read sequencing by haplotype-aware deep neural networks. Genome Biol 22, 261 (2021). https://doi.org/10.1186/s13059-021-02472-2.
 
 ## Installation
 NanoCaller can be installed using Docker or Conda. The easiest way to install is from the bioconda channel:
@@ -24,20 +24,20 @@ NanoCaller can be installed using Docker or Conda. The easiest way to install is
 or using Docker:
 
 ```
-VERSION="2.0.0"
+VERSION="3.0.0"
 docker pull genomicslab/nanocaller:${VERSION}
 ```
 Please refer to [Installation](docs/Install.md) for instructions regarding installing NanoCaller through other methods.
 
 ## Usage
-General usage of NanoCaller is described in [Usage](docs/Usage.md). For a comprehensive case study of variant calling on Nanopore reads, see [ONT Case Study](docs/ONT%20Case%20Study.md), where we describe end-to-end variant calling pipeline for using NanoCaller, where we start with aligning FASTQ files of HG002, calls variants using NanoCaller, and evaluate performances on various genomic regions.
+General usage of NanoCaller is described in [Usage](docs/Usage.md). Some quick usage examples:
 
-## Example
-An example of NanoCaller usage is provided in [sample](sample). The results are stored in [test output](sample/test_run) and were created using the following command:
+- `NanoCaller --bam YOU_BAM --ref YOU_REF --cpu 10` will run NanoCaller on whole genome using 10 parallel processes.
+- `NanoCaller --bam YOU_BAM --ref YOU_REF --cpu 10 --regions chr22:20000000-21000000 chr21` will NanoCaller on chr21 and chr22:20000000-21000000 only.
+- `NanoCaller --bam YOU_BAM --ref YOU_REF --cpu 10 --mode snps` will only call SNPs.
 
-`NanoCaller-bam HG002.nanopore.chr22.sample.bam -p ont -o test_run -chrom chr22 -start 20000000 -end 21000000 -ref chr22_ref.fa -cpu 4 > log`
+For a comprehensive case study of variant calling on Nanopore reads, see [ONT Case Study](docs/ONT%20Case%20Study.md), where we describe end-to-end variant calling pipeline for using NanoCaller, where we start with aligning FASTQ files of HG002, calls variants using NanoCaller, and evaluate performances on various genomic regions.
 
-which is also in the file [sample_call](sample/sample_call). This example should take about 10-15 minutes to run.
 
 ## Trained models
 Trained models for [ONT](https://github.com/WGLab/NanoCaller/tree/master/nanocaller_src/release_data/ONT_models) data, [CLR](https://github.com/WGLab/NanoCaller/tree/master/nanocaller_src/release_data/clr_models) data and [HIFI](https://github.com/WGLab/NanoCaller/tree/master/nanocaller_src/release_data/hifi_models) data can be found [here](https://github.com/WGLab/NanoCaller/tree/master/nanocaller_src/release_data). These models are trained on chr1-22 of the genomes stated below, unless mentioned othewise.
@@ -79,3 +79,6 @@ You can specify SNP and indel models using `--snp_model` and `--indel_model` par
 | CCS-HG002    | PacBio CCS            | HG002  | 56       | v4.2.1    | \-         |
 | NanoCaller1  | ONT R9.4.1            | HG001  | 34       | v3.3.2    | Guppy2.3.8 |
 | NanoCaller3  | PacBio CCS            | HG001  | 29       | v3.3.2    | \-         |
+
+## Citing NanoCaller
+Please cite: Ahsan, M.U., Liu, Q., Fang, L. et al. NanoCaller for accurate detection of SNPs and indels in difficult-to-map regions from long-read sequencing by haplotype-aware deep neural networks. Genome Biol 22, 261 (2021). https://doi.org/10.1186/s13059-021-02472-2.

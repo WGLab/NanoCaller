@@ -8,12 +8,12 @@ dependencies:
   - biopython
   - muscle=3.8
   - numpy
-  - parallel
   - pysam
   - python>=3.8
   - rtg-tools
-  - samtools=1.10
+  - samtools>=1.10
   - tensorflow>=2.2
-  - whatshap=1.0
+  - whatshap>=1.0
   - vcflib
   - intervaltree=3.*
+  - tqdm

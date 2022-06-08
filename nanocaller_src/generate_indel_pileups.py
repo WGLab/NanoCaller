@@ -3,16 +3,11 @@ import numpy as np
 import multiprocessing as mp
 from pysam import VariantFile
 from subprocess import Popen, PIPE, STDOUT
-from Bio import pairwise2
 from intervaltree import Interval, IntervalTree
 import collections
+import parasail
 
-
-
-def pairwise(x,y):
-    alignments = pairwise2.align.globalms(x, y, 2, -1.0, -0.9, -0.1)
-
-    return alignments
+sub_mat=parasail.matrix_create('AGTC',20,-10)
 
 def msa(seq_list, ref, v_pos, mincov, maxcov):
     mapping={'A':0,'G':1,'T':2,'C':3,'-':4}
@@ -66,64 +61,72 @@ def msa(seq_list, ref, v_pos, mincov, maxcov):
     tmp_mat=np.copy(alt_mat)
     tmp_mat[:,4]=tmp_mat[:,4]-0.01
     
-    cns=''.join([rev_base_map[x] for x in np.argmax(tmp_mat,axis=1)])
+    cns=''.join([rev_base_map[x] for x in np.argmax(tmp_mat,axis=1)]).replace('-','')
     ref_seq=ref_real_0.replace('-','')
     
     alt_mat-=ref_real_0_mat
-    final_mat=np.dstack([alt_mat, ref_real_0_mat])[:128,:,:]    
-    return (1,1,final_mat.transpose(1,0,2),cns,ref_seq)
-
-
-def allele_prediction(alt,ref_seq,max_range):
-    res=pairwise(alt.replace('-',''),ref_seq.replace('-',''))
-    try:
-        flag=False
-        best=None
-        score=1e6
-        for pair in res:
-            current=sum([m.start() for m in re.finditer('-', pair[0])])+sum([m.start() for m in re.finditer('-', pair[1])])
-            if current <score:
-                best=pair
-                score=current
-
-        if best==None:
-            return (None,None)
+    
+    final_mat=np.dstack([alt_mat, ref_real_0_mat])[:128,:,:].transpose(1,0,2)
+    if final_mat.shape[1]<128:
+        final_mat=np.hstack((final_mat,np.zeros((5, 128-final_mat.shape[1], 2))))
         
-        ref_count=0
-        alt_new=best[0]
-        ref_new=best[1]
-        for i in range(len(ref_new)-2):
-            if ref_new[i]!='-':
-                ref_count+=1
-            if ref_count>=max_range+10 and flag==False:
-                break
-            if ref_new[i]=='-' or alt_new[i]=='-':
-                flag=True
-            if ref_new[i:i+10]==alt_new[i:i+10] and flag and ref_count>=max_range+10:
-                break
+    return (1,1,final_mat,cns,ref_seq)
 
-        i+=1
-        s2=alt_new[:i].replace('-','')
-        s1=ref_new[:i].replace('-','')
+
+
+def allele_prediction(alt, ref_seq, max_range):
+    global sub_mat
+    cigar=parasail.nw_trace(alt, ref_seq, 9, 1, sub_mat).cigar
+    cigar_op=[(x & 0x7, x >> 4) for x in cigar.seq]    
     
+    indel=False
+    ref_cnt=[0]*10
+    alt_cnt=[0]*10
     
-        s1=s1[0]+'.'+s1[1:]+'|'
-        s2=s2[0]+'.'+s2[1:]+'|'
-    except IndexError:
-        return (None,None)
-    if s1==s2:
-        return (None,None)
-    i=-1
+    mis_match_cnt_before_indel=False
+    mis_match_cnt_after_indel=(0, 0)
+    for op, cnt in cigar_op:
+        if op==8 or op==7:
+            ref_cnt[op]+=cnt
+            alt_cnt[op]+=cnt
+            
+            if indel:
+                mis_match_cnt_after_indel[op-7]+=cnt
+            else:
+                mis_match_cnt_before_indel=True
+            
+        if op==1:
+            alt_cnt[op]+=cnt
+            mis_match_cnt_after_indel=[0, 0]
+            indel=True
         
-    while s1[i]==s2[i] and s1[i]!='.' and s2[i]!='.':
-        i-=1
-
-    ref_out=s1[:i+1].replace('.','')
-    allele_out=s2[:i+1].replace('.','')
+        if op==2:
+            ref_cnt[op]+=cnt
+            mis_match_cnt_after_indel=[0, 0]
+            indel=True
+        
+        if indel==False and sum(ref_cnt)>=max_range+10:
+            if ref_cnt[8]:
+                out_len=sum(ref_cnt) if op==8 else sum(ref_cnt)-cnt
+                return ref_seq[:out_len], alt[:out_len]
+            else:
+                return (None, None)
+            
+            
+        if indel==True:
+            if sum(mis_match_cnt_after_indel)>20:
+                break
+                
+    ref_out_len=sum(ref_cnt) if op==8 else sum(ref_cnt)-cnt
+    alt_out_len=sum(alt_cnt) if op==8 else sum(alt_cnt)-cnt
     
-    return (ref_out,allele_out)
+    if not mis_match_cnt_before_indel:
+        ref_out_len+=1
+        alt_out_len+=1
+        
+    return ref_seq[:ref_out_len], alt[:alt_out_len]
 
-def get_indel_testing_candidates(dct):
+def get_indel_testing_candidates(dct, chunk):
     mapping={'A':0,'G':1,'T':2,'C':3,'-':4}
     rev_base_map={0:'A',1:'G',2:'T',3:'C',4:'-'}
 
@@ -135,10 +138,11 @@ def get_indel_testing_candidates(dct):
     if dct['seq']=='pacbio':
         window_after=260
     
-    chrom=dct['chrom']
-    start=dct['start']
-    end=dct['end']
-    sam_path=dct['sam_path']
+    chrom=chunk['chrom']
+    start=chunk['start']
+    end=chunk['end']
+    
+    sam_path=chunk['sam_path']
     fasta_path=dct['fasta_path']
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
@@ -149,27 +153,8 @@ def get_indel_testing_candidates(dct):
     mincov,maxcov=dct['mincov'],dct['maxcov']
     ins_t,del_t=dct['ins_t'],dct['del_t']
     
-    include_intervals, exclude_intervals=None, None
+    exclude_intervals = None
     
-    if dct['include_bed']:
-        tbx = pysam.TabixFile(dct['include_bed'])
-        include_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
-        
-        def in_bed(tree,pos):            
-            return tree.overlaps(pos)
-        
-        include_intervals=IntervalTree(include_intervals.overlap(start,end))
-        
-        if not include_intervals:
-            return [],[],[],[],[]
-    
-        else:
-            start=max(start, min(x[0] for x in include_intervals))
-            end=min(end, max(x[1] for x in include_intervals))
-        
-    else:
-        def in_bed(tree, pos):
-            return True
     
     if dct['exclude_bed']:
         tbx = pysam.TabixFile(dct['exclude_bed'])
@@ -186,15 +171,18 @@ def get_indel_testing_candidates(dct):
         def ex_bed(tree, pos):
             return False 
         
-    ref_dict={j:s.upper() if s in 'AGTC' else '' for j,s in zip(range(max(1,start-200),end+400+1),fastafile.fetch(chrom,max(1,start-200)-1,end+400)) }
+    ref_dict={j:s.upper() if s in 'AGTC' else 'N' for j,s in zip(range(max(1,start-200),end+400+1),fastafile.fetch(chrom,max(1,start-200)-1,end+400)) }
     
     chrom_length=fastafile.get_reference_length(chrom)
     
     hap_dict={1:[],2:[]}
-    
-    for pread in samfile.fetch(chrom, max(0,dct['start']-100000), dct['end']+1000):
+    phase_dict={}
+    for pread in samfile.fetch(chrom, max(0, start-100000), end + 1000):
         if pread.has_tag('HP'):
+            phase_dict[pread.qname]=pread.get_tag('PS')
             hap_dict[pread.get_tag('HP')].append(pread.qname)
+        else:
+            phase_dict[pread.qname]=None
 
     hap_reads_0=set(hap_dict[1])
     hap_reads_1=set(hap_dict[2])
@@ -204,7 +192,7 @@ def get_indel_testing_candidates(dct):
     else:
         flag=0x4|0x100|0x200|0x400|0x800
         
-    output_pos,output_data_0,output_data_1,output_data_total,alleles=[],[],[],[],[]
+    output_pos,output_data_0,output_data_1,output_data_total,alleles, output_phase=[], [], [], [], [], []
     
     del_queue_0,del_queue_1=collections.deque(window_size*[set()], window_size),collections.deque(window_size*[set()], window_size)
     ins_queue_0,ins_queue_1=collections.deque(window_size*[set()], window_size),collections.deque(window_size*[set()], window_size)
@@ -226,7 +214,7 @@ def get_indel_testing_candidates(dct):
                                            flag_filter=flag,truncate=True):
             v_pos=pcol.pos+1
                 
-            if in_bed(include_intervals, v_pos) and not ex_bed(exclude_intervals, v_pos):                
+            if not ex_bed(exclude_intervals, v_pos):                
                 read_names=pcol.get_query_names()
                 read_names_0=set(read_names) & hap_reads_0
                 read_names_1=set(read_names) & hap_reads_1
@@ -336,7 +324,9 @@ def get_indel_testing_candidates(dct):
 
         ref=''.join([ref_dict[p] for p in range(v_pos-window_before,min(chrom_length,v_pos+window_after+1))])
 
-
+        if 'N' in ref:
+            continue
+            
         for pread in pcol.pileups:
             dt=pread.alignment.query_sequence[max(0,pread.query_position_or_next-window_before):pread.query_position_or_next+window_after]                    
             d_tot[pread.alignment.qname]=dt
@@ -362,6 +352,7 @@ def get_indel_testing_candidates(dct):
             output_data_0.append(data_0)
             output_data_1.append(data_1)
             output_data_total.append(data_total)
+            output_phase.append(phase_dict[next(iter(d['hap0'].keys()))])
 
             tp=max_range[variants[v_pos]]
 
@@ -369,13 +360,12 @@ def get_indel_testing_candidates(dct):
                             allele_prediction(alt_1, ref_seq_1, max_range[variants[v_pos]]), \
                             allele_prediction(alt_total, ref_seq_total, max_range[variants[v_pos]])])
 
-
+    
     if len(output_pos)==0:
-        return (output_pos,output_data_0,output_data_1,output_data_total,alleles)
-
-    output_pos=np.array(output_pos)
+        return (output_pos, output_data_0, output_data_1, output_data_total, alleles, output_phase)
+    
     output_data_0=np.array(output_data_0)
     output_data_1=np.array(output_data_1)
     output_data_total=np.array(output_data_total)
-    
-    return (output_pos,output_data_0,output_data_1,output_data_total,alleles)
+        
+    return (output_pos, output_data_0, output_data_1, output_data_total, alleles, output_phase)

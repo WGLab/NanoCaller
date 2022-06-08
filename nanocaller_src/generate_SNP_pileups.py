@@ -1,8 +1,6 @@
-import sys, pysam, time, os, copy, argparse, random
+import pysam, random
 from collections import Counter
 import numpy as np
-import multiprocessing as mp
-from pysam import VariantFile
 from intervaltree import Interval, IntervalTree
 
 def get_cnd_pos(v_pos,cnd_pos, seq='ont'):
@@ -86,68 +84,15 @@ def get_cnd_pos(v_pos,cnd_pos, seq='ont'):
 
     return ls_total_1, ls_total_2
 
-def get_nbr(dct):
-    base_to_num_map={'*':4,'A':0,'G':1,'T':2,'C':3,'N':4}
-
-    chrom=dct['chrom']
-    start=max(dct['start']-50000,1)
-    end=dct['end']+50000
-
-    sam_path=dct['sam_path']
-    fasta_path=dct['fasta_path']
-    samfile = pysam.Samfile(sam_path, "rb")
-    fastafile=pysam.FastaFile(fasta_path)
-
-    rlist=[s for s in fastafile.fetch(chrom,start-1,end-1)]
-    output_seq={}
-    
-    if dct['supplementary']:
-        flag=0x4|0x100|0x200|0x400
-    else:
-        flag=0x4|0x100|0x200|0x400|0x800
-        
-    for pcol in samfile.pileup(chrom,start-1,end-1,min_base_quality=0, flag_filter=flag,truncate=True):
-            n=pcol.get_num_aligned()
-            r=rlist[pcol.pos+1-start]
-
-            if r in 'AGTC' and n>=dct['mincov']:
-                seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
-                alt_freq=max([x[1] for x in Counter(seq).items() if (x[0]!=r and x[0] in 'AGTC')]+[0])/n
-
-                if dct['threshold'][0]<=alt_freq and alt_freq<dct['threshold'][1]:
-                    name=pcol.get_query_names()
-                    output_seq[pcol.pos+1]={n:base_to_num_map[s] for (n,s) in zip(name,seq)}
-                    output_seq[pcol.pos+1]['ref']=base_to_num_map[r]
-    return output_seq
-
-def get_snp_testing_candidates(dct):
+def get_snp_testing_candidates(dct, region):
     base_to_num_map={'*':4,'A':0,'G':1,'T':2,'C':3,'N':4}
     
-    chrom=dct['chrom']
-    start=dct['start']
-    end=dct['end']
-    include_intervals, exclude_intervals=None, None
+    chrom=region['chrom']
+    start=region['start']
+    end=region['end']
     
-    if dct['include_bed']:
-        tbx = pysam.TabixFile(dct['include_bed'])
-        include_intervals=IntervalTree(Interval(int(row[1]), int(row[2]), "%s" % (row[1])) for row in tbx.fetch(chrom, parser=pysam.asBed()))
+    exclude_intervals=None
         
-        def in_bed(tree,pos):            
-            return tree.overlaps(pos)
-        
-        include_intervals=IntervalTree(include_intervals.overlap(start,end))
-        
-        if not include_intervals:
-            return [],[],[],[],[]
-    
-        else:
-            start=max(start, min(x[0] for x in include_intervals))
-            end=min(end, max(x[1] for x in include_intervals))
-        
-    else:
-        def in_bed(tree, pos):
-            return True
-    
     if dct['exclude_bed']:
         tbx = pysam.TabixFile(dct['exclude_bed'])
         try:
@@ -169,16 +114,14 @@ def get_snp_testing_candidates(dct):
     
     nbr_size=20
     
-    cnd_seq=get_nbr(dct)
-    
-    cnd_pos=np.array(list(cnd_seq.keys()))
-    
     samfile = pysam.Samfile(sam_path, "rb")
     fastafile=pysam.FastaFile(fasta_path)
 
-    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-40),end+40+1),fastafile.fetch(chrom,max(1,start-40)-1,end+40)) }
+    ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-50000),end+50000+1),fastafile.fetch(chrom,max(1,start-50000)-1,end+50000)) }
     
     pileup_dict={}
+    
+    nbr_sites=[]
     
     output={}
     
@@ -187,22 +130,34 @@ def get_snp_testing_candidates(dct):
     else:
         flag=0x4|0x100|0x200|0x400|0x800
         
-    for pcol in samfile.pileup(chrom,max(0,start-1),end,min_base_quality=0,\
+    for pcol in samfile.pileup(chrom,max(0,start-1-50000),end+50000,min_base_quality=0,\
                                            flag_filter=flag,truncate=True):
+            v_pos=pcol.pos+1
+            r=ref_dict[v_pos]
             
-            r=ref_dict[pcol.pos+1]
-            if in_bed(include_intervals, pcol.pos+1) and not ex_bed(exclude_intervals, pcol.pos+1) and r in 'AGTC':
+            if not ex_bed(exclude_intervals, v_pos) and r in 'AGTC':
                 seq=''.join([x[0] for x in pcol.get_query_sequences( mark_matches=False, mark_ends=False,add_indels=True)]).upper()
                 name=pcol.get_query_names()
                 n=pcol.get_num_aligned()
-
-                if n>=dct['mincov'] and pcol.pos+1>=start and pcol.pos+1<=end:
-                    alt_freq=max([x[1] for x in Counter(seq).items() if (x[0]!=r and x[0] in 'AGTC')]+[0])/n
-
-                    if dct['min_allele_freq']<=alt_freq:
-                        pileup_dict[pcol.pos+1]={n:base_to_num_map[s] for (n,s) in zip(name,seq)}
-                        output[pcol.pos+1]=(n,alt_freq)
+                
+                alt_freq=max([x[1] for x in Counter(seq).items() if (x[0]!=r and x[0] in 'AGTC')]+[0])/n
+                
+                
+                
+                if n>=dct['mincov']:
+                    # add to neighbor site list
+                    if dct['threshold'][0]<=alt_freq and alt_freq<dct['threshold'][1]:
+                        nbr_sites.append(v_pos)
+                        pileup_dict[v_pos]={n:base_to_num_map[s] for (n,s) in zip(name,seq)}
                     
+                    # add to candidate sites list
+                    if v_pos>=start and v_pos<=end and dct['min_allele_freq']<=alt_freq:
+                        if v_pos not in pileup_dict:
+                            pileup_dict[v_pos]={n:base_to_num_map[s] for (n,s) in zip(name,seq)}
+                        output[v_pos]=(n,alt_freq)
+
+    nbr_sites=np.array(nbr_sites)
+    
     pileup_list=[]
         
     pos_list=output.keys()
@@ -212,7 +167,7 @@ def get_snp_testing_candidates(dct):
 
         for v_pos in pos_list:
             np.random.seed(812)
-            ls_total_1, ls_total_2 = get_cnd_pos(v_pos, cnd_pos, dct['seq'])
+            ls_total_1, ls_total_2 = get_cnd_pos(v_pos, nbr_sites, dct['seq'])
                                 
             nbr_dict={}
 
@@ -231,7 +186,7 @@ def get_snp_testing_candidates(dct):
             for i,name in enumerate(sample):
                 for j,nb_pos in enumerate(ls_total_1):
                     try:    
-                        tmp_mat[i][j]=cnd_seq[nb_pos][name]
+                        tmp_mat[i][j]=pileup_dict[nb_pos][name]
                     except KeyError:
                         pass
                         
@@ -240,11 +195,11 @@ def get_snp_testing_candidates(dct):
                 for j,nb_pos in enumerate(ls_total_2):
                     
                     try:
-                        tmp_mat[i][j +len(ls_total_1)+1]=cnd_seq[nb_pos][name]
+                        tmp_mat[i][j +len(ls_total_1)+1]=pileup_dict[nb_pos][name]
                     except KeyError:
                         pass
             for nb_pos in ls_total_1+ls_total_2:
-                        rlist.append((nb_pos, cnd_seq[nb_pos]['ref']))
+                        rlist.append((nb_pos, base_to_num_map[ref_dict[nb_pos]]))
             
             rlist=sorted(rlist, key=lambda x:x[0])
             total_rlist=np.array([x[1] for x in rlist])

@@ -5,12 +5,11 @@ channels:
   - defaults
 dependencies:
   - bcftools
-  - biopython
+  - parasail-python
   - muscle=3.8
   - numpy
   - pysam
   - python>=3.8
-  - rtg-tools
   - samtools>=1.10
   - tensorflow>=2.2
   - whatshap>=1.0

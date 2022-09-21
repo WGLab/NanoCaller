@@ -16,6 +16,5 @@ ENV PATH=/opt/conda/envs/nanocaller_env/bin:$PATH
 
 COPY ./nanocaller_src /opt/conda/envs/nanocaller_env/bin/nanocaller_src
 COPY ./NanoCaller /opt/conda/envs/nanocaller_env/bin
-COPY ./NanoCaller_WGS /opt/conda/envs/nanocaller_env/bin
 
 RUN chmod +x /opt/conda/envs/nanocaller_env/bin/NanoCaller

@@ -76,13 +76,11 @@ def caller(params, chunks_Q, counter_Q, snp_files):
         while not chunks_Q.empty():
             chunk = chunks_Q.get(block=False)
             chrom=chunk['chrom']
-            pos, test_ref, x_test, dp, freq = get_snp_testing_candidates(params, chunk)
+            pos, test_ref, x_test, dp, freq, coverage = get_snp_testing_candidates(params, chunk)
             
             if len(pos)>0:
                 test_ref=test_ref.astype(np.float16)
                 x_test=x_test.astype(np.float32)
-
-                coverage=np.mean(dp)
 
                 x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(train_coverage/coverage)
 
@@ -95,8 +93,6 @@ def caller(params, chunks_Q, counter_Q, snp_files):
                     batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
 
                     batch_coverage=np.mean(batch_dp)
-
-                    batch_x[:,1:,:,:4]=batch_x[:,1:,:,:4]*(train_coverage/batch_coverage)
 
                     batch_prob_A, batch_prob_G, batch_prob_T, batch_prob_C, batch_prob_GT = snp_model([batch_x, batch_ref[:,0][:,np.newaxis], batch_ref[:,1][:,np.newaxis], batch_ref[:,2][:,np.newaxis], batch_ref[:,3][:,np.newaxis]])
 

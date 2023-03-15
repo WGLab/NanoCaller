@@ -161,7 +161,7 @@ def get_snp_testing_candidates(dct, region):
     pileup_list=[]
         
     pos_list=output.keys()
-
+    current_depth=[]
     output_pos,output_ref,output_mat,output_dp,output_freq=[],[],[],[],[]
     if pos_list:
 
@@ -214,22 +214,23 @@ def get_snp_testing_candidates(dct, region):
             total_ref=total_ref[np.newaxis,:]
             mat=np.dstack([mat,np.zeros([4,mat.shape[1]])+np.eye(4)[base_to_num_map[ref_dict[v_pos]]][:,np.newaxis]])
             data=np.vstack([total_ref,np.multiply(mat,1-2*total_ref)])
-            data=np.hstack([np.zeros([5,nbr_size-len(ls_total_1),5]),data,np.zeros([5, nbr_size-len(ls_total_2), 5])]).astype(np.int8)
+            data=np.hstack([np.zeros([5,nbr_size-len(ls_total_1),5]),data,np.zeros([5, nbr_size-len(ls_total_2), 5])]).astype(np.int32)
             
             output_pos.append(v_pos)
             output_ref.append(base_to_num_map[ref_dict[v_pos]])
             output_mat.append(data)
             output_dp.append(output[v_pos][0])
             output_freq.append(output[v_pos][1])
+            current_depth.append(len(sample))
             
         if len(output_pos)>0:
             output_mat=np.array(output_mat).astype(np.float32)    
             output_pos=np.array(output_pos)
 
-            output_ref=np.eye(max(4,np.max(output_ref)+1))[np.array(output_ref)].astype(np.int8)
+            output_ref=np.eye(max(4,np.max(output_ref)+1))[np.array(output_ref)].astype(np.int32)
             output_ref=output_ref[:,:4]
 
             output_dp=np.array(output_dp)
             output_freq=np.array(output_freq)
     
-    return (output_pos,output_ref,output_mat,output_dp,output_freq)
+    return (output_pos,output_ref,output_mat,output_dp,output_freq,np.mean(current_depth))

@@ -162,6 +162,7 @@ def get_snp_testing_candidates(dct, region):
         
     pos_list=output.keys()
     current_depth=[]
+    depth=0
     output_pos,output_ref,output_mat,output_dp,output_freq=[],[],[],[],[]
     if pos_list:
 
@@ -232,5 +233,6 @@ def get_snp_testing_candidates(dct, region):
 
             output_dp=np.array(output_dp)
             output_freq=np.array(output_freq)
+            depth=np.mean(current_depth)
     
-    return (output_pos,output_ref,output_mat,output_dp,output_freq,np.mean(current_depth))
+    return (output_pos,output_ref,output_mat,output_dp,output_freq,depth)

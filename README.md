@@ -1,11 +1,12 @@
 # NanoCaller
+[![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/nanocaller/README.html)
 
 NanoCaller is a computational method that integrates long reads in deep convolutional neural network for the detection of SNPs/indels from long-read sequencing data. NanoCaller uses long-range haplotype structure to generate predictions for each SNP candidate variant site by considering pileup information of other candidate sites sharing reads. Subsequently, it performs read phasing, and carries out local realignment of each set of phased reads and the set of all reads for each indel candidate variant site to generate indel calling, and then creates consensus sequences for indel sequence prediction.
 
 NanoCaller is distributed under the [MIT License by Wang Genomics Lab](https://wglab.mit-license.org/).
 
 ## Latest Updates
-_**v3.1.0** (March 14 2023)_ : Several critical bugs regarding coverage normalization and integer overflow fixed. These bug affected very low and high coverage sample. The normalization bug was only introduced in v3.0.0 so any samples processed before that should not have been affected. Whereas integer overflow bug was much older and it only was affecting sample with more than 256 coverage.
+_**v3.0.1** (March 14 2023)_ : Several critical bugs regarding coverage normalization and integer overflow fixed. These bug affected very low and high coverage sample. The normalization bug was only introduced in v3.0.0 so any samples processed before that should not have been affected. Whereas integer overflow bug was much older and it only was affecting sample with more than 256 coverage.
 
 _**v3.0.0** (June 7 2022)_ : A major update in API with single entry point for running NanoCaller. Major changes in parallelization routine with GNU parallel no longer used for whole genome variant calling.
 

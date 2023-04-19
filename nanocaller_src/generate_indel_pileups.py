@@ -77,7 +77,7 @@ def msa(seq_list, ref, v_pos, mincov, maxcov):
 def allele_prediction(alt, ref_seq, max_range):
     global sub_mat
     cigar=parasail.nw_trace(alt, ref_seq, 9, 1, sub_mat).cigar
-    cigar_op=[(x & 0x7, x >> 4) for x in cigar.seq]    
+    cigar_op=[(x & 0xf, x >> 4) for x in cigar.seq]    
     
     indel=False
     ref_cnt=[0]*10
@@ -222,16 +222,16 @@ def get_indel_testing_candidates(dct, chunk):
                 len_seq_0=len(read_names_0)
                 len_seq_1=len(read_names_1)
 
-                ins_set_0={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '+' in s and n in read_names_0 and int(''.join(filter(str.isdigit, s)))>2}
+                ins_set_0={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '+' in s and n in read_names_0 and int(''.join(filter(str.isdigit, s)))>2  and int(''.join(filter(str.isdigit, s)))<=50}
                 ins_set_small_0={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '+' in s and n in read_names_0 and int(''.join(filter(str.isdigit, s)))<=10}
 
-                del_set_0={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '-' in s and n in read_names_0 and int(''.join(filter(str.isdigit, s)))>2}
+                del_set_0={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '-' in s and n in read_names_0 and int(''.join(filter(str.isdigit, s)))>2 and int(''.join(filter(str.isdigit, s)))<=50}
                 del_set_small_0={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '-' in s and n in read_names_0 and int(''.join(filter(str.isdigit, s)))<=10}
 
-                ins_set_1={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '+' in s and n in read_names_1 and int(''.join(filter(str.isdigit, s)))>2}
+                ins_set_1={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '+' in s and n in read_names_1 and int(''.join(filter(str.isdigit, s)))>2 and int(''.join(filter(str.isdigit, s)))<=50}
                 ins_set_small_1={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '+' in s and n in read_names_1 and int(''.join(filter(str.isdigit, s)))<=10}
 
-                del_set_1={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '-' in s and n in read_names_1 and int(''.join(filter(str.isdigit, s)))>2}
+                del_set_1={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '-' in s and n in read_names_1 and int(''.join(filter(str.isdigit, s)))>2 and int(''.join(filter(str.isdigit, s)))<=50}
                 del_set_small_1={n for n,s in zip(read_names,pcol.get_query_sequences( mark_matches=False, mark_ends=False, add_indels=True)) if '-' in s and n in read_names_1 and int(''.join(filter(str.isdigit, s)))<=10}
 
                 del_queue_0.append(del_set_0)

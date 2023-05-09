@@ -34,7 +34,6 @@ def get_indel_model(indel_model):
     return indel_model_path
 
 
-
 def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
     cur_p = current_process()
     curr_vcf_path=os.path.join(params['intermediate_indel_files_dir'],'%s.%d.indel.vcf' %(params['prefix'], cur_p._identity[0]))
@@ -151,6 +150,7 @@ def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
             
             except queue.Empty:
                 continue
+    
     
 def phase_run(contig_dict, params, indel_dict, job_Q, counter_Q, phased_snp_files_list):
     contig = contig_dict['name']
@@ -287,12 +287,10 @@ def call_manager(params):
     if params['mode']=='snps' or params['mode']=='all':
         output_files['snps']=os.path.join(params['vcf_path'],'%s.snps.phased.vcf.gz' %params['prefix'])
         
-        # Make a file out of this list
-        with open('tmp_psfl', 'w') as fo:
-            for psfl in phased_snp_files_list:
-                fo.write(psfl + '\n')       
-        # Read from file instead of from shell
-        run_cmd('bcftools concat -f tmp_psfl --threads %d|bgziptabix %s' %(params['cpu'], output_files['snps']))
+        phased_snps_files='\n'.join(phased_snp_files_list)
+        cmd='bcftools concat -f - |bgziptabix %s' %(output_files['snps'])
+        stream=Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        stdout, stderr = stream.communicate(input=phased_snps_files.encode())
         
     if params['mode']=='indels' or params['mode']=='all':
         raw_indel_vcf=os.path.join(params['intermediate_indel_files_dir'],'%s.raw.indel.vcf' %params['prefix'])
@@ -316,7 +314,8 @@ def call_manager(params):
                     shutil.copyfileobj(fd, outfile)
         
         print('\n%s: Compressing and indexing indel calls.' %str(datetime.datetime.now()))
-        run_cmd('bcftools norm -c w --fasta-ref %s --threads %d %s|bcftools sort|bgziptabix %s' %(params['fasta_path'], params['cpu'], raw_indel_vcf, output_files['indels']), error=True)
+        
+        run_cmd(' bcftools sort %s|rtg RTG_MEM=2G vcfdecompose -i - -o - |rtg RTG_MEM=2G vcffilter -i - --non-snps-only -o  %s' %(raw_indel_vcf, output_files['indels']))
         
     if params['mode']=='all':
         final_vcf=os.path.join(params['vcf_path'],'%s.vcf.gz' %params['prefix'])

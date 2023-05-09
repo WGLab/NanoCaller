@@ -16,3 +16,4 @@ dependencies:
   - vcflib
   - intervaltree=3.*
   - tqdm
+  - rtg-tools

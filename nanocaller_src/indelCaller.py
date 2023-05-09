@@ -321,7 +321,7 @@ def call_manager(params):
         final_vcf=os.path.join(params['vcf_path'],'%s.vcf.gz' %params['prefix'])
         output_files['final']=final_vcf
         
-        run_cmd('bcftools concat --threads %d %s %s -a | bgziptabix %s' %(params['cpu'], output_files['snps'], output_files['indels'], output_files['final']), error=True)
+        run_cmd('bcftools concat %s %s -a | bgziptabix %s' %(output_files['snps'], output_files['indels'], output_files['final']), error=True)
         
         
     return output_files

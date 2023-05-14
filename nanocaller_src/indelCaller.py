@@ -4,7 +4,9 @@ import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
 from .model_architect_indel import *
+from .model_architect_indels_haploid import *
 from .generate_indel_pileups import get_indel_testing_candidates
+from .generate_indel_pileups_haploid import get_indel_testing_candidates_haploid
 from .utils import *
 from multiprocessing import current_process
 
@@ -17,7 +19,9 @@ indel_model_dict={'NanoCaller1':'release_data/ONT_models/indels/NanoCaller1_beta
                   'ONT-HG001':'release_data/ONT_models/indels/HG001_guppy4.2_giab-3.3.2/model-100',
                   'ONT-HG002':'release_data/ONT_models/indels/HG002_guppy4.2_giab-4.2.1/model-100',
                   'CCS-HG001':'release_data/hifi_models/indels/HG001_giab-3.3.2/model-100',
-                  'CCS-HG002':'release_data/hifi_models/indels/HG002_giab-4.2.1/model-100'}
+                  'CCS-HG002':'release_data/hifi_models/indels/HG002_giab-4.2.1/model-100',
+                  'haploid':'release_data/haploid_models/indels/CHM13/model.19-0.9811.h5'
+                 }
 
 def get_indel_model(indel_model):
     if os.path.exists(indel_model):
@@ -47,6 +51,11 @@ def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
     indel_model=Indel_model()    
     indel_model.load_weights(model_path).expect_partial()
     
+    hap_model_path=get_indel_model('haploid')
+    hap_indel_model=haploid_Indel_model()
+    hap_indel_model.build(input_shape=(1,5, 128, 2))
+    hap_indel_model.load_weights(hap_model_path)
+    
     batch_size=100
 
     with open(curr_vcf_path,'w') as f:
@@ -54,95 +63,123 @@ def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
             try:
                 job=job_Q.get(block=False)
                 chunk=job[1]
-                chrom=chunk['chrom']
-                pos, x0_test, x1_test, x2_test, alleles_seq, phase = get_indel_testing_candidates(params, chunk)
                 
-                prev=0
-                prev_len=0
+                if chunk['ploidy']=='diploid':
+                    chrom=chunk['chrom']
+                    pos, x0_test, x1_test, x2_test, alleles_seq, phase = get_indel_testing_candidates(params, chunk)
+                    prev=0
+                    prev_len=0
 
-                if len(pos)>0:
-                    for batch in range(int(np.ceil(len(x0_test)/batch_size))):
-                        batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
+                    if len(pos)!=0:
+                        for batch in range(int(np.ceil(len(x0_test)/batch_size))):
+                            batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
 
-                        batch_x0 = x0_test[batch*batch_size:min((batch+1)*batch_size,len(x0_test))]
-                        batch_x1 = x1_test[batch*batch_size:min((batch+1)*batch_size,len(x1_test))]
-                        batch_x2 = x2_test[batch*batch_size:min((batch+1)*batch_size,len(x2_test))]
-                        batch_alleles_seq = alleles_seq[batch*batch_size:min((batch+1)*batch_size,len(alleles_seq))]
-                        batch_phase = phase[batch*batch_size:min((batch+1)*batch_size,len(phase))]
+                            batch_x0 = x0_test[batch*batch_size:min((batch+1)*batch_size,len(x0_test))]
+                            batch_x1 = x1_test[batch*batch_size:min((batch+1)*batch_size,len(x1_test))]
+                            batch_x2 = x2_test[batch*batch_size:min((batch+1)*batch_size,len(x2_test))]
+                            batch_alleles_seq = alleles_seq[batch*batch_size:min((batch+1)*batch_size,len(alleles_seq))]
+                            batch_phase = phase[batch*batch_size:min((batch+1)*batch_size,len(phase))]
 
-                        batch_x_all=np.hstack([batch_x0, batch_x1, batch_x2])
+                            batch_x_all=np.hstack([batch_x0, batch_x1, batch_x2])
 
-                        batch_prob_all= indel_model(batch_x_all)
+                            batch_prob_all= indel_model(batch_x_all)
 
-                        batch_pred_all=np.argmax(batch_prob_all,axis=1)
+                            batch_pred_all=np.argmax(batch_prob_all,axis=1)
 
-                        qual_all=-10*np.log10(1e-6+1-batch_prob_all)
+                            qual_all=-10*np.log10(1e-6+1-batch_prob_all)
 
-                        for j in range(len(batch_pred_all)):
-                            q=min(999,qual_all[j,batch_pred_all[j]])
-                            if batch_pos[j]>prev:
+                            for j in range(len(batch_pred_all)):
+                                q=min(999,qual_all[j,batch_pred_all[j]])
+                                if batch_pos[j]>prev:
 
-                                if batch_prob_all[j,0]<=0.95:
+                                    if batch_prob_all[j,0]<=0.95:
 
-                                    q=-100*np.log10(1e-6+batch_prob_all[j,0])
-                                    allele0_data, allele1_data,allele_total_data= batch_alleles_seq[j]
+                                        q=-100*np.log10(1e-6+batch_prob_all[j,0])
+                                        allele0_data, allele1_data,allele_total_data= batch_alleles_seq[j]
 
-                                    if batch_pred_all[j]==1 and allele_total_data[0]:
-                                                gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
-                                                s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele_total_data[0], allele_total_data[1], q, gq)
-                                                f.write(s)
-                                                prev=batch_pos[j]+max(len(allele_total_data[0]), len(allele_total_data[1]))
+                                        if batch_pred_all[j]==1 and allele_total_data[0]:
+                                                    gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
+                                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele_total_data[0], allele_total_data[1], q, gq)
+                                                    f.write(s)
+                                                    prev=batch_pos[j]+max(len(allele_total_data[0]), len(allele_total_data[1]))
 
-                                    else:
-                                        if allele0_data[0] and allele1_data[0]:
+                                        else:
+                                            if allele0_data[0] and allele1_data[0]:
 
-                                            if allele0_data[0]==allele1_data[0] and allele0_data[1]==allele1_data[1]:
-                                                gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
-                                                s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq)
+                                                if allele0_data[0]==allele1_data[0] and allele0_data[1]==allele1_data[1]:
+                                                    gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
+                                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq)
+                                                    f.write(s)
+                                                    prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
+
+                                                else:
+                                                    ref1,alt1=allele0_data
+                                                    ref2,alt2=allele1_data
+
+                                                    l=min(len(ref1),len(ref2))
+
+                                                    if len(ref1)>len(ref2):
+                                                        ref=ref1
+                                                        alt2=alt2+ref1[l:]
+
+                                                    else:
+                                                        ref=ref2
+                                                        alt1=alt1+ref2[l:]
+                                                    gq=-100*np.log10(1+1e-6-batch_prob_all[j,3])
+                                                    if batch_phase[j]:
+                                                        s='%s\t%d\t.\t%s\t%s,%s\t%.2f\tPASS\t.\tGT:GQ:PS\t1|2:%.2f:%d\n' %(chrom, batch_pos[j], ref, alt1, alt2, q, gq, batch_phase[j])
+                                                    else:
+                                                        s='%s\t%d\t.\t%s\t%s,%s\t%.2f\tPASS\t.\tGT:GQ\t1|2:%.2f\n' %(chrom, batch_pos[j], ref, alt1, alt2, q, gq)
+                                                    f.write(s)
+                                                    prev=batch_pos[j]+max(len(ref), len(alt1),len(alt2))
+
+                                            elif allele0_data[0]:
+                                                gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
+                                                if batch_phase[j]:
+                                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ:PS\t0|1:%.2f:%d\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq, batch_phase[j])
+                                                else:
+                                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t0|1:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq)
                                                 f.write(s)
                                                 prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
 
-                                            else:
-                                                ref1,alt1=allele0_data
-                                                ref2,alt2=allele1_data
-
-                                                l=min(len(ref1),len(ref2))
-
-                                                if len(ref1)>len(ref2):
-                                                    ref=ref1
-                                                    alt2=alt2+ref1[l:]
-
-                                                else:
-                                                    ref=ref2
-                                                    alt1=alt1+ref2[l:]
-                                                gq=-100*np.log10(1+1e-6-batch_prob_all[j,3])
+                                            elif allele1_data[0]:
+                                                gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
                                                 if batch_phase[j]:
-                                                    s='%s\t%d\t.\t%s\t%s,%s\t%.2f\tPASS\t.\tGT:GQ:PS\t1|2:%.2f:%d\n' %(chrom, batch_pos[j], ref, alt1, alt2, q, gq, batch_phase[j])
+                                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ:PS\t1|0:%.2f:%d\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, gq, batch_phase[j])
                                                 else:
-                                                    s='%s\t%d\t.\t%s\t%s,%s\t%.2f\tPASS\t.\tGT:GQ\t1|2:%.2f\n' %(chrom, batch_pos[j], ref, alt1, alt2, q, gq)
+                                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1|0:%.2f\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, gq)
                                                 f.write(s)
-                                                prev=batch_pos[j]+max(len(ref), len(alt1),len(alt2))
+                                                prev=batch_pos[j]+max(len(allele1_data[0]), len(allele1_data[1]))
 
-                                        elif allele0_data[0]:
-                                            gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
-                                            if batch_phase[j]:
-                                                s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ:PS\t0|1:%.2f:%d\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq, batch_phase[j])
-                                            else:
-                                                s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t0|1:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq)
-                                            f.write(s)
-                                            prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
+                            batch_x0,batch_x1,batch_x2,batch_x=None,None,None,None
+                        pos, x0_test, x1_test, x2_test=None,None,None,None
 
-                                        elif allele1_data[0]:
-                                            gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
-                                            if batch_phase[j]:
-                                                s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ:PS\t1|0:%.2f:%d\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, gq, batch_phase[j])
-                                            else:
-                                                s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1|0:%.2f\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, gq)
-                                            f.write(s)
-                                            prev=batch_pos[j]+max(len(allele1_data[0]), len(allele1_data[1]))
+                elif chunk['ploidy']=='haploid':
+                    chrom=chunk['chrom']
+                    pos, x_test, alleles_seq = get_indel_testing_candidates_haploid(params, chunk)
+                    prev=0
+                    prev_len=0
 
-                        batch_x0,batch_x1,batch_x2,batch_x=None,None,None,None
-                    pos, x0_test, x1_test, x2_test=None,None,None,None
+                    if len(pos)!=0:
+                        
+                        for batch in range(int(np.ceil(len(x_test)/batch_size))):
+                            batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
+
+                            batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
+                            batch_alleles_seq = alleles_seq[batch*batch_size:min((batch+1)*batch_size,len(alleles_seq))]
+
+                            batch_prob= hap_indel_model(batch_x)
+
+                            for j in range(len(batch_prob)):
+                                allele_total_data= batch_alleles_seq[j]
+                                if batch_pos[j]>prev and batch_prob[j]>=0.5 and allele_total_data[0]:
+                                    q=-100*np.log10(1e-6+1-batch_prob[j])
+                                    s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele_total_data[0], allele_total_data[1], q, q)
+                                    f.write(s)
+                                    prev=batch_pos[j]+max(len(allele_total_data[0]), len(allele_total_data[1]))
+                                                    
+                            batch_x=None
+                        pos, x_test=None,None
 
                 f.flush()
                 os.fsync(f.fileno())
@@ -153,40 +190,61 @@ def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
     
     
 def phase_run(contig_dict, params, indel_dict, job_Q, counter_Q, phased_snp_files_list):
-    contig = contig_dict['name']
-    start, end = contig_dict['start'], contig_dict['end']
-    phase_dir = params['intermediate_phase_files_dir']
-    input_snp_vcf = params['snp_vcf']
-    input_contig_vcf = os.path.join(phase_dir, '%s.snps.unphased.vcf' %contig)
-    raw_output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.raw.vcf' %contig)
-    output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.vcf.gz' %contig)
-    phased_bam = os.path.join(phase_dir, '%s.phased.bam' %contig)
-    
-    phased_snp_files_list.append(output_contig_vcf)
-    
-    enable_whatshap = '--distrust-genotypes --include-homozygous' if params['enable_whatshap'] else ''
-    
-    # extract region from VCF
-    run_cmd('bcftools view %s -r %s -o %s' %(input_snp_vcf, contig, input_contig_vcf))
-    
-    #phase VCF
-    run_cmd("whatshap phase %s %s -o %s -r %s --ignore-read-groups --chromosome %s %s" %(input_contig_vcf, params['sam_path'], raw_output_contig_vcf, params['fasta_path'], contig , enable_whatshap))
+    if contig_dict['ploidy']=='haploid':
+        contig = contig_dict['name']
+        start, end = contig_dict['start'], contig_dict['end']
+        phase_dir = params['intermediate_phase_files_dir']
+        input_snp_vcf = params['snp_vcf']
+        output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.vcf.gz' %contig)
+        phased_snp_files_list.append(output_contig_vcf)
+        run_cmd('bcftools view %s -r %s|bgziptabix %s' %(input_snp_vcf, contig, output_contig_vcf))
+        
+        if params['mode']=='snps':
+            counter_Q.put(1)
+        else:
+            indel_jobs=indel_dict[contig]
+            for chunk in indel_jobs:
+                chunk['sam_path']=params['sam_path']
 
+                job_Q.put(('indel', chunk))
 
-    run_cmd("bcftools view -e  'GT=\"0\\0\"' %s|bgziptabix %s" %(raw_output_contig_vcf, output_contig_vcf))
-
-    run_cmd("whatshap haplotag --ignore-read-groups --ignore-linked-read --reference %s %s %s --regions %s:%d-%d --tag-supplementary -o - | samtools view -b -1 --write-index -o %s" %(params['fasta_path'], output_contig_vcf, params['sam_path'], contig, start, end, phased_bam), verbose=True)
-    run_cmd("touch -c %s.csi" %phased_bam) 
-    if params['mode']=='snps':
-        counter_Q.put(1)
+            indel_dict.pop(contig)
+        
     else:
-        indel_jobs=indel_dict[contig]
-        for chunk in indel_jobs:
-            chunk['sam_path']=phased_bam
+        contig = contig_dict['name']
+        start, end = contig_dict['start'], contig_dict['end']
+        phase_dir = params['intermediate_phase_files_dir']
+        input_snp_vcf = params['snp_vcf']
+        input_contig_vcf = os.path.join(phase_dir, '%s.snps.unphased.vcf' %contig)
+        raw_output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.raw.vcf' %contig)
+        output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.vcf.gz' %contig)
+        phased_bam = os.path.join(phase_dir, '%s.phased.bam' %contig)
 
-            job_Q.put(('indel', chunk))
+        phased_snp_files_list.append(output_contig_vcf)
 
-        indel_dict.pop(contig)
+        enable_whatshap = '--distrust-genotypes --include-homozygous' if params['enable_whatshap'] else ''
+
+        # extract region from VCF
+        run_cmd('bcftools view %s -r %s -o %s' %(input_snp_vcf, contig, input_contig_vcf))
+
+        #phase VCF
+        run_cmd("whatshap phase %s %s -o %s -r %s --ignore-read-groups --chromosome %s %s" %(input_contig_vcf, params['sam_path'], raw_output_contig_vcf, params['fasta_path'], contig , enable_whatshap))
+
+
+        run_cmd("bcftools view -e  'GT=\"0\\0\"' %s|bgziptabix %s" %(raw_output_contig_vcf, output_contig_vcf))
+
+        run_cmd("whatshap haplotag --ignore-read-groups --ignore-linked-read --reference %s %s %s --regions %s:%d-%d --tag-supplementary -o - | samtools view -b -1 --write-index -o %s" %(params['fasta_path'], output_contig_vcf, params['sam_path'], contig, start, end, phased_bam), verbose=True)
+        run_cmd("touch -c %s.csi" %phased_bam) 
+        if params['mode']=='snps':
+            counter_Q.put(1)
+        else:
+            indel_jobs=indel_dict[contig]
+            for chunk in indel_jobs:
+                chunk['sam_path']=phased_bam
+
+                job_Q.put(('indel', chunk))
+
+            indel_dict.pop(contig)
     
 def caller(params, job_Q, counter_Q, indel_dict, phased_snp_files_list, indel_files_list):
     while len(indel_dict)>0 or not job_Q.empty():
@@ -226,7 +284,7 @@ def call_manager(params):
     contigs_list={}
     for x in params['regions_list']:
         if x[0] not in contigs_list:
-            contigs_list[x[0]]={'name':x[0], 'start':x[1], 'end':x[2]}
+            contigs_list[x[0]]={'name':x[0], 'start':x[1], 'end':x[2],'ploidy':x[3]}
         else:
             contigs_list[x[0]]['start']=min(x[1], contigs_list[x[0]]['start'])
             contigs_list[x[0]]['end']=max(x[2], contigs_list[x[0]]['end'])

@@ -9,7 +9,7 @@ def get_regions_list(args):
         for contig in list(range(1,23)) + ['X','Y']:
             contig='chr'+str(contig) if args.wgs_contigs=='chr1-22XY' else str(contig)
             if sam_file.is_valid_reference_name(contig):
-                    regions_list.append((contig, 1, sam_file.get_reference_length(contig)))
+                regions_list.append([contig, 1, sam_file.get_reference_length(contig), 'haploid' if args.haploid_genome else 'diploid'])
             
     elif args.regions:
         sam_file=pysam.Samfile(args.bam)
@@ -18,14 +18,14 @@ def get_regions_list(args):
             if len(r2)==1:
                 r2=r2[0]
                 if sam_file.is_valid_reference_name(r2):
-                    regions_list.append((r2, 1, sam_file.get_reference_length(r2)))
+                    regions_list.append([r2, 1, sam_file.get_reference_length(r2),'haploid' if args.haploid_genome else 'diploid'])
                 else:
                     print('\n%s: Contig %s not present in the BAM file.'  %(str(datetime.datetime.now()), r2), flush=True)
             
             elif len(r2)==2:
                 cord=r2[1].split('-')
                 if len(cord)==2:
-                    regions_list.append((r2[0], int(cord[0]), int(cord[1])))
+                    regions_list.append([r2[0], int(cord[0]), int(cord[1]), 'haploid' if args.haploid_genome else 'diploid'])
                 else:
                     print('\n%s: Invalid region %s.'  %(str(datetime.datetime.now()), r), flush=True)
                     
@@ -38,18 +38,27 @@ def get_regions_list(args):
             for line in bed_file:
                 line=line.rstrip('\n').split()
                 if sam_file.is_valid_reference_name(line[0]):
-                    regions_list.append((line[0], int(line[1]), int(line[2])))
+                    regions_list.append([line[0], int(line[1]), int(line[2]), 'haploid' if args.haploid_genome else 'diploid'])
                 else:
                     print('\n%s: Contig %s not present in the BAM file.'  %(str(datetime.datetime.now()), line[0]), flush=True)
     else:
         sam_file=pysam.Samfile(args.bam)
-        regions_list=[(r, 1, sam_file.get_reference_length(r)) for r in sam_file.references]
+        regions_list=[[r, 1, sam_file.get_reference_length(r), 'haploid' if args.haploid_genome else 'diploid'] for r in sam_file.references]
     
     if len(regions_list)==0:
         print('\n%s: No valid regions found.'  %str(datetime.datetime.now()), flush=True)
         sys.exit(2)
-        
-    return regions_list
+    
+    for contig_data in regions_list:
+        if contig_data[0] in ['chrY','Y']:
+            contig_data[3]='haploid'
+        elif contig_data[0] in ['chrM','M']:
+            contig_data[3]='haploid'
+        elif contig_data[0] in ['chrX','X']:
+            contig_data[3]='haploid' if args.haploid_X else 'diploid'        
+    
+    tuple_regions_list=[tuple(x) for x in regions_list]
+    return tuple_regions_list
 
 
 
@@ -64,8 +73,10 @@ def get_chunks(regions_list, cpu, max_chunk_size=500000, min_chunk_size=10000):
         contig=region[0]
         start=region[1]
         end=region[2]
+        ploidy=region[3]
         for chunk in range(start, end, chunksize):
-            chunks_list.append({'chrom':contig, 'start': chunk, 'end' : min(end, chunk + chunksize)})
+            chunks_list.append({'chrom':contig, 'start': chunk, 'end' : min(end, chunk + chunksize), 'ploidy':ploidy})
+    
     
     return chunks_list
             

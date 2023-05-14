@@ -4,6 +4,7 @@ import numpy as np
 import multiprocessing as mp
 import tensorflow as tf
 from .model_architect import *
+from .model_architect_SNP_haploid import haploid_SNP_model
 from .generate_SNP_pileups import get_snp_testing_candidates
 from intervaltree import Interval, IntervalTree
 from .utils import *
@@ -28,7 +29,8 @@ snp_model_dict={'NanoCaller1':'release_data/ONT_models/SNPs/NanoCaller1_beta/mod
                 'CCS-HG001':'release_data/hifi_models/SNPs/HG001_giab-3.3.2/model-100',
                 'CCS-HG002':'release_data/hifi_models/SNPs/HG002_giab-4.2.1/model-100',
                 'CCS-HG001-4':'release_data/hifi_models/SNPs/HG001_giab-3.3.2_HG002-4_giab-4.2.1/model-100',
-                'CLR-HG002':'release_data/clr_models/SNPs/HG002_giab-4.2.1/model-100'
+                'CLR-HG002':'release_data/clr_models/SNPs/HG002_giab-4.2.1/model-100',
+                'haploid':'release_data/haploid_models/SNPs/CHM13/model.24-0.9985.h5'
                }
 
 def get_SNP_model(snp_model):
@@ -64,11 +66,16 @@ def caller(params, chunks_Q, counter_Q, snp_files):
     if model_path==None:
         print('Invalid SNP model name or path', flush=True)
         sys.exit(1)
-    
-    train_coverage=coverage if train_coverage==0 else train_coverage
-        
+            
     snp_model=SNP_model()    
     snp_model.load_weights(model_path).expect_partial()
+    
+    hap_train_coverage=30
+    hap_model_path,_=get_SNP_model('haploid')
+    hap_snp_model=haploid_SNP_model()    
+    null_x=[np.zeros(5*41*5).reshape(1,5,41,5),np.zeros(4).reshape(1,4)]
+    hap_snp_model(null_x);
+    hap_snp_model.load_weights(hap_model_path)
     
     batch_size=1000
     
@@ -78,63 +85,87 @@ def caller(params, chunks_Q, counter_Q, snp_files):
             chrom=chunk['chrom']
             pos, test_ref, x_test, dp, freq, coverage = get_snp_testing_candidates(params, chunk)
             
-            if len(pos)>0:
-                test_ref=test_ref.astype(np.float16)
-                x_test=x_test.astype(np.float32)
+            if len(pos)!=0:                
+                if chunk['ploidy']=='diploid':
+                    test_ref=test_ref.astype(np.float16)
+                    x_test=x_test.astype(np.float32)
 
-                x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(train_coverage/coverage)
+                    x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(train_coverage/coverage)
 
-                for batch in range(int(np.ceil(len(x_test)/batch_size))):
-                    batch_freq=freq[batch*batch_size:min((batch+1)*batch_size,len(freq))]
-                    batch_dp=dp[batch*batch_size:min((batch+1)*batch_size,len(dp))]
-                    batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
-                    batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
+                    for batch in range(int(np.ceil(len(x_test)/batch_size))):
+                        batch_freq=freq[batch*batch_size:min((batch+1)*batch_size,len(freq))]
+                        batch_dp=dp[batch*batch_size:min((batch+1)*batch_size,len(dp))]
+                        batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
+                        batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
 
-                    batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
+                        batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]
 
-                    batch_coverage=np.mean(batch_dp)
+                        batch_coverage=np.mean(batch_dp)
 
-                    batch_prob_A, batch_prob_G, batch_prob_T, batch_prob_C, batch_prob_GT = snp_model([batch_x, batch_ref[:,0][:,np.newaxis], batch_ref[:,1][:,np.newaxis], batch_ref[:,2][:,np.newaxis], batch_ref[:,3][:,np.newaxis]])
+                        batch_prob_A, batch_prob_G, batch_prob_T, batch_prob_C, batch_prob_GT = snp_model([batch_x, batch_ref[:,0][:,np.newaxis], batch_ref[:,1][:,np.newaxis], batch_ref[:,2][:,np.newaxis], batch_ref[:,3][:,np.newaxis]])
 
-                    batch_pred_GT=np.argmax(batch_prob_GT,axis=1)
+                        batch_pred_GT=np.argmax(batch_prob_GT,axis=1)
 
-                    batch_probs=np.hstack([batch_prob_A[:,1][:,np.newaxis], batch_prob_G[:,1][:,np.newaxis], batch_prob_T[:,1][:,np.newaxis], batch_prob_C[:,1][:,np.newaxis]])
+                        batch_probs=np.hstack([batch_prob_A[:,1][:,np.newaxis], batch_prob_G[:,1][:,np.newaxis], batch_prob_T[:,1][:,np.newaxis], batch_prob_C[:,1][:,np.newaxis]])
 
 
-                    batch_pred=np.argsort(batch_probs,axis=1)
+                        batch_pred=np.argsort(batch_probs,axis=1)
 
-                    batch_ref_vec=batch_ref
+                        batch_ref=np.argmax(batch_ref,1)
 
-                    batch_ref=np.argmax(batch_ref,1)
+                        batch_pred_GT=np.sum(batch_probs>=0.5,axis=1)
 
-                    batch_pred_GT=np.sum(batch_probs>=0.5,axis=1)
+                        sort_probs=np.sort(batch_probs,axis=1)
 
-                    sort_probs=np.sort(batch_probs,axis=1)
+                        for j in range(len(batch_pred_GT)):
 
-                    for j in range(len(batch_pred_GT)):
+                            if batch_pred_GT[j]>=2: # if het
+                                    pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
+                                    if pred1==batch_ref[j]:
+                                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred2], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS','0/1', batch_dp[j], batch_freq[j])
+                                                f.write(s)
 
-                        if batch_pred_GT[j]>=2: # if het
-                                pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
-                                if pred1==batch_ref[j]:
-                                            s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred2], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS','0/1', batch_dp[j], batch_freq[j])
-                                            f.write(s)
+                                    elif pred2==batch_ref[j] and batch_probs[j,pred2]>=0.5:
+                                        s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom,batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS','1/0', batch_dp[j], batch_freq[j])
+                                        f.write(s)
 
-                                elif pred2==batch_ref[j] and batch_probs[j,pred2]>=0.5:
-                                    s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom,batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS','1/0', batch_dp[j], batch_freq[j])
-                                    f.write(s)
+                                    elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=0.5:
+                                        s='%s\t%d\t.\t%s\t%s,%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %\
+                            (chrom,batch_pos[j],num_to_base_map[batch_ref[j]],num_to_base_map[pred1],num_to_base_map[pred2],min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS','1/2', batch_dp[j], batch_freq[j])
+                                        f.write(s)
 
-                                elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=0.5:
-                                    s='%s\t%d\t.\t%s\t%s,%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %\
-                        (chrom,batch_pos[j],num_to_base_map[batch_ref[j]],num_to_base_map[pred1],num_to_base_map[pred2],min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS','1/2', batch_dp[j], batch_freq[j])
-                                    f.write(s)
+                            elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=0.5:
+                                pred1=batch_pred[j,-1]
+                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred1])),'PASS','1/1', batch_dp[j], batch_freq[j])
+                                f.write(s)
 
-                        elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=0.5:
-                            pred1=batch_pred[j,-1]
-                            s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred1])),'PASS','1/1', batch_dp[j], batch_freq[j])
-                            f.write(s)
-            
-            f.flush()
-            os.fsync(f.fileno())
+                elif chunk['ploidy']=='haploid':
+                    test_ref=test_ref.astype(np.float16)
+                    x_test=x_test.astype(np.float32)
+
+                    x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(hap_train_coverage/coverage)
+
+                    for batch in range(int(np.ceil(len(x_test)/batch_size))):
+                        batch_freq=freq[batch*batch_size:min((batch+1)*batch_size,len(freq))]
+                        batch_dp=dp[batch*batch_size:min((batch+1)*batch_size,len(dp))]
+                        batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
+                        batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
+
+                        batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]    
+
+                        batch_probs=hap_snp_model([batch_x,batch_ref])
+                        batch_ref=np.argmax(batch_ref,1)
+                        batch_pred=np.argmax(batch_probs,1)
+
+                        for j in range(len(batch_pred)):
+                            pred=batch_pred[j]
+                            if pred!=batch_ref[j]:
+                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred])),'PASS','1/1', batch_dp[j], batch_freq[j])
+                                f.write(s)
+
+                f.flush()
+
+                os.fsync(f.fileno())
             counter_Q.put(1)
 
 def progress_bar(counter_Q, total_snp_jobs, suppress_progress):

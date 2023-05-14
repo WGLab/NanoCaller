@@ -17,7 +17,7 @@ def run(args):
     dirname = os.path.dirname(__file__)
     
     regions_list=get_regions_list(args)
-    
+
     if args.exclude_bed in ['hg38', 'hg19', 'mm10', 'mm39']:
         args.exclude_bed=os.path.join(dirname, 'nanocaller_src/release_data/bed_files/%s_centro_telo.bed.gz' %args.exclude_bed)    
         
@@ -96,6 +96,9 @@ if __name__ == '__main__':
     config_group.add_argument("--mincov",  help="Minimum coverage to call a variant", type=int, default=4)
     config_group.add_argument("--maxcov",  help="Maximum coverage of reads to use. If sequencing depth at a candidate site exceeds maxcov then reads are downsampled.", type=int, default=160)
     config_group.add_argument("--suppress_progress_bar", help="Do not show progress bar.", default=False, action='store_true')
+    config_group.add_argument("--haploid_genome", help="Assume that all chromosomes in the genome are haploid.", default=False, action='store_true')
+    config_group.add_argument("--haploid_X", help="Assume that chrX is haploid. chrY and chrM are assumed to be haploid by default.", default=False, action='store_true')
+    
     #output options
     out_group.add_argument("--output",  help="VCF output path, default is current working directory", type=str)    
     out_group.add_argument("--prefix",  help="VCF file prefix", type=str, default='variant_calls')

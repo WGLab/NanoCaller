@@ -90,6 +90,7 @@ def get_snp_testing_candidates(dct, region):
     chrom=region['chrom']
     start=region['start']
     end=region['end']
+    ploidy=region['ploidy']
     
     exclude_intervals=None
         
@@ -146,9 +147,15 @@ def get_snp_testing_candidates(dct, region):
                 
                 if n>=dct['mincov']:
                     # add to neighbor site list
-                    if dct['threshold'][0]<=alt_freq and alt_freq<dct['threshold'][1]:
-                        nbr_sites.append(v_pos)
-                        pileup_dict[v_pos]={n:base_to_num_map[s] for (n,s) in zip(name,seq)}
+                    if ploidy=='diploid':
+                        if dct['threshold'][0]<=alt_freq and alt_freq<dct['threshold'][1]:
+                            nbr_sites.append(v_pos)
+                            pileup_dict[v_pos]={n:base_to_num_map[s] for (n,s) in zip(name,seq)}
+                    elif ploidy=='haploid':
+                        if dct['threshold'][0]<=alt_freq:
+                            nbr_sites.append(v_pos)
+                            pileup_dict[v_pos]={n:base_to_num_map[s] for (n,s) in zip(name,seq)}
+                    
                     
                     # add to candidate sites list
                     if v_pos>=start and v_pos<=end and dct['min_allele_freq']<=alt_freq:

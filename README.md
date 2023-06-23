@@ -6,6 +6,8 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 NanoCaller is distributed under the [MIT License by Wang Genomics Lab](https://wglab.mit-license.org/).
 
 ## Latest Updates
+_**v3.2.0** (May 14 2023)_: Support added for haploid variant calling which has significant improvement in recall for indel calling. New feature generation methods and models are are used for haploid SNP and indel calling. Now chrY and chrM are assumed to be haploid, with additional parameter --haploid_X to specify if chrX is haploid. Another parameter --haploid_genome can be used for haploid variant calling on all chromosomes.
+
 _**v3.0.1** (March 14 2023)_ : Several critical bugs regarding coverage normalization and integer overflow fixed. These bug affected very low and high coverage sample. The normalization bug was only introduced in v3.0.0 so any samples processed before that should not have been affected. Whereas integer overflow bug was much older and it only was affecting sample with more than 256 coverage.
 
 _**v3.0.0** (June 7 2022)_ : A major update in API with single entry point for running NanoCaller. Major changes in parallelization routine with GNU parallel no longer used for whole genome variant calling.
@@ -35,9 +37,11 @@ Please refer to [Installation](docs/Install.md) for instructions regarding insta
 ## Usage
 General usage of NanoCaller is described in [Usage](docs/Usage.md). Some quick usage examples:
 
-- `NanoCaller --bam YOU_BAM --ref YOU_REF --cpu 10` will run NanoCaller on whole genome using 10 parallel processes.
-- `NanoCaller --bam YOU_BAM --ref YOU_REF --cpu 10 --regions chr22:20000000-21000000 chr21` will NanoCaller on chr21 and chr22:20000000-21000000 only.
-- `NanoCaller --bam YOU_BAM --ref YOU_REF --cpu 10 --mode snps` will only call SNPs.
+- `NanoCaller --bam YOUR_BAM --ref YOUR_REF --cpu 10` will run NanoCaller on whole genome using 10 parallel processes.
+- `NanoCaller --bam YOUR_BAM --ref YOUR_REF --cpu 10 --mode snps` will only call SNPs.
+- `NanoCaller --bam YOUR_BAM --ref YOUR_REF --cpu 10 --mode snps --phase` will only call SNPs and phase them, and will additionally phase the BAM file (under intermediate_phase_files subfolder split by chromosomes).
+- `NanoCaller --bam YOUR_BAM --ref YOUR_REF --cpu 10 --haploid_genome` will run NanoCaller on whole genome under the assumption that the genome is haploid.
+- `NanoCaller --bam YOUR_BAM --ref YOUR_REF --cpu 10 --regions chr22:20000000-21000000 chr21` will NanoCaller on chr21 and chr22:20000000-21000000 only.
 
 For a comprehensive case study of variant calling on Nanopore reads, see [ONT Case Study](docs/ONT%20Case%20Study.md), where we describe end-to-end variant calling pipeline for using NanoCaller, where we start with aligning FASTQ files of HG002, calls variants using NanoCaller, and evaluate performances on various genomic regions.
 

@@ -29,7 +29,7 @@ NanoCaller can be installed using Docker or Conda. The easiest way to install is
 or using Docker:
 
 ```
-VERSION="3.0.0"
+VERSION="3.2.0"
 docker pull genomicslab/nanocaller:${VERSION}
 ```
 Please refer to [Installation](docs/Install.md) for instructions regarding installing NanoCaller through other methods.

@@ -6,6 +6,7 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 NanoCaller is distributed under the [MIT License by Wang Genomics Lab](https://wglab.mit-license.org/).
 
 ## Latest Updates
+_**v3.3.0** (July 14 2023)_: Detailed description of SNP calls, including unfiltered SNP calls for variants determined to be false by NanoCaller, and inclusion of per-base probability output. Quality score has been adjusted to be on Phred scale.
 _**v3.2.0** (May 14 2023)_: Support added for haploid variant calling which has significant improvement in recall for indel calling. New feature generation methods and models are are used for haploid SNP and indel calling. Now chrY and chrM are assumed to be haploid, with additional parameter --haploid_X to specify if chrX is haploid. Another parameter --haploid_genome can be used for haploid variant calling on all chromosomes.
 
 _**v3.0.1** (March 14 2023)_ : Several critical bugs regarding coverage normalization and integer overflow fixed. These bug affected very low and high coverage sample. The normalization bug was only introduced in v3.0.0 so any samples processed before that should not have been affected. Whereas integer overflow bug was much older and it only was affecting sample with more than 256 coverage.
@@ -29,7 +30,7 @@ NanoCaller can be installed using Docker or Conda. The easiest way to install is
 or using Docker:
 
 ```
-VERSION="3.2.0"
+VERSION="3.3.0"
 docker pull genomicslab/nanocaller:${VERSION}
 ```
 Please refer to [Installation](docs/Install.md) for instructions regarding installing NanoCaller through other methods.

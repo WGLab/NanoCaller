@@ -34,14 +34,14 @@ snp_model_dict={'NanoCaller1':'release_data/ONT_models/SNPs/NanoCaller1_beta/mod
                }
 
 def get_SNP_model(snp_model):
-    if os.path.exists(snp_model):
-        if os.path.isdir(snp_model):
-            snp_model_path=glob.glob(os.path.join(snp_model,'*.index'))[0].rstrip('.index')
-    
-    elif snp_model in snp_model_dict:
+    if snp_model in snp_model_dict:
         dirname = os.path.dirname(__file__)
         snp_model_path=os.path.join(dirname, snp_model_dict[snp_model])
-    
+        
+    elif os.path.exists(snp_model):
+        if os.path.isdir(snp_model):
+            snp_model_path=glob.glob(os.path.join(snp_model,'*.index'))[0].rstrip('.index')
+            
     else:
         return None,None
     
@@ -118,26 +118,36 @@ def caller(params, chunks_Q, counter_Q, snp_files):
                         sort_probs=np.sort(batch_probs,axis=1)
 
                         for j in range(len(batch_pred_GT)):
-
+                            info_field='PR='+','.join("{:.4f}".format(x) for x in batch_probs[j,[0,3,1,2]])
                             if batch_pred_GT[j]>=2: # if het
                                     pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
                                     if pred1==batch_ref[j]:
-                                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred2], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS','0/1', batch_dp[j], batch_freq[j])
+                                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred2], min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS',info_field, '0/1', batch_dp[j], batch_freq[j])
                                                 f.write(s)
 
                                     elif pred2==batch_ref[j] and batch_probs[j,pred2]>=0.5:
-                                        s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom,batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS','1/0', batch_dp[j], batch_freq[j])
+                                        s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom,batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS',info_field, '1/0', batch_dp[j], batch_freq[j])
                                         f.write(s)
 
                                     elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=0.5:
-                                        s='%s\t%d\t.\t%s\t%s,%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %\
-                            (chrom,batch_pos[j],num_to_base_map[batch_ref[j]],num_to_base_map[pred1],num_to_base_map[pred2],min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS','1/2', batch_dp[j], batch_freq[j])
+                                        s='%s\t%d\t.\t%s\t%s,%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %\
+                            (chrom,batch_pos[j],num_to_base_map[batch_ref[j]],num_to_base_map[pred1],num_to_base_map[pred2],min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS',info_field,'1/2', batch_dp[j], batch_freq[j])
                                         f.write(s)
 
                             elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=0.5:
                                 pred1=batch_pred[j,-1]
-                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred1])),'PASS','1/1', batch_dp[j], batch_freq[j])
+                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred1])),'PASS',info_field,'1/1', batch_dp[j], batch_freq[j])
                                 f.write(s)
+                                
+                            else:
+                                if batch_pred_GT[j]==1 and batch_ref[j]==batch_pred[j,-1]:
+                                    pred1=batch_pred[j,-1]
+                                    s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], '.', min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred1])),'REF',info_field,'./.', batch_dp[j], batch_freq[j])
+                                    f.write(s)
+                                else:
+                                    s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], '.', 0,'LOW',info_field,'./.', batch_dp[j], batch_freq[j])
+                                    f.write(s)
+                                    
 
                 elif chunk['ploidy']=='haploid':
                     test_ref=test_ref.astype(np.float16)
@@ -214,7 +224,8 @@ def call_manager(params):
     counter_Q.put(None)
     tqdm_proc.join()
     
-    output_file_path=os.path.join(params['vcf_path'],'%s.snps.vcf.gz' %params['prefix'])
+    all_snps_file_path=os.path.join(params['vcf_path'],'%s.unfiltered.snps.vcf.gz' %params['prefix'])
+    pass_snps_file_path=os.path.join(params['vcf_path'],'%s.snps.vcf.gz' %params['prefix'])
     
     temp_output_file_path=os.path.join(params['intermediate_snp_files_dir'],'combined.snps.vcf')
     
@@ -223,7 +234,8 @@ def call_manager(params):
     with open(temp_output_file_path,'wb') as outfile:
         outfile.write(b'##fileformat=VCFv4.2\n')
         outfile.write(b'##FILTER=<ID=PASS,Description="All filters passed">\n')
-
+        outfile.write(b'##FILTER=<ID=LOW,Description="All alleles have probability less than 50%.">\n')
+        outfile.write(b'##FILTER=<ID=REF,Description="Homozygous Reference. Only reference allele has greater than 50% probability. All alternative alleles having probability less than 50%.">\n')
         #loop through contigs
         for chrom in chrom_list:
             outfile.write(b'##contig=<ID=%s>\n' %bytes(chrom.encode('utf-8')))
@@ -231,6 +243,8 @@ def call_manager(params):
         outfile.write(b'##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         outfile.write(b'##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Depth">\n')
         outfile.write(b'##FORMAT=<ID=FQ,Number=1,Type=Float,Description="Alternative Allele Frequency">\n')
+        outfile.write(b'##INFO=<ID=PR,Number=4,Type=Float,Description="Probability of presence of alleles A, C, G and T, in the given order. Probability of each base is out of 1, independent of each other.">\n')
+        
         outfile.write(b'#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n' %bytes(params['sample'].encode('utf-8')))
 
         for int_file in snp_files:
@@ -239,7 +253,8 @@ def call_manager(params):
     
     print('\n%s: Compressing and indexing SNP calls.' %str(datetime.datetime.now()))
     
-    run_cmd("bcftools sort %s|bgziptabix %a" %(temp_output_file_path, output_file_path), error=True)
+    run_cmd("bcftools sort %s|bgziptabix %a" %(temp_output_file_path, all_snps_file_path), error=True)
+    run_cmd("bcftools view %s -f PASS|bgziptabix %a" %(all_snps_file_path, pass_snps_file_path), error=True)
     
-    return output_file_path
+    return pass_snps_file_path
     

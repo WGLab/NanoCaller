@@ -24,13 +24,13 @@ indel_model_dict={'NanoCaller1':'release_data/ONT_models/indels/NanoCaller1_beta
                  }
 
 def get_indel_model(indel_model):
-    if os.path.exists(indel_model):
-        if os.path.isdir(indel_model):
-            indel_model_path=glob.glob(os.path.join(indel_model,'*.index'))[0].rstrip('.index')
-    
-    elif indel_model in indel_model_dict:
+    if indel_model in indel_model_dict:
         dirname = os.path.dirname(__file__)
         indel_model_path=os.path.join(dirname, indel_model_dict[indel_model])
+        
+    elif os.path.exists(indel_model):
+        if os.path.isdir(indel_model):
+            indel_model_path=glob.glob(os.path.join(indel_model,'*.index'))[0].rstrip('.index')
         
     else:
         return None
@@ -89,16 +89,16 @@ def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
                             qual_all=-10*np.log10(1e-6+1-batch_prob_all)
 
                             for j in range(len(batch_pred_all)):
-                                q=min(999,qual_all[j,batch_pred_all[j]])
+                                q=min(99,qual_all[j,batch_pred_all[j]])
                                 if batch_pos[j]>prev:
 
                                     if batch_prob_all[j,0]<=0.95:
 
-                                        q=-100*np.log10(1e-6+batch_prob_all[j,0])
+                                        q=-10*np.log10(1e-6+batch_prob_all[j,0])
                                         allele0_data, allele1_data,allele_total_data= batch_alleles_seq[j]
 
                                         if batch_pred_all[j]==1 and allele_total_data[0]:
-                                                    gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
+                                                    gq=-10*np.log10(1+1e-6-batch_prob_all[j,1])
                                                     s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele_total_data[0], allele_total_data[1], q, gq)
                                                     f.write(s)
                                                     prev=batch_pos[j]+max(len(allele_total_data[0]), len(allele_total_data[1]))
@@ -107,7 +107,7 @@ def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
                                             if allele0_data[0] and allele1_data[0]:
 
                                                 if allele0_data[0]==allele1_data[0] and allele0_data[1]==allele1_data[1]:
-                                                    gq=-100*np.log10(1+1e-6-batch_prob_all[j,1])
+                                                    gq=-10*np.log10(1+1e-6-batch_prob_all[j,1])
                                                     s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ\t1/1:%.2f\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq)
                                                     f.write(s)
                                                     prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
@@ -125,7 +125,7 @@ def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
                                                     else:
                                                         ref=ref2
                                                         alt1=alt1+ref2[l:]
-                                                    gq=-100*np.log10(1+1e-6-batch_prob_all[j,3])
+                                                    gq=-10*np.log10(1+1e-6-batch_prob_all[j,3])
                                                     if batch_phase[j]:
                                                         s='%s\t%d\t.\t%s\t%s,%s\t%.2f\tPASS\t.\tGT:GQ:PS\t1|2:%.2f:%d\n' %(chrom, batch_pos[j], ref, alt1, alt2, q, gq, batch_phase[j])
                                                     else:
@@ -134,7 +134,7 @@ def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
                                                     prev=batch_pos[j]+max(len(ref), len(alt1),len(alt2))
 
                                             elif allele0_data[0]:
-                                                gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
+                                                gq=-10*np.log10(1+1e-6-batch_prob_all[j,2])
                                                 if batch_phase[j]:
                                                     s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ:PS\t0|1:%.2f:%d\n' %(chrom, batch_pos[j], allele0_data[0], allele0_data[1], q, gq, batch_phase[j])
                                                 else:
@@ -143,7 +143,7 @@ def indel_run(params, indel_dict, job_Q, counter_Q, indel_files_list):
                                                 prev=batch_pos[j]+max(len(allele0_data[0]), len(allele0_data[1]))
 
                                             elif allele1_data[0]:
-                                                gq=-100*np.log10(1+1e-6-batch_prob_all[j,2])
+                                                gq=-10*np.log10(1+1e-6-batch_prob_all[j,2])
                                                 if batch_phase[j]:
                                                     s='%s\t%d\t.\t%s\t%s\t%.2f\tPASS\t.\tGT:GQ:PS\t1|0:%.2f:%d\n' %(chrom, batch_pos[j], allele1_data[0], allele1_data[1], q, gq, batch_phase[j])
                                                 else:

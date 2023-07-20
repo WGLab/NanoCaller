@@ -215,17 +215,21 @@ def phase_run(contig_dict, params, indel_dict, job_Q, counter_Q, phased_snp_file
         start, end = contig_dict['start'], contig_dict['end']
         phase_dir = params['intermediate_phase_files_dir']
         input_snp_vcf = params['snp_vcf']
+        phase_qual_score=params['phase_qual_score']
         input_contig_vcf = os.path.join(phase_dir, '%s.snps.unphased.vcf' %contig)
+        lowq_input_contig_vcf= os.path.join(phase_dir, '%s.snps.lowq.unphased.vcf.gz' %contig)
         raw_output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.raw.vcf' %contig)
         output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.vcf.gz' %contig)
         phased_bam = os.path.join(phase_dir, '%s.phased.bam' %contig)
 
         phased_snp_files_list.append(output_contig_vcf)
+        phased_snp_files_list.append(lowq_input_contig_vcf)
 
         enable_whatshap = '--distrust-genotypes --include-homozygous' if params['enable_whatshap'] else ''
-
+        
         # extract region from VCF
-        run_cmd('bcftools view %s -r %s -o %s' %(input_snp_vcf, contig, input_contig_vcf))
+        run_cmd('bcftools view %s -r %s -i "QUAL>=%.4f"  -o %s' %(input_snp_vcf, contig, phase_qual_score,input_contig_vcf))
+        run_cmd('bcftools view %s -r %s -i "QUAL<%.4f"|bgziptabix  %s' %(input_snp_vcf, contig, phase_qual_score,lowq_input_contig_vcf))
 
         #phase VCF
         run_cmd("whatshap phase %s %s -o %s -r %s --ignore-read-groups --chromosome %s %s" %(input_contig_vcf, params['sam_path'], raw_output_contig_vcf, params['fasta_path'], contig , enable_whatshap))
@@ -346,7 +350,7 @@ def call_manager(params):
         output_files['snps']=os.path.join(params['vcf_path'],'%s.snps.phased.vcf.gz' %params['prefix'])
         
         phased_snps_files='\n'.join(phased_snp_files_list)
-        cmd='bcftools concat -f - |bgziptabix %s' %(output_files['snps'])
+        cmd='bcftools concat -a -f - |bgziptabix %s' %(output_files['snps'])
         stream=Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         stdout, stderr = stream.communicate(input=phased_snps_files.encode())
         

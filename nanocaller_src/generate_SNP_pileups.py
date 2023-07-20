@@ -21,7 +21,23 @@ def get_cnd_pos(v_pos,cnd_pos, seq='ont'):
 
         ls_total_1=sorted(ls1_0+ls1_1+ls1_2+ls1_3+ls1_4)
         ls_total_2=sorted(ls2_0+ls2_1+ls2_2+ls2_3+ls2_4)
+    
+    elif seq=='short_ont':
+        ls=cnd_pos[abs(cnd_pos-v_pos)<50000] 
 
+        ls1_0= [p for p in ls if (p>=v_pos-2000) &  (p<v_pos)][-5:]
+        ls1_1= [p for p in ls if (p>=v_pos-5000) &  (p<v_pos-2000)][-10:]
+        ls1_2= [p for p in ls if                    (p<v_pos-5000)][-5:]
+        
+
+        ls2_0= [p for p in ls if (p>v_pos) & (p<=v_pos+2000)][:5]
+        ls2_1= [p for p in ls if (p>v_pos+2000) & (p<=v_pos+5000)][:10]
+        ls2_2= [p for p in ls if (p>v_pos+5000)][:5]
+        
+
+        ls_total_1=sorted(ls1_0+ls1_1+ls1_2)
+        ls_total_2=sorted(ls2_0+ls2_1+ls2_2)
+        
     elif seq=='ul_ont':
         ls=cnd_pos[abs(cnd_pos-v_pos)<100000] 
 
@@ -120,6 +136,12 @@ def get_snp_testing_candidates(dct, region):
 
     ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-50000),end+50000+1),fastafile.fetch(chrom,max(1,start-50000)-1,end+50000)) }
     
+    strand_dict={}
+    
+    for pread in samfile.fetch(chrom, max(0, start-10), end + 10):
+        if pread.flag & 0x900==0:
+            strand_dict[pread.qname]=(pread.flag & 2320)//16
+            
     pileup_dict={}
     
     nbr_sites=[]
@@ -170,7 +192,9 @@ def get_snp_testing_candidates(dct, region):
     pos_list=output.keys()
     current_depth=[]
     depth=0
-    output_pos,output_ref,output_mat,output_dp,output_freq=[],[],[],[],[]
+    
+    
+    output_pos,output_ref,output_mat,output_dp,output_freq,output_fwd_dp, output_rev_dp=[],[],[],[],[],[],[]
     if pos_list:
 
         for v_pos in pos_list:
@@ -183,6 +207,11 @@ def get_snp_testing_candidates(dct, region):
             
             sample=list(pileup_dict[v_pos].keys())
             
+            bases=np.eye(5)[np.array(list(pileup_dict[v_pos].values()))][:,:4]
+            strand_info=np.array([strand_dict[rname] for rname in pileup_dict[v_pos].keys()]).astype(bool)
+            fwd_bases=np.sum(bases[~strand_info],axis=0)
+            rev_bases=np.sum(bases[strand_info],axis=0)
+
             if len(sample) > dct['maxcov']:
                 sample=random.sample(sample,min(len(sample), dct['maxcov']))
 
@@ -229,6 +258,8 @@ def get_snp_testing_candidates(dct, region):
             output_mat.append(data)
             output_dp.append(output[v_pos][0])
             output_freq.append(output[v_pos][1])
+            output_fwd_dp.append(fwd_bases)
+            output_rev_dp.append(rev_bases)
             current_depth.append(len(sample))
             
         if len(output_pos)>0:
@@ -241,5 +272,8 @@ def get_snp_testing_candidates(dct, region):
             output_dp=np.array(output_dp)
             output_freq=np.array(output_freq)
             depth=np.mean(current_depth)
+            
+            output_fwd_dp=np.array(output_fwd_dp)
+            output_rev_dp=np.array(output_rev_dp)
     
-    return (output_pos,output_ref,output_mat,output_dp,output_freq,depth)
+    return (output_pos,output_ref,output_mat,output_dp,output_freq,depth, output_fwd_dp, output_rev_dp)

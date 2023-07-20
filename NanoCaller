@@ -30,7 +30,8 @@ def run(args):
              'threshold':threshold, 'snp_model':args.snp_model, 'cpu':args.cpu,  \
                  'vcf_path':args.output, 'prefix':args.prefix, 'sample':args.sample, \
                  'seq':args.sequencing, 'supplementary':args.supplementary, \
-                 'exclude_bed':args.exclude_bed, 'suppress_progress':args.suppress_progress_bar}
+                 'exclude_bed':args.exclude_bed, 'suppress_progress':args.suppress_progress_bar, 
+                 'phase_qual_score':args.phase_qual_score}
         
         snp_vcf=snpCaller.call_manager(in_dict)
         print('\n%s: SNP calling completed. Time taken= %.4f\n' %(str(datetime.datetime.now()), time.time()-snp_time),flush=True)
@@ -47,7 +48,8 @@ def run(args):
                  'seq':args.sequencing, 'del_t':args.del_threshold, 'ins_t':args.ins_threshold,\
                  'impute_indel_phase':args.impute_indel_phase, 'supplementary':args.supplementary,\
                  'exclude_bed':args.exclude_bed, 'win_size':args.win_size, 'small_win_size':args.small_win_size,
-                 'enable_whatshap':args.enable_whatshap, 'suppress_progress':args.suppress_progress_bar}
+                 'enable_whatshap':args.enable_whatshap, 'suppress_progress':args.suppress_progress_bar,
+                 'phase_qual_score':args.phase_qual_score}
         
         files=indelCaller.call_manager(in_dict)
         print('\n%s: %s completed. Time taken= %.4f\n' %(str(datetime.datetime.now()), 'Phasing' if args.mode=='snps' else 'Indel calling', time.time()-indel_phase_time),flush=True)
@@ -61,6 +63,8 @@ if __name__ == '__main__':
     
     
     preset_dict={'ont':{'sequencing':'ont', 'snp_model':'ONT-HG002', 'indel_model':'ONT-HG002', 'neighbor_threshold':'0.4,0.6', 'ins_threshold':0.4,'del_threshold':0.6, 'enable_whatshap':False, 'impute_indel_phase':False},
+                 
+                 'short_ont':{'sequencing':'short_ont', 'snp_model':'ONT-HG002', 'indel_model':'ONT-HG002', 'neighbor_threshold':'0.3,0.7', 'ins_threshold':0.4,'del_threshold':0.6, 'enable_whatshap':False, 'impute_indel_phase':False},
                  
                 'ul_ont': {'sequencing':'ul_ont', 'snp_model':'ONT-HG002', 'indel_model':'ONT-HG002', 'neighbor_threshold':'0.4,0.6', 'ins_threshold':0.4,'del_threshold':0.6, 'enable_whatshap':False, 'impute_indel_phase':False},
                  
@@ -89,7 +93,7 @@ if __name__ == '__main__':
     phase_group=parser.add_argument_group("Phasing")
     
     config_group.add_argument("--mode",  help="NanoCaller mode to run. 'snps' mode quits NanoCaller without using WhatsHap for phasing. In this mode, if you want NanoCaller to phase SNPs and BAM files, use --phase argument additionally.", type=str, default='all', choices=['snps', 'indels', 'all'])
-    config_group.add_argument("--sequencing",  help="Sequencing type.  'ont' works well for any type of ONT sequencing datasets. However, use 'ul_ont' if you have several ultra-long ONT reads up to 100kbp long, and 'ul_ont_extreme' if you have several ultra-long ONT reads up to 300kbp long. For PacBio CCS (HiFi) and CLR reads, use 'pacbio'.", type=str, default='ont', choices=['ont', 'ul_ont', 'ul_ont_extreme', 'pacbio'])
+    config_group.add_argument("--sequencing",  help="Sequencing type.  'ont' works well for any type of ONT sequencing datasets. However, use 'ul_ont' if you have several ultra-long ONT reads up to 100kbp long, and 'ul_ont_extreme' if you have several ultra-long ONT reads up to 300kbp long. If you have short ONT reads, typically within 2-10kbp, use 'short_ont'. For PacBio CCS (HiFi) and CLR reads, use 'pacbio'.", type=str, default='ont', choices=['short_ont','ont', 'ul_ont', 'ul_ont_extreme', 'pacbio'])
 
     config_group.add_argument("--cpu",  help="Number of CPUs to use.", type=int, default=1)
     
@@ -141,8 +145,9 @@ if __name__ == '__main__':
     
     #phasing
     phase_group.add_argument('--phase', help='Phase SNPs and BAM files if snps mode is selected.', default=False, action='store_true')
+    phase_group.add_argument('--phase_qual_score', help='SNP QUAL score cutoff for phasing via Whatshap. SNPS with QUAL score lower than this will not be used for infering haplotype and will also not be phased.', type=float, default=10)
     
-    phase_group.add_argument("--enable_whatshap",  help="Allow WhatsHap to change SNP genotypes when phasing using --distrust-genotypes and --include-homozygous flags (this is not the same as regenotyping), increasing the time needed for phasing. It has a negligible effect on SNP calling accuracy for Nanopore reads, but may make a small improvement for PacBio reads. By default WhatsHap will only phase SNP calls produced by NanoCaller, but not change their genotypes.",  default=False, action='store_true')
+    phase_group.add_argument("--enable_whatshap",  help="Allow WhatsHap to change SNP genotypes when phasing using --distrust-genotypes and --include-homozygous flags (this is not the same as regenotyping), increasing the time needed for phasing. It has a negligible effect on SNP calling accuracy for Nanopore reads, but may make a small improvement for PacBio reads or low coverage ONT samples. By default WhatsHap will only phase SNP calls produced by NanoCaller, but not change their genotypes.",  default=False, action='store_true')
     
     args = parser.parse_args()
     

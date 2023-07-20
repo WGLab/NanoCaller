@@ -83,7 +83,7 @@ def caller(params, chunks_Q, counter_Q, snp_files):
         while not chunks_Q.empty():
             chunk = chunks_Q.get(block=False)
             chrom=chunk['chrom']
-            pos, test_ref, x_test, dp, freq, coverage = get_snp_testing_candidates(params, chunk)
+            pos, test_ref, x_test, dp, freq, coverage, fwd_dp, rev_dp = get_snp_testing_candidates(params, chunk)
             
             if len(pos)!=0:                
                 if chunk['ploidy']=='diploid':
@@ -95,6 +95,9 @@ def caller(params, chunks_Q, counter_Q, snp_files):
                     for batch in range(int(np.ceil(len(x_test)/batch_size))):
                         batch_freq=freq[batch*batch_size:min((batch+1)*batch_size,len(freq))]
                         batch_dp=dp[batch*batch_size:min((batch+1)*batch_size,len(dp))]
+                        batch_fwd_dp=fwd_dp[batch*batch_size:min((batch+1)*batch_size,len(fwd_dp))]
+                        batch_rev_dp=rev_dp[batch*batch_size:min((batch+1)*batch_size,len(rev_dp))]
+                        
                         batch_pos = pos[batch*batch_size:min((batch+1)*batch_size,len(pos))]
                         batch_x = x_test[batch*batch_size:min((batch+1)*batch_size,len(x_test))]
 
@@ -118,34 +121,42 @@ def caller(params, chunks_Q, counter_Q, snp_files):
                         sort_probs=np.sort(batch_probs,axis=1)
 
                         for j in range(len(batch_pred_GT)):
-                            info_field='PR='+','.join("{:.4f}".format(x) for x in batch_probs[j,[0,3,1,2]])
+                            info_field='PR='+','.join("{:.4f}".format(x) for x in batch_probs[j,[0,3,1,2]])+ ";FQ={:.4f}".format(batch_freq[j])
+                            ref_dp=(batch_fwd_dp[j][batch_ref[j]], batch_rev_dp[j][batch_ref[j]])
+                            
                             if batch_pred_GT[j]>=2: # if het
                                     pred1,pred2=batch_pred[j,-1],batch_pred[j,-2]
                                     if pred1==batch_ref[j]:
-                                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred2], min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS',info_field, '0/1', batch_dp[j], batch_freq[j])
-                                                f.write(s)
+                                        alt_dp=(batch_fwd_dp[j][pred2], batch_rev_dp[j][pred2])
+                                        
+                                        s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:VF:AD:ADF:ADR\t%s:%d:%.4f:%d,%d:%d,%d:%d,%d\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred2], min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS',info_field, '0/1', batch_dp[j], sum(alt_dp)/batch_dp[j], sum(ref_dp), sum(alt_dp), ref_dp[0], alt_dp[0], ref_dp[1], alt_dp[1])
+                                        f.write(s)
 
                                     elif pred2==batch_ref[j] and batch_probs[j,pred2]>=0.5:
-                                        s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom,batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS',info_field, '1/0', batch_dp[j], batch_freq[j])
+                                        alt_dp=(batch_fwd_dp[j][pred1], batch_rev_dp[j][pred1])
+                                        s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:VF:AD:ADF:ADR\t%s:%d:%.4f:%d,%d:%d,%d:%d,%d\n' %(chrom,batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS',info_field, '0/1', batch_dp[j], sum(alt_dp)/batch_dp[j], sum(ref_dp), sum(alt_dp), ref_dp[0], alt_dp[0], ref_dp[1], alt_dp[1])
                                         f.write(s)
 
                                     elif pred2!=batch_ref[j] and pred1!=batch_ref[j] and batch_probs[j,pred2]>=0.5:
-                                        s='%s\t%d\t.\t%s\t%s,%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %\
-                            (chrom,batch_pos[j],num_to_base_map[batch_ref[j]],num_to_base_map[pred1],num_to_base_map[pred2],min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS',info_field,'1/2', batch_dp[j], batch_freq[j])
+                                        alt1_dp=(batch_fwd_dp[j][pred1], batch_rev_dp[j][pred1])
+                                        alt2_dp=(batch_fwd_dp[j][pred2], batch_rev_dp[j][pred2])
+                                        s='%s\t%d\t.\t%s\t%s,%s\t%.3f\t%s\t%s\tGT:DP:VF:AD:ADF:ADR\t%s:%d:%.4f,%.4f:%d,%d,%d:%d,%d,%d:%d,%d,%d\n' %\
+                            (chrom,batch_pos[j],num_to_base_map[batch_ref[j]],num_to_base_map[pred1],num_to_base_map[pred2],min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred2])),'PASS',info_field,'1/2', batch_dp[j], sum(alt1_dp)/batch_dp[j],sum(alt2_dp)/batch_dp[j], sum(ref_dp), sum(alt1_dp), sum(alt2_dp), ref_dp[0], alt1_dp[0], alt2_dp[0], ref_dp[1], alt1_dp[1], alt2_dp[1])
                                         f.write(s)
 
                             elif batch_pred_GT[j]==1 and batch_ref[j]!=batch_pred[j,-1] and batch_probs[j,batch_pred[j,-1]]>=0.5:
                                 pred1=batch_pred[j,-1]
-                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred1])),'PASS',info_field,'1/1', batch_dp[j], batch_freq[j])
+                                alt_dp=(batch_fwd_dp[j][pred1], batch_rev_dp[j][pred1])
+                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:VF:AD:ADF:ADR\t%s:%d:%.4f:%d,%d:%d,%d:%d,%d\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred1], min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred1])),'PASS',info_field,'1/1', batch_dp[j], sum(alt_dp)/batch_dp[j], sum(ref_dp), sum(alt_dp), ref_dp[0], alt_dp[0], ref_dp[1], alt_dp[1])
                                 f.write(s)
                                 
                             else:
                                 if batch_pred_GT[j]==1 and batch_ref[j]==batch_pred[j,-1]:
                                     pred1=batch_pred[j,-1]
-                                    s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], '.', min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred1])),'REF',info_field,'./.', batch_dp[j], batch_freq[j])
+                                    s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:VF:AD:ADF:ADR\t%s:%d:.:.:.:.\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], '.', min(99,-10*np.log10(1e-10+ 1-batch_probs[j,pred1])),'REF',info_field,'./.', batch_dp[j])
                                     f.write(s)
                                 else:
-                                    s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], '.', 0,'LOW',info_field,'./.', batch_dp[j], batch_freq[j])
+                                    s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:VF:AD:ADF:ADR\t%s:%d:.:.:.:.\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], '.', 0,'LOW',info_field,'./.', batch_dp[j])
                                     f.write(s)
                                     
 
@@ -170,7 +181,8 @@ def caller(params, chunks_Q, counter_Q, snp_files):
                         for j in range(len(batch_pred)):
                             pred=batch_pred[j]
                             if pred!=batch_ref[j]:
-                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t.\tGT:DP:FQ\t%s:%d:%.4f\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred])),'PASS','1/1', batch_dp[j], batch_freq[j])
+                                info_field='PR='+','.join("{:.4f}".format(x) for x in batch_probs[j,[0,3,1,2]])+ ";FQ={:.4f}".format(batch_freq[j])
+                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:VF:AD:ADF:ADR\t%s:%d:%.4f:.:.:.\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred])),'PASS',info_field,'1/1', batch_dp[j], batch_freq[j])
                                 f.write(s)
 
                 f.flush()
@@ -242,8 +254,12 @@ def call_manager(params):
 
         outfile.write(b'##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
         outfile.write(b'##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Depth">\n')
-        outfile.write(b'##FORMAT=<ID=FQ,Number=1,Type=Float,Description="Alternative Allele Frequency">\n')
+        outfile.write(b'##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">\n')
+        outfile.write(b'##FORMAT=<ID=ADF,Number=R,Type=Integer,Description="Allelic depths on forward strand for the ref and alt alleles in the order listed">\n')
+        outfile.write(b'##FORMAT=<ID=ADR,Number=R,Type=Integer,Description="Allelic depths on reverse strand for the ref and alt alleles in the order listed">\n')
+        outfile.write(b'##FORMAT=<ID=VF,Number=A,Type=Float,Description="Alternative allele frequency in the order listed">\n')
         outfile.write(b'##INFO=<ID=PR,Number=4,Type=Float,Description="Probability of presence of alleles A, C, G and T, in the given order. Probability of each base is out of 1, independent of each other.">\n')
+        outfile.write(b'##INFO=<ID=FQ,Number=1,Type=Float,Description="Maximum frequency of non-reference base.">\n')
         
         outfile.write(b'#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n' %bytes(params['sample'].encode('utf-8')))
 

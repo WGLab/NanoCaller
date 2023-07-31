@@ -6,7 +6,10 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 NanoCaller is distributed under the [MIT License by Wang Genomics Lab](https://wglab.mit-license.org/).
 
 ## Latest Updates
+_**v3.4.0** (July 31 2023)_: VCF files contain total and strand-specific allele depths for SNP calls from SNP calling models. A new mode for short ONT reads (5-10kbp) added. `--phase_qual_score` parameter filters out low quality SNP calls from phasing by WhatsHap; these SNP calls are kept in the output, but neither phased nor used for phasing reads.
+
 _**v3.3.0** (July 14 2023)_: Detailed description of SNP calls, including unfiltered SNP calls for variants determined to be false by NanoCaller, and inclusion of per-base probability output. Quality score has been adjusted to be on Phred scale.
+
 _**v3.2.0** (May 14 2023)_: Support added for haploid variant calling which has significant improvement in recall for indel calling. New feature generation methods and models are are used for haploid SNP and indel calling. Now chrY and chrM are assumed to be haploid, with additional parameter --haploid_X to specify if chrX is haploid. Another parameter --haploid_genome can be used for haploid variant calling on all chromosomes.
 
 _**v3.0.1** (March 14 2023)_ : Several critical bugs regarding coverage normalization and integer overflow fixed. These bug affected very low and high coverage sample. The normalization bug was only introduced in v3.0.0 so any samples processed before that should not have been affected. Whereas integer overflow bug was much older and it only was affecting sample with more than 256 coverage.
@@ -16,11 +19,6 @@ _**v3.0.0** (June 7 2022)_ : A major update in API with single entry point for r
 _**v2.0.0** (Feb 2 2022)_ : A major update in API and installation instructions, with release of bioconda recipe for NanoCaller. Added support for indel calling in case of poor or non-existent phasing.
 
 _**v1.0.0** (Aug 8 2021)_ : First post-production release with citeable DOI: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5176764.svg)](https://doi.org/10.5281/zenodo.5176764)
-
-_**v0.4.1** (Aug 3 2021)_ : Fixed a bug causing slower runtime in whole genome variant calling mode. 
-
-_**v0.4.0** (June 2 2021)_ : Added NanoCaller models trained on ONT reads basecalled with Guppy v4.2.2 and Bonito v0.30, as well as R10.3 reads. Added new NanoCaller models trained with long CCS reads (15-20kb library selection). Improved indel calling with rolling window for candidate selection which helps with indels in low complexity regions.
-
 
 ## Installation
 NanoCaller can be installed using Docker or Conda. The easiest way to install is from the bioconda channel:

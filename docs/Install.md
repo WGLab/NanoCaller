@@ -46,7 +46,7 @@ For instructions regarding Docker installation, please visit [Docker website](ht
 ### 1) via Docker Hub (preferred)
 You can pull NanoCaller docker images from Docker Hub by specifiying a version number.  
 ```
-VERSION="3.0.0"
+VERSION="3.4.1"
 docker run genomicslab/nanocaller:${VERSION} NanoCaller --help
 ```
 
@@ -62,7 +62,7 @@ docker run nanocaller NanoCaller --help
 ## Singularity
 For instructions regarding Singularity installation, please visit [Singularity website] (https://sylabs.io/guides/3.7/user-guide/quick_start.html).
 ```
-VERSION="3.0.0"
+VERSION="3.4.1"
 singularity pull docker://genomicslab/nanocaller:${VERSION}
 singularity exec -e --pwd /app nanocaller_${VERSION}.sif NanoCaller --help
 ```

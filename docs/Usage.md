@@ -13,7 +13,7 @@ Please check the [NanoCaller Docker Hub repository](https://hub.docker.com/repos
 
 NanoCaller can call variants from whole genome or several chromosomes using a single command `NanoCaller`. Assuming all your input files are in a folder `YOUR_INPUT_DIR`, and you want to use `YOUR_OUTPUT_DIR` to store the results. You can use `--regions` or `--bed` to specify regions for variant calling, otherwise all contigs in the input BAM file will be used. 
 ```
-VERSION=3.0.0
+VERSION=3.4.1
 docker run \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \

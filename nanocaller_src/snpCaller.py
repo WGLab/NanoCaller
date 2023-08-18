@@ -174,7 +174,7 @@ def caller(params, chunks_Q, counter_Q, snp_files):
 
                         batch_ref = test_ref[batch*batch_size:min((batch+1)*batch_size, len(test_ref))]    
 
-                        batch_probs=hap_snp_model([batch_x,batch_ref])
+                        batch_probs=hap_snp_model([batch_x,batch_ref]).numpy()
                         batch_ref=np.argmax(batch_ref,1)
                         batch_pred=np.argmax(batch_probs,1)
 

@@ -12,13 +12,46 @@ NanoCaller can be run in three modes (`snps indels all`) that are specified usin
 Please check the [NanoCaller Docker Hub repository](https://hub.docker.com/repository/docker/genomicslab/nanocaller) for the most up to date version of NanoCaller docker image.
 
 NanoCaller can call variants from whole genome or several chromosomes using a single command `NanoCaller`. Assuming all your input files are in a folder `YOUR_INPUT_DIR`, and you want to use `YOUR_OUTPUT_DIR` to store the results. You can use `--regions` or `--bed` to specify regions for variant calling, otherwise all contigs in the input BAM file will be used. 
+
+You can pull the image as follows:
+
 ```
-VERSION=3.4.1
+VERSION="3.4.1"
+docker pull genomicslab/nanocaller:${VERSION}
+```
+
+And then run it as follows:
+
+```
+VERSION="3.4.1"
 docker run \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \
 genomicslab/nanocaller:${VERSION} \
 NanoCaller \
+--bam /input/YOUR_BAM \
+--ref /input/YOUR_REF \
+--output /output \
+--cpu NUMBER_OF_CPUS_TO_USE
+--preset PRESET
+```
+
+## Running NanoCaller with Singularity
+
+You can use docker image for NanoCaller with Singularity with a similar syntax as described for docker above. Please check the [NanoCaller Docker Hub repository](https://hub.docker.com/repository/docker/genomicslab/nanocaller) for the most up to date version of NanoCaller docker image. You can pull the image as follows:
+
+```
+VERSION="3.4.1"
+singularity pull docker://genomicslab/nanocaller:${VERSION}
+```
+
+And then run the image as follows:
+```
+VERSION="3.4.1"
+singularity run \
+--bind 'YOUR_INPUT_DIR':'/input/' \
+--bind 'YOUR_WORKING_DIR':'/output/' \
+--pwd /app nanocaller_${VERSION}.sif \
 --bam /input/YOUR_BAM \
 --ref /input/YOUR_REF \
 --output /output \

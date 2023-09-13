@@ -31,6 +31,14 @@ or using Docker:
 VERSION="3.4.1"
 docker pull genomicslab/nanocaller:${VERSION}
 ```
+
+or using Singularity:
+
+```
+VERSION="3.4.1"
+singularity pull docker://genomicslab/nanocaller:${VERSION}
+```
+
 Please refer to [Installation](docs/Install.md) for instructions regarding installing NanoCaller through other methods.
 
 ## Usage

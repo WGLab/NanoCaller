@@ -1,4 +1,4 @@
-import time, os, datetime, queue
+import time, os, datetime, queue, pysam
 from tqdm import tqdm
 import numpy as np
 import multiprocessing as mp
@@ -220,25 +220,36 @@ def phase_run(contig_dict, params, indel_dict, job_Q, counter_Q, phased_snp_file
         lowq_input_contig_vcf= os.path.join(phase_dir, '%s.snps.lowq.unphased.vcf.gz' %contig)
         raw_output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.raw.vcf' %contig)
         output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.vcf.gz' %contig)
-        phased_bam = os.path.join(phase_dir, '%s.phased.bam' %contig)
+        
 
         phased_snp_files_list.append(output_contig_vcf)
         phased_snp_files_list.append(lowq_input_contig_vcf)
 
         enable_whatshap = '--distrust-genotypes --include-homozygous' if params['enable_whatshap'] else ''
         
+        #determine alignment file type
+        file_type=pysam.AlignmentFile(params['sam_path']).format
+        
         # extract region from VCF
-        run_cmd('bcftools view %s -r %s -i "QUAL>=%.4f"  -o %s' %(input_snp_vcf, contig, phase_qual_score,input_contig_vcf))
-        run_cmd('bcftools view %s -r %s -i "QUAL<%.4f"|bgziptabix  %s' %(input_snp_vcf, contig, phase_qual_score,lowq_input_contig_vcf))
+        run_cmd('bcftools view %s -r %s -i "QUAL>=%.4f"  -o %s' %(input_snp_vcf, contig, phase_qual_score,input_contig_vcf), verbose=params['verbose'])
+        run_cmd('bcftools view %s -r %s -i "QUAL<%.4f"|bgziptabix  %s' %(input_snp_vcf, contig, phase_qual_score,lowq_input_contig_vcf), verbose=params['verbose'])
 
         #phase VCF
-        run_cmd("whatshap phase %s %s -o %s -r %s --ignore-read-groups --chromosome %s %s" %(input_contig_vcf, params['sam_path'], raw_output_contig_vcf, params['fasta_path'], contig , enable_whatshap))
+        run_cmd("whatshap phase %s %s -o %s -r %s --ignore-read-groups --chromosome %s %s" %(input_contig_vcf, params['sam_path'], raw_output_contig_vcf, params['fasta_path'], contig , enable_whatshap), verbose=params['verbose'])
 
 
-        run_cmd("bcftools view -e  'GT=\"0\\0\"' %s|bgziptabix %s" %(raw_output_contig_vcf, output_contig_vcf))
-
-        run_cmd("whatshap haplotag --ignore-read-groups --ignore-linked-read --reference %s %s %s --regions %s:%d-%d --tag-supplementary -o - | samtools view -b -1 --write-index -o %s" %(params['fasta_path'], output_contig_vcf, params['sam_path'], contig, start, end, phased_bam), verbose=True)
-        run_cmd("touch -c %s.csi" %phased_bam) 
+        run_cmd("bcftools view -e  'GT=\"0\\0\"' %s|bgziptabix %s" %(raw_output_contig_vcf, output_contig_vcf), verbose=params['verbose'])
+        
+        if file_type=='BAM':
+            phased_bam = os.path.join(phase_dir, '%s.phased.bam' %contig)
+            run_cmd("whatshap haplotag --ignore-read-groups --ignore-linked-read --reference %s %s %s --regions %s:%d-%d --tag-supplementary -o - | samtools view -b -1 --write-index -o %s" %(params['fasta_path'], output_contig_vcf, params['sam_path'], contig, start, end, phased_bam), verbose=params['verbose'])
+            run_cmd("touch -c %s.csi" %phased_bam)
+        
+        elif file_type=='CRAM':
+            phased_bam = os.path.join(phase_dir, '%s.phased.cram' %contig)
+            run_cmd("whatshap haplotag --ignore-read-groups --ignore-linked-read --reference %s %s %s --regions %s:%d-%d --tag-supplementary -o - | samtools view -C -1 --write-index -o %s -T %s" %(params['fasta_path'], output_contig_vcf, params['sam_path'], contig, start, end, phased_bam, params['fasta_path']), verbose=params['verbose'])
+            run_cmd("touch -c %s.crai" %phased_bam)
+            
         if params['mode']=='snps':
             counter_Q.put(1)
         else:
@@ -377,13 +388,13 @@ def call_manager(params):
         
         print('\n%s: Compressing and indexing indel calls.' %str(datetime.datetime.now()))
         
-        run_cmd(' bcftools sort %s|rtg RTG_MEM=2G vcfdecompose -i - -o - |rtg RTG_MEM=2G vcffilter -i - --non-snps-only -o  %s' %(raw_indel_vcf, output_files['indels']))
+        run_cmd(' bcftools sort %s|rtg RTG_MEM=2G vcfdecompose -i - -o - |rtg RTG_MEM=2G vcffilter -i - --non-snps-only -o  %s' %(raw_indel_vcf, output_files['indels']), verbose=params['verbose'])
         
     if params['mode']=='all':
         final_vcf=os.path.join(params['vcf_path'],'%s.vcf.gz' %params['prefix'])
         output_files['final']=final_vcf
         
-        run_cmd('bcftools concat %s %s -a | bgziptabix %s' %(output_files['snps'], output_files['indels'], output_files['final']), error=True)
+        run_cmd('bcftools concat %s %s -a | bgziptabix %s' %(output_files['snps'], output_files['indels'], output_files['final']), verbose=params['verbose'])
         
         
     return output_files

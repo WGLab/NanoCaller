@@ -31,7 +31,7 @@ def run(args):
                  'vcf_path':args.output, 'prefix':args.prefix, 'sample':args.sample, \
                  'seq':args.sequencing, 'supplementary':args.supplementary, \
                  'exclude_bed':args.exclude_bed, 'suppress_progress':args.suppress_progress_bar, 
-                 'phase_qual_score':args.phase_qual_score}
+                 'phase_qual_score':args.phase_qual_score, 'verbose':args.verbose}
         
         snp_vcf=snpCaller.call_manager(in_dict)
         print('\n%s: SNP calling completed. Time taken= %.4f\n' %(str(datetime.datetime.now()), time.time()-snp_time),flush=True)
@@ -49,7 +49,7 @@ def run(args):
                  'impute_indel_phase':args.impute_indel_phase, 'supplementary':args.supplementary,\
                  'exclude_bed':args.exclude_bed, 'win_size':args.win_size, 'small_win_size':args.small_win_size,
                  'enable_whatshap':args.enable_whatshap, 'suppress_progress':args.suppress_progress_bar,
-                 'phase_qual_score':args.phase_qual_score}
+                 'phase_qual_score':args.phase_qual_score, 'verbose':args.verbose}
         
         files=indelCaller.call_manager(in_dict)
         print('\n%s: %s completed. Time taken= %.4f\n' %(str(datetime.datetime.now()), 'Phasing' if args.mode=='snps' else 'Indel calling', time.time()-indel_phase_time),flush=True)
@@ -101,6 +101,9 @@ if __name__ == '__main__':
     config_group.add_argument("--maxcov",  help="Maximum coverage of reads to use. If sequencing depth at a candidate site exceeds maxcov then reads are downsampled.", type=int, default=160)
     config_group.add_argument("--suppress_progress_bar", help="Do not show progress bar.", default=False, action='store_true')
     config_group.add_argument("--haploid_genome", help="Assume that all chromosomes in the genome are haploid.", default=False, action='store_true')
+    
+    config_group.add_argument("--verbose", help="Show all stdout and stderr messages", default=False, action='store_true')
+    
     config_group.add_argument("--haploid_X", help="Assume that chrX is haploid. chrY and chrM are assumed to be haploid by default.", default=False, action='store_true')
     
     #output options

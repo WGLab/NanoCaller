@@ -144,7 +144,7 @@ def get_indel_testing_candidates_haploid(dct, chunk):
     
     sam_path=chunk['sam_path']
     fasta_path=dct['fasta_path']
-    samfile = pysam.Samfile(sam_path, "rb")
+    samfile = pysam.Samfile(sam_path, reference_filename=fasta_path)
     fastafile=pysam.FastaFile(fasta_path)
 
     window_size=dct['win_size']
@@ -199,7 +199,7 @@ def get_indel_testing_candidates_haploid(dct, chunk):
     count=0
     prev=0
     for pcol in samfile.pileup(chrom,max(0,start-1),end,min_base_quality=0,\
-                                           flag_filter=flag,truncate=True):
+                                           flag_filter=flag,truncate=True, multiple_iterators=False):
             v_pos=pcol.pos+1
                 
             if not ex_bed(exclude_intervals, v_pos):                
@@ -241,7 +241,7 @@ def get_indel_testing_candidates_haploid(dct, chunk):
                         count+=1
                 
 
-    for pcol in samfile.pileup(chrom,max(0,start-10-window_size),end,min_base_quality=0, flag_filter=flag,truncate=True):
+    for pcol in samfile.pileup(chrom,max(0,start-10-window_size),end,min_base_quality=0, flag_filter=flag,truncate=True, multiple_iterators=False):
                     
         v_pos=pcol.pos+1
         

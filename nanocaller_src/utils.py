@@ -91,6 +91,7 @@ def run_cmd(cmd, verbose=False, output=False, error=False):
         print(stderr, flush=True)
     
     if verbose:
+        print(stderr, flush=True)
         print(stdout, flush=True)
         
         

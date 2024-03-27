@@ -131,14 +131,14 @@ def get_snp_testing_candidates(dct, region):
     
     nbr_size=20
     
-    samfile = pysam.Samfile(sam_path, "rb")
+    samfile = pysam.Samfile(sam_path, reference_filename=fasta_path)
     fastafile=pysam.FastaFile(fasta_path)
 
     ref_dict={j:s.upper() if s in 'AGTC' else '*' for j,s in zip(range(max(1,start-50000),end+50000+1),fastafile.fetch(chrom,max(1,start-50000)-1,end+50000)) }
     
     strand_dict={}
     
-    for pread in samfile.fetch(chrom, max(0, start-10), end + 10):
+    for pread in samfile.fetch(chrom, max(0, start-10), end + 10, multiple_iterators=False ):
         if pread.flag & 0x900==0:
             strand_dict[pread.qname]=(pread.flag & 2320)//16
             
@@ -154,7 +154,7 @@ def get_snp_testing_candidates(dct, region):
         flag=0x4|0x100|0x200|0x400|0x800
         
     for pcol in samfile.pileup(chrom,max(0,start-1-50000),end+50000,min_base_quality=0,\
-                                           flag_filter=flag,truncate=True):
+                                           flag_filter=flag,truncate=True, multiple_iterators=False):
             v_pos=pcol.pos+1
             r=ref_dict[v_pos]
             

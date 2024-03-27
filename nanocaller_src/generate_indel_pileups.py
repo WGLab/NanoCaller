@@ -144,7 +144,7 @@ def get_indel_testing_candidates(dct, chunk):
     
     sam_path=chunk['sam_path']
     fasta_path=dct['fasta_path']
-    samfile = pysam.Samfile(sam_path, "rb")
+    samfile = pysam.Samfile(sam_path, reference_filename=fasta_path)
     fastafile=pysam.FastaFile(fasta_path)
 
     window_size=dct['win_size']
@@ -177,7 +177,7 @@ def get_indel_testing_candidates(dct, chunk):
     
     hap_dict={1:[],2:[]}
     phase_dict={}
-    for pread in samfile.fetch(chrom, max(0, start-100000), end + 1000):
+    for pread in samfile.fetch(chrom, max(0, start-100000), end + 1000, multiple_iterators=False):
         if pread.has_tag('HP'):
             phase_dict[pread.qname]=pread.get_tag('PS')
             hap_dict[pread.get_tag('HP')].append(pread.qname)
@@ -211,7 +211,7 @@ def get_indel_testing_candidates(dct, chunk):
     count=0
     prev=0
     for pcol in samfile.pileup(chrom,max(0,start-1),end,min_base_quality=0,\
-                                           flag_filter=flag,truncate=True):
+                                           flag_filter=flag,truncate=True, multiple_iterators=False):
             v_pos=pcol.pos+1
                 
             if not ex_bed(exclude_intervals, v_pos):                
@@ -303,7 +303,7 @@ def get_indel_testing_candidates(dct, chunk):
                                 extra_variants[max(1,v_pos-10)]=(read_names_0,read_names_1)
                                 count+=1
 
-    for pcol in samfile.pileup(chrom,max(0,start-10-window_size),end,min_base_quality=0, flag_filter=flag,truncate=True):
+    for pcol in samfile.pileup(chrom,max(0,start-10-window_size),end,min_base_quality=0, flag_filter=flag,truncate=True, multiple_iterators=False):
                     
         v_pos=pcol.pos+1
         if v_pos in extra_variants:

@@ -12,7 +12,7 @@ dependencies:
   - python>=3.8
   - samtools>=1.10
   - tensorflow>=2.2
-  - whatshap>=1.0
+  - whatshap>=2.0
   - vcflib
   - intervaltree=3.*
   - tqdm

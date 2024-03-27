@@ -6,7 +6,7 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 NanoCaller is distributed under the [MIT License by Wang Genomics Lab](https://wglab.mit-license.org/).
 
 ## Latest Updates
-_**v3.4.2** (March 27 2024)_: CRAM files are supported in input as well as in phased output if whatshap version>=2 is being used with NanoCaller.
+_**v3.5.0** (March 27 2024)_: CRAM files are supported in input as well as in phased output if whatshap version>=2 is being used with NanoCaller.
 
 _**v3.4.0** (July 31 2023)_: VCF files contain total and strand-specific allele depths for SNP calls from SNP calling models. A new mode for short ONT reads (5-10kbp) added. `--phase_qual_score` parameter filters out low quality SNP calls from phasing by WhatsHap; these SNP calls are kept in the output, but neither phased nor used for phasing reads.
 

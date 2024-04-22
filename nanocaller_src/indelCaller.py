@@ -197,7 +197,7 @@ def phase_run(contig_dict, params, indel_dict, job_Q, counter_Q, phased_snp_file
         input_snp_vcf = params['snp_vcf']
         output_contig_vcf = os.path.join(phase_dir, '%s.snps.phased.vcf.gz' %contig)
         phased_snp_files_list.append(output_contig_vcf)
-        run_cmd('bcftools view %s -r %s|bgziptabix %s' %(input_snp_vcf, contig, output_contig_vcf))
+        run_cmd('bcftools view %s -r %s| bgzip > %s && tabix -fp vcf --csi %s' %(input_snp_vcf, contig, output_contig_vcf, output_contig_vcf))
         
         if params['mode']=='snps':
             counter_Q.put(1)
@@ -232,13 +232,13 @@ def phase_run(contig_dict, params, indel_dict, job_Q, counter_Q, phased_snp_file
         
         # extract region from VCF
         run_cmd('bcftools view %s -r %s -i "QUAL>=%.4f"  -o %s' %(input_snp_vcf, contig, phase_qual_score,input_contig_vcf), verbose=params['verbose'])
-        run_cmd('bcftools view %s -r %s -i "QUAL<%.4f"|bgziptabix  %s' %(input_snp_vcf, contig, phase_qual_score,lowq_input_contig_vcf), verbose=params['verbose'])
+        run_cmd('bcftools view %s -r %s -i "QUAL<%.4f"| bgzip > %s && tabix -fp vcf --csi %s' %(input_snp_vcf, contig, phase_qual_score, lowq_input_contig_vcf, lowq_input_contig_vcf), verbose=params['verbose'])
 
         #phase VCF
         run_cmd("whatshap phase %s %s -o %s -r %s --ignore-read-groups --chromosome %s %s" %(input_contig_vcf, params['sam_path'], raw_output_contig_vcf, params['fasta_path'], contig , enable_whatshap), verbose=params['verbose'])
 
 
-        run_cmd("bcftools view -e  'GT=\"0\\0\"' %s|bgziptabix %s" %(raw_output_contig_vcf, output_contig_vcf), verbose=params['verbose'])
+        run_cmd("bcftools view -e  'GT=\"0\\0\"' %s| bgzip > %s && tabix -fp vcf --csi %s" %(raw_output_contig_vcf, output_contig_vcf, output_contig_vcf), verbose=params['verbose'])
         
         if file_type=='BAM':
             phased_bam = os.path.join(phase_dir, '%s.phased.bam' %contig)
@@ -361,7 +361,7 @@ def call_manager(params):
         output_files['snps']=os.path.join(params['vcf_path'],'%s.snps.phased.vcf.gz' %params['prefix'])
         
         phased_snps_files='\n'.join(phased_snp_files_list)
-        cmd='bcftools concat -a -f - |bgziptabix %s' %(output_files['snps'])
+        cmd='bcftools concat -a -f - |bgzip > %s && tabix -fp vcf --csi %s' %(output_files['snps'], output_files['snps'])
         stream=Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         stdout, stderr = stream.communicate(input=phased_snps_files.encode())
         
@@ -388,13 +388,13 @@ def call_manager(params):
         
         print('\n%s: Compressing and indexing indel calls.' %str(datetime.datetime.now()))
         
-        run_cmd(' bcftools sort %s|rtg RTG_MEM=2G vcfdecompose -i - -o - |rtg RTG_MEM=2G vcffilter -i - --non-snps-only -o  %s' %(raw_indel_vcf, output_files['indels']), verbose=params['verbose'])
+        run_cmd(' bcftools sort %s|rtg RTG_MEM=2G vcfdecompose -i - -o - |rtg RTG_MEM=2G vcffilter -i - --non-snps-only -o - | bgzip > %s && tabix -fp vcf --csi %s' %(raw_indel_vcf, output_files['indels'], output_files['indels']), verbose=params['verbose'])
         
     if params['mode']=='all':
         final_vcf=os.path.join(params['vcf_path'],'%s.vcf.gz' %params['prefix'])
         output_files['final']=final_vcf
         
-        run_cmd('bcftools concat %s %s -a | bgziptabix %s' %(output_files['snps'], output_files['indels'], output_files['final']), verbose=params['verbose'])
+        run_cmd('bcftools concat %s %s -a | bgzip > %s && tabix -fp vcf --csi %s' %(output_files['snps'], output_files['indels'], output_files['final'], output_files['final']), verbose=params['verbose'])
         
         
     return output_files

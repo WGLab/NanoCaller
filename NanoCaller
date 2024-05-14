@@ -31,7 +31,8 @@ def run(args):
                  'vcf_path':args.output, 'prefix':args.prefix, 'sample':args.sample, \
                  'seq':args.sequencing, 'supplementary':args.supplementary, \
                  'exclude_bed':args.exclude_bed, 'suppress_progress':args.suppress_progress_bar, 
-                 'phase_qual_score':args.phase_qual_score, 'verbose':args.verbose}
+                 'phase_qual_score':args.phase_qual_score, 'verbose':args.verbose, \
+                 'disable_coverage_normalization':args.disable_coverage_normalization}
         
         snp_vcf=snpCaller.call_manager(in_dict)
         print('\n%s: SNP calling completed. Time taken= %.4f\n' %(str(datetime.datetime.now()), time.time()-snp_time),flush=True)
@@ -100,7 +101,7 @@ if __name__ == '__main__':
     config_group.add_argument("--mincov",  help="Minimum coverage to call a variant", type=int, default=4)
     config_group.add_argument("--maxcov",  help="Maximum coverage of reads to use. If sequencing depth at a candidate site exceeds maxcov then reads are downsampled.", type=int, default=160)
     config_group.add_argument("--suppress_progress_bar", help="Do not show progress bar.", default=False, action='store_true')
-    config_group.add_argument("--haploid_genome", help="Assume that all chromosomes in the genome are haploid.", default=False, action='store_true')
+    config_group.add_argument("--haploid_genome", help="Assume that all chromosomes in the genome are haploid.", default=False, action='store_true') 
     
     config_group.add_argument("--verbose", help="Show all stdout and stderr messages", default=False, action='store_true')
     
@@ -134,6 +135,8 @@ if __name__ == '__main__':
     snp_group.add_argument("--min_nbr_sites",  help="minimum number of nbr sites", type=int,  default =1)
     snp_group.add_argument("--neighbor_threshold",  help="SNP neighboring site thresholds with lower and upper bounds seperated by comma, for Nanopore reads '0.4,0.6' is recommended, for PacBio CCS anc CLR reads '0.3,0.7' and '0.3,0.6' are recommended respectively", type=str, default='0.4,0.6')
     snp_group.add_argument("--supplementary",  help="Use supplementary reads, not fully supported at the moment", default=False, action='store_true')
+    
+    snp_group.add_argument("--disable_coverage_normalization", help="Do not normalize pileup counts at a candidate site using average depth of the surrounding SNP candidate sites. Recommended for samples with high coverage (at least 100X) such as amplicon sequencing. Not recommended for low coverage samples (<30X).", default=False, action='store_true')
     
     
     #indel

@@ -89,8 +89,11 @@ def caller(params, chunks_Q, counter_Q, snp_files):
                 if chunk['ploidy']=='diploid':
                     test_ref=test_ref.astype(np.float16)
                     x_test=x_test.astype(np.float32)
-
-                    x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(train_coverage/coverage)
+                    
+                    if params['disable_coverage_normalization']:
+                        x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(train_coverage/dp[:,np.newaxis,np.newaxis,np.newaxis])
+                    else:
+                        x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(train_coverage/coverage)
 
                     for batch in range(int(np.ceil(len(x_test)/batch_size))):
                         batch_freq=freq[batch*batch_size:min((batch+1)*batch_size,len(freq))]
@@ -163,9 +166,12 @@ def caller(params, chunks_Q, counter_Q, snp_files):
                 elif chunk['ploidy']=='haploid':
                     test_ref=test_ref.astype(np.float16)
                     x_test=x_test.astype(np.float32)
-
-                    x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(hap_train_coverage/coverage)
-
+                    
+                    if params['disable_coverage_normalization']:
+                        x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(hap_train_coverage/dp[:,np.newaxis,np.newaxis,np.newaxis])
+                    else:
+                        x_test[:,1:,:,:4]=x_test[:,1:,:,:4]*(hap_train_coverage/coverage)
+                        
                     for batch in range(int(np.ceil(len(x_test)/batch_size))):
                         batch_freq=freq[batch*batch_size:min((batch+1)*batch_size,len(freq))]
                         batch_dp=dp[batch*batch_size:min((batch+1)*batch_size,len(dp))]
@@ -180,9 +186,15 @@ def caller(params, chunks_Q, counter_Q, snp_files):
 
                         for j in range(len(batch_pred)):
                             pred=batch_pred[j]
+                            
                             if pred!=batch_ref[j]:
                                 info_field='PR='+','.join("{:.4f}".format(x) for x in batch_probs[j,[0,3,1,2]])+ ";FQ={:.4f}".format(batch_freq[j])
                                 s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:VF:AD:ADF:ADR\t%s:%d:%.4f:.:.:.\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred])),'PASS',info_field,'1/1', batch_dp[j], batch_freq[j])
+                                f.write(s)
+                                
+                            else:
+                                info_field='PR='+','.join("{:.4f}".format(x) for x in batch_probs[j,[0,3,1,2]])+ ";FQ={:.4f}".format(batch_freq[j])
+                                s='%s\t%d\t.\t%s\t%s\t%.3f\t%s\t%s\tGT:DP:VF:AD:ADF:ADR\t%s:%d:%.4f:.:.:.\n' %(chrom, batch_pos[j], num_to_base_map[batch_ref[j]], num_to_base_map[pred], min(999,-100*np.log10(1e-10+ 1-batch_probs[j,pred])),'REF',info_field,'1/1', batch_dp[j], batch_freq[j])
                                 f.write(s)
 
                 f.flush()

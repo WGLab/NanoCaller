@@ -11,7 +11,7 @@ dependencies:
   - pysam
   - python>=3.8
   - samtools>=1.10
-  - tensorflow>=2.2
+  - tensorflow==2.15.0
   - whatshap>=2.0
   - vcflib
   - intervaltree=3.*

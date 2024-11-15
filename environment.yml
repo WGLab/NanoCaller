@@ -7,11 +7,11 @@ dependencies:
   - bcftools
   - parasail-python
   - muscle=3.8
-  - numpy
+  - numpy >=1.8,<2
   - pysam
   - python>=3.8
   - samtools>=1.10
-  - tensorflow==2.15.0
+  - tensorflow >=2.2,<=2.15.0
   - whatshap>=2.0
   - vcflib
   - intervaltree=3.*

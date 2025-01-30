@@ -25,6 +25,14 @@ It is recommened that you install NanoCaller in a new conda environment to avoid
 conda create -n nanocaller_env -c conda-forge mamba
 conda activate nanocaller_env
 mamba install -c bioconda nanocaller
+NanoCaller --help
+```
+
+If you do not want to use mamba, then the following method will also work:
+```
+conda create -n nanocaller_env -c bioconda nanocaller
+conda activate nanocaller_env
+NanoCaller --help
 ```
 
 ### Manual Installation

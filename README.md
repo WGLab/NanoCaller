@@ -25,21 +25,29 @@ _**v2.0.0** (Feb 2 2022)_ : A major update in API and installation instructions,
 _**v1.0.0** (Aug 8 2021)_ : First post-production release with citeable DOI: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5176764.svg)](https://doi.org/10.5281/zenodo.5176764)
 
 ## Installation
-NanoCaller can be installed using Docker or Conda. The easiest way to install is from the bioconda channel:
+NanoCaller can be installed using Docker or Conda. The easiest way to install is from the bioconda channel.
 
+For installation in a new conda environmment (recommended), use:
+```
+conda create -n nanocaller_env -c bioconda nanocaller
+conda activate nanocaller_env
+NanoCaller --help
+```
+
+For installation in existing conda environment, use"
 `conda install -c bioconda nanocaller`
 
-or using Docker:
+For Docker, use:
 
 ```
-VERSION="3.4.1"
+VERSION="3.6.0"
 docker pull genomicslab/nanocaller:${VERSION}
 ```
 
-or using Singularity:
+and for Singularity, use:
 
 ```
-VERSION="3.4.1"
+VERSION="3.6.0"
 singularity pull docker://genomicslab/nanocaller:${VERSION}
 ```
 

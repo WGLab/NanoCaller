@@ -1,5 +1,7 @@
 from subprocess import PIPE, Popen
-import os, shutil, pysam
+import os, sys, shutil, datetime
+
+import pysam
 
 def get_regions_list(args):
     regions_list=[]

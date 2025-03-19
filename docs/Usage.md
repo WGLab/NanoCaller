@@ -16,14 +16,14 @@ NanoCaller can call variants from whole genome or several chromosomes using a si
 You can pull the image as follows:
 
 ```
-VERSION="3.4.1"
+VERSION="3.6.2"
 docker pull genomicslab/nanocaller:${VERSION}
 ```
 
 And then run it as follows:
 
 ```
-VERSION="3.4.1"
+VERSION="3.6.2"
 docker run \
 -v 'YOUR_INPUT_DIR':'/input/' \
 -v 'YOUR_WORKING_DIR':'/output/' \
@@ -41,13 +41,13 @@ NanoCaller \
 You can use docker image for NanoCaller with Singularity with a similar syntax as described for docker above. Please check the [NanoCaller Docker Hub repository](https://hub.docker.com/repository/docker/genomicslab/nanocaller) for the most up to date version of NanoCaller docker image. You can pull the image as follows:
 
 ```
-VERSION="3.4.1"
+VERSION="3.6.2"
 singularity pull docker://genomicslab/nanocaller:${VERSION}
 ```
 
 And then run the image as follows:
 ```
-VERSION="3.4.1"
+VERSION="3.6.2"
 singularity run \
 --bind 'YOUR_INPUT_DIR':'/input/' \
 --bind 'YOUR_WORKING_DIR':'/output/' \

@@ -6,6 +6,7 @@ NanoCaller is a computational method that integrates long reads in deep convolut
 NanoCaller is distributed under the [MIT License by Wang Genomics Lab](https://wglab.mit-license.org/).
 
 ## Latest Updates
+_**v3.6.2** (March 19 2025)_: Fixed issues with bcftools temp directory and added option to disable region-based coverage normalization for high coverage samples.
 _**v3.6.0** (April 22 2024)_: CSI indices generated for VCF files instead of TBI to accommodate larger contigs.
 
 _**v3.5.0** (March 27 2024)_: CRAM files are supported in input as well as in phased output if whatshap version>=2 is being used with NanoCaller.
@@ -40,14 +41,14 @@ For installation in existing conda environment, use"
 For Docker, use:
 
 ```
-VERSION="3.6.0"
+VERSION="3.6.2"
 docker pull genomicslab/nanocaller:${VERSION}
 ```
 
 and for Singularity, use:
 
 ```
-VERSION="3.6.0"
+VERSION="3.6.2"
 singularity pull docker://genomicslab/nanocaller:${VERSION}
 ```
 

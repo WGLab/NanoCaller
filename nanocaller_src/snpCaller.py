@@ -281,7 +281,7 @@ def call_manager(params):
     
     print('\n%s: Compressing and indexing SNP calls.' %str(datetime.datetime.now()))
     
-    run_cmd("bcftools sort %s|bgzip > %a && tabix -fp vcf --csi %a" %(temp_output_file_path, all_snps_file_path, all_snps_file_path), error=True)
+    run_cmd("bcftools sort %s --temp-dir %s/|bgzip > %a && tabix -fp vcf --csi %a" %(temp_output_file_path, params['intermediate_snp_files_dir'], all_snps_file_path, all_snps_file_path), error=True)
     run_cmd("bcftools view %s -f PASS|bgzip > %a && tabix -fp vcf --csi %a" %(all_snps_file_path, pass_snps_file_path, pass_snps_file_path), error=True)
     
     return pass_snps_file_path

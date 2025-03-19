@@ -388,7 +388,7 @@ def call_manager(params):
         
         print('\n%s: Compressing and indexing indel calls.' %str(datetime.datetime.now()))
         
-        run_cmd(' bcftools sort %s|rtg RTG_MEM=2G vcfdecompose -i - -o - |rtg RTG_MEM=2G vcffilter -i - --non-snps-only -o - | bgzip > %s && tabix -fp vcf --csi %s' %(raw_indel_vcf, output_files['indels'], output_files['indels']), verbose=params['verbose'])
+        run_cmd(' bcftools sort %s --temp-dir %s/ |rtg RTG_MEM=2G vcfdecompose -i - -o - |rtg RTG_MEM=2G vcffilter -i - --non-snps-only -o - | bgzip > %s && tabix -fp vcf --csi %s' %(raw_indel_vcf, params['intermediate_indel_files_dir'], output_files['indels'], output_files['indels']), verbose=params['verbose'])
         
     if params['mode']=='all':
         final_vcf=os.path.join(params['vcf_path'],'%s.vcf.gz' %params['prefix'])
